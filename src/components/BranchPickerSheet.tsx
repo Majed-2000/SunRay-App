@@ -1,7 +1,6 @@
 import { Pressable, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, spacing } from '@/theme';
-import { branches } from '@/data';
 import { toArabicDigits } from '@/utils/numerals';
 import { useBranchStore } from '@/store';
 import { Txt } from './Txt';
@@ -13,6 +12,7 @@ export interface BranchPickerSheetProps {
 }
 
 export function BranchPickerSheet({ visible, onClose }: BranchPickerSheetProps) {
+  const branches = useBranchStore((s) => s.branches);
   const selectedId = useBranchStore((s) => s.selectedBranchId);
   const selectBranch = useBranchStore((s) => s.selectBranch);
   const selectNearest = useBranchStore((s) => s.selectNearest);

@@ -14,19 +14,22 @@ import {
   Txt,
 } from '@/components';
 import type { PaymentMethod } from '@/types';
-import { productById } from '@/data';
 import { CONFIG } from '@/constants/config';
 import { strings } from '@/i18n';
 import { formatRiyal, toArabicDigits } from '@/utils/numerals';
 import { pointsEarned } from '@/utils/money';
 import { useCartTotals } from '@/hooks/useCartTotals';
 import { useResponsive } from '@/hooks/useResponsive';
+import { USE_BACKEND } from '@/services/api';
 import {
+  useAuthStore,
   useBranchStore,
   useCartStore,
+  useCatalogStore,
   useLoyaltyStore,
   useOrderStore,
   useWalletStore,
+  toast,
 } from '@/store';
 
 const METHODS: { id: PaymentMethod; label: string; sub: string; icon: keyof typeof Ionicons.glyphMap }[] = [
@@ -50,13 +53,38 @@ export function CheckoutScreen() {
   const walletBalance = useWalletStore((s) => s.balance);
   const points = useLoyaltyStore((s) => s.points);
   const branch = useBranchStore((s) => s.current());
+  const user = useAuthStore((s) => s.user);
+  const isGuest = useAuthStore((s) => s.isGuest);
   const totals = useCartTotals();
   const { contentMaxWidth } = useResponsive();
   const t = strings();
 
   const [method, setMethod] = useState<PaymentMethod>(walletBalance > 0 ? 'wallet' : 'card');
+  const [submitting, setSubmitting] = useState(false);
 
-  const place = () => {
+  const place = async () => {
+    // Backend mode: send the cart to the server (it computes the totals), then
+    // go to success. Wallet/loyalty stay mock and are not touched here.
+    if (USE_BACKEND) {
+      if (submitting) return;
+      setSubmitting(true);
+      const order = await useOrderStore.getState().submitToBackend({
+        customerId: isGuest ? undefined : user?.id,
+        branchId: branch.id,
+        type: orderType,
+        lines,
+      });
+      setSubmitting(false);
+      if (!order) {
+        toast('تعذّر إرسال الطلب، تأكد من الاتصال وحاول مجددًا');
+        return;
+      }
+      clear();
+      router.replace(`/order-success?id=${order.id}`);
+      return;
+    }
+
+    // Mock mode (unchanged): compute locally + update mock wallet/loyalty.
     const order = useOrderStore.getState().place({
       type: orderType,
       branchId: branch.id,
@@ -91,7 +119,7 @@ export function CheckoutScreen() {
     // Path A loyalty: count eligible coffee cups (the backend does this from
     // `customer.order.created` webhooks in production).
     const coffeeCups = lines.reduce((n, l) => {
-      const cat = productById(l.productId)?.categoryId;
+      const cat = useCatalogStore.getState().productById(l.productId)?.categoryId;
       return cat && (CONFIG.COFFEE_CATEGORY_IDS as readonly string[]).includes(cat) ? n + l.qty : n;
     }, 0);
     useLoyaltyStore.getState().addCups(coffeeCups);
@@ -253,7 +281,12 @@ export function CheckoutScreen() {
         }}
       >
         <View style={{ width: '100%', maxWidth: contentMaxWidth, alignSelf: 'center' }}>
-          <Button label={orderType === 'delivery' ? 'اطلب التوصيل' : 'أكمل الطلب'} trailing={formatRiyal(totals.total)} onPress={place} />
+          <Button
+            label={orderType === 'delivery' ? 'اطلب التوصيل' : 'أكمل الطلب'}
+            trailing={formatRiyal(totals.total)}
+            onPress={place}
+            loading={submitting}
+          />
         </View>
       </View>
     </>

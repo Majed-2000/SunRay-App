@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -9,28 +9,70 @@ import {
   OptionChip,
   ProductImage,
   QtyStepper,
+  Spinner,
   TextField,
   Txt,
 } from '@/components';
-import { productById } from '@/data';
+import type { Product } from '@/types';
 import { formatRiyal, toArabicDigits } from '@/utils/numerals';
 import { selectionUnitPrice, type ProductSelection } from '@/utils/cart';
 import { useResponsive } from '@/hooks/useResponsive';
-import { useCartStore, toast } from '@/store';
+import { useCartStore, useCatalogStore, toast } from '@/store';
 
+/**
+ * Wrapper: find the product in the catalog store (loaded from mock or backend).
+ * If it isn't there yet (e.g. opened directly in backend mode), fetch the single
+ * product. Show a spinner while resolving, then render the detail form.
+ */
 export function ProductScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const storeProduct = useCatalogStore((s) => s.productById(id));
+  const fetchProduct = useCatalogStore((s) => s.fetchProduct);
+  const [fetched, setFetched] = useState<Product | null>(null);
+  const [tried, setTried] = useState(false);
+
+  useEffect(() => {
+    if (storeProduct) return;
+    let active = true;
+    fetchProduct(id).then((p) => {
+      if (active) {
+        setFetched(p);
+        setTried(true);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [id, storeProduct, fetchProduct]);
+
+  const product = storeProduct ?? fetched ?? undefined;
+  if (!product) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg }}>
+        {tried ? (
+          <Txt size={16} color={colors.textMuted}>
+            المنتج غير متوفر
+          </Txt>
+        ) : (
+          <Spinner />
+        )}
+      </View>
+    );
+  }
+  return <ProductDetail product={product} />;
+}
+
+function ProductDetail({ product }: { product: Product }) {
   const insets = useSafeAreaInsets();
   const { isTablet, select } = useResponsive();
   const productMaxWidth = select({ phone: 640, tablet: 600, largeTablet: 680 });
   const heroHeight = isTablet ? 320 : 240;
-  const product = productById(id);
   const addProduct = useCartStore((s) => s.addProduct);
 
-  const milks = product?.addOns.filter((a) => a.group === 'milk') ?? [];
-  const extras = product?.addOns.filter((a) => a.group === 'extra') ?? [];
+  const milks = product.addOns.filter((a) => a.group === 'milk');
+  const extras = product.addOns.filter((a) => a.group === 'extra');
 
-  const [sizeId, setSizeId] = useState(product?.sizes.find((z) => z.id === 'M')?.id ?? product?.sizes[0]?.id);
+  const [sizeId, setSizeId] = useState(product.sizes.find((z) => z.id === 'M')?.id ?? product.sizes[0]?.id);
   const [milkId, setMilkId] = useState(milks[0]?.id);
   const [extraIds, setExtraIds] = useState<string[]>([]);
   const [notes, setNotes] = useState('');
@@ -45,16 +87,6 @@ export function ProductScreen() {
     }),
     [sizeId, milkId, extraIds, notes, qty],
   );
-
-  if (!product) {
-    return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-        <Txt size={16} color={colors.textMuted}>
-          المنتج غير متوفر
-        </Txt>
-      </View>
-    );
-  }
 
   const unit = selectionUnitPrice(product, selection);
   const toggleExtra = (eid: string) =>

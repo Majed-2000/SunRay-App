@@ -12,17 +12,22 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 export function LoginScreen() {
   const insets = useSafeAreaInsets();
   const [phone, setPhone] = useState('');
-  const setPendingPhone = useAuthStore((s) => s.setPendingPhone);
+  const requestOtp = useAuthStore((s) => s.requestOtp);
   const continueAsGuest = useAuthStore((s) => s.continueAsGuest);
 
   const valid = isValidSaudiMobile(phone);
 
-  const onLogin = () => {
+  const onLogin = async () => {
     if (!valid) {
       toast('أدخل رقم جوال صحيح');
       return;
     }
-    setPendingPhone(normalizeMobile(phone));
+    // In mock mode this is instant; in backend mode it calls POST /api/auth/login.
+    const sent = await requestOtp(normalizeMobile(phone));
+    if (!sent) {
+      toast('تعذّر الاتصال بالخادم، تأكد من تشغيله');
+      return;
+    }
     router.push('/(auth)/otp');
   };
 

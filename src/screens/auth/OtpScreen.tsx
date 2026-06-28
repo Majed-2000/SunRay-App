@@ -27,12 +27,17 @@ export function OtpScreen() {
     return () => clearTimeout(t);
   }, []);
 
-  const submit = (value: string) => {
+  const submit = async (value: string) => {
     if (value.length < LENGTH) {
       toast('أدخل رمز التحقق كاملًا');
       return;
     }
-    verifyOtp();
+    // Mock mode: any 4 digits works. Backend mode: POST /api/auth/verify.
+    const okSignIn = await verifyOtp(value);
+    if (!okSignIn) {
+      toast('رمز غير صحيح أو تعذّر الاتصال بالخادم');
+      return;
+    }
     router.replace('/(tabs)/home');
   };
 

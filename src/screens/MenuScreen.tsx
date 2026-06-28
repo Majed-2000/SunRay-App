@@ -14,18 +14,20 @@ import {
   Spinner,
   Txt,
 } from '@/components';
-import { categories, products } from '@/data';
-import type { CategoryId } from '@/types';
 import { useResponsive } from '@/hooks/useResponsive';
-import { useSimulatedLoad } from '@/hooks/useSimulatedLoad';
-import { useCartStore } from '@/store';
+import { useCartStore, useCatalogStore } from '@/store';
 
-type Filter = 'all' | CategoryId;
+type Filter = string; // 'all' | a category id (mock key or backend id)
 
 export function MenuScreen() {
   const [filter, setFilter] = useState<Filter>('all');
   const { isTablet, gridColumns, contentMaxWidth } = useResponsive();
-  const { loading, error, reload } = useSimulatedLoad();
+  const categories = useCatalogStore((s) => s.categories);
+  const products = useCatalogStore((s) => s.products);
+  const status = useCatalogStore((s) => s.status);
+  const reload = useCatalogStore((s) => s.load);
+  const loading = status === 'loading';
+  const error = status === 'error';
   const orderType = useCartStore((s) => s.orderType);
   const setOrderType = useCartStore((s) => s.setOrderType);
   const quickAdd = useCartStore((s) => s.quickAdd);

@@ -19,6 +19,8 @@ export type OrderStatus = FoodicsOrderStatus;
 export type DeliveryStatus = FoodicsDeliveryStatus;
 
 // ───────────────────────── Menu ─────────────────────────
+// The known mock category keys. Real backend categories use opaque string ids,
+// so `Category.id`/`Product.categoryId` are typed as `string` (not this union).
 export type CategoryId =
   | 'hot'
   | 'cold'
@@ -30,7 +32,7 @@ export type CategoryId =
   | 'water';
 
 export interface Category {
-  id: CategoryId;
+  id: string; // mock uses CategoryId keys; backend uses opaque ids
   foodicsId: string; // maps to a Foodics category UUID
   nameAr: string;
   nameEn: string;
@@ -64,7 +66,7 @@ export interface Product {
   price: number; // base price (﷼)
   image: string | null; // null → placeholder
   emoji: string; // placeholder visual
-  categoryId: CategoryId;
+  categoryId: string; // references Category.id (mock key or backend id)
   calories?: number;
   sizes: ProductSize[]; // app-flattened view of Foodics "size" modifier options
   addOns: ProductAddOn[]; // app-flattened view of other Foodics modifier options

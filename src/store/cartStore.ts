@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import type { CartLine, OrderType, Product, Coupon } from '@/types';
 import { buildCartLine, type ProductSelection } from '@/utils/cart';
-import { couponByCode, productById } from '@/data';
+import { couponByCode } from '@/data';
+import { useCatalogStore } from './catalogStore';
 import { toast } from './uiStore';
 
 interface CartState {
@@ -58,7 +59,11 @@ export const useCartStore = create<CartState>((set, get) => ({
   quickAdd: (product) => {
     const sel: ProductSelection = {
       sizeId: product.sizes.find((z) => z.id === 'M')?.id ?? product.sizes[0]?.id,
-      addOnIds: product.addOns.some((a) => a.group === 'milk') ? ['milk_regular'] : [],
+      // pick the first "milk" option (works for both mock and backend products)
+      addOnIds: (() => {
+        const milk = product.addOns.find((a) => a.group === 'milk');
+        return milk ? [milk.id] : [];
+      })(),
       qty: 1,
     };
     get().addProduct(product, sel);
@@ -114,7 +119,7 @@ export function couponDiscount(coupon: Coupon | null, lines: CartLine[]): number
   if (!coupon) return 0;
   const base = coupon.appliesToCategory
     ? lines
-        .filter((l) => productById(l.productId)?.categoryId === coupon.appliesToCategory)
+        .filter((l) => useCatalogStore.getState().productById(l.productId)?.categoryId === coupon.appliesToCategory)
         .reduce((a, l) => a + l.unitPrice * l.qty, 0)
     : lines.reduce((a, l) => a + l.unitPrice * l.qty, 0);
   if (coupon.kind === 'percent') return Math.round(base * (coupon.value / 100) * 100) / 100;

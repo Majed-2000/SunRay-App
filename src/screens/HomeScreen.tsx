@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -17,7 +17,7 @@ import {
   SectionHeader,
   Txt,
 } from '@/components';
-import { featuredProducts, giftDesigns, offers } from '@/data';
+import { giftDesigns, offers } from '@/data';
 import { CONFIG } from '@/constants/config';
 import { strings } from '@/i18n';
 import { useResponsive } from '@/hooks/useResponsive';
@@ -25,6 +25,7 @@ import {
   useAuthStore,
   useBranchStore,
   useCartStore,
+  useCatalogStore,
   useLoyaltyStore,
   useNotificationStore,
 } from '@/store';
@@ -40,8 +41,8 @@ export function HomeScreen() {
   const pointsToNext = useLoyaltyStore((s) => s.pointsToNextDrink());
   const setOrderType = useCartStore((s) => s.setOrderType);
   const unreadCount = useNotificationStore((s) => s.unreadCount());
-
-  const featured = featuredProducts();
+  const catalogProducts = useCatalogStore((s) => s.products);
+  const featured = useMemo(() => catalogProducts.filter((p) => p.isFeatured), [catalogProducts]);
   const t = strings();
 
   const startOrder = (type: 'pickup' | 'delivery') => {

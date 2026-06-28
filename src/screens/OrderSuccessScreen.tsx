@@ -3,7 +3,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { colors, radius, shadows, spacing } from '@/theme';
 import { Button, Card, Divider, ScreenContainer, Txt } from '@/components';
-import { useOrderStore } from '@/store';
+import { useOrderStore, orderRef } from '@/store';
 import { formatRiyal, toArabicDigits } from '@/utils/numerals';
 
 export function OrderSuccessScreen() {
@@ -34,7 +34,7 @@ export function OrderSuccessScreen() {
           تم إرسال طلبك ☀
         </Txt>
         <Txt size={14} color={colors.textMuted} style={{ marginTop: 6 }}>
-          رقم الطلب {order?.id ?? '—'}
+          رقم الطلب {order ? orderRef(order.id) : '—'}
         </Txt>
         <View
           style={{

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import {
   FoodicsOrderStatus,
   FoodicsDeliveryStatus,
+  type CartLine,
   type Order,
   type OrderItemSnapshot,
   type OrderType,
@@ -11,6 +12,9 @@ import {
   type PaymentMethod,
 } from '@/types';
 import { mockOrders } from '@/data';
+import { request, USE_BACKEND } from '@/services/api';
+import { mapOrder, APP_TYPE_TO_BACKEND, type OrderDTO, type BackendOrderStatus } from '@/services/dto';
+import { toCartItem } from '@/services/orders';
 
 /**
  * A progression step = the Foodics (status, deliveryStatus) snapshot for a given
@@ -91,26 +95,73 @@ export interface PlaceOrderInput {
   etaMinutes: number;
 }
 
+/** Friendly order reference for display. Backend ids are long → show SR-XXXXX. */
+export function orderRef(id: string): string {
+  return id.startsWith('SR-') ? id : `SR-${id.slice(-5).toUpperCase()}`;
+}
+
+/** The next backend status for the dev "advance" action, based on the current stage. */
+function nextBackendStatus(o: Order): BackendOrderStatus | null {
+  switch (orderStage(o)) {
+    case 'pending':
+      return 'ACCEPTED';
+    case 'preparing':
+      return 'READY';
+    case 'ready':
+      return o.type === 'delivery' ? 'EN_ROUTE' : 'COMPLETED';
+    case 'enRoute':
+      return 'COMPLETED';
+    default:
+      return null; // completed / cancelled
+  }
+}
+
+export interface SubmitToBackendInput {
+  customerId?: string;
+  branchId: string;
+  type: OrderType;
+  lines: CartLine[];
+  customerNotes?: string;
+}
+
+type Status = 'idle' | 'loading' | 'ready' | 'error';
+
 interface OrderState {
   orders: Order[];
+  status: Status;
+  error: string | null;
+  // mock (unchanged)
   place: (input: PlaceOrderInput) => Order;
   advance: (id: string) => void;
   getById: (id: string) => Order | undefined;
+  // backend (used when USE_BACKEND)
+  loadOrders: (customerId?: string) => Promise<void>;
+  submitToBackend: (input: SubmitToBackendInput) => Promise<Order | null>;
+  fetchOrder: (id: string) => Promise<Order | undefined>;
+  advanceBackend: (id: string) => Promise<void>;
+}
+
+/** Replace an order in the list, or prepend it if new. */
+function upsert(orders: Order[], order: Order): Order[] {
+  const idx = orders.findIndex((o) => o.id === order.id);
+  if (idx < 0) return [order, ...orders];
+  const copy = [...orders];
+  copy[idx] = order;
+  return copy;
 }
 
 export const useOrderStore = create<OrderState>((set, get) => ({
-  orders: mockOrders,
+  // Mock mode starts with seeded orders; backend mode starts empty + loading.
+  orders: USE_BACKEND ? [] : mockOrders,
+  status: USE_BACKEND ? 'loading' : 'ready',
+  error: null,
 
-  /**
-   * Mock submit. The real flow POSTs a CheckoutPayload to our backend
-   * (services/orders.ts → submitOrder), which injects the order into Foodics;
-   * Foodics returns it as Pending (source=API). Here we just start at Pending.
-   */
+  /** Mock submit — starts the order at Pending and prepends it locally. */
   place: (input) => {
     const first = stepsFor(input.type)[0];
     const order: Order = {
       id: `SR-${Math.floor(1000 + Math.random() * 9000)}`,
-      foodicsOrderId: null, // assigned by the backend once injected into Foodics
+      foodicsOrderId: null,
       createdAt: Date.now(),
       status: first.status,
       deliveryStatus: first.deliveryStatus,
@@ -133,4 +184,70 @@ export const useOrderStore = create<OrderState>((set, get) => ({
     })),
 
   getById: (id) => get().orders.find((o) => o.id === id),
+
+  // ── Backend actions (only used when USE_BACKEND) ──────────────────────────
+  loadOrders: async (customerId) => {
+    if (!USE_BACKEND) {
+      set({ orders: mockOrders, status: 'ready', error: null });
+      return;
+    }
+    set({ status: 'loading', error: null });
+    try {
+      const dtos = await request<OrderDTO[]>('/api/orders', {
+        query: customerId ? { customerId } : undefined,
+      });
+      set({ orders: dtos.map(mapOrder), status: 'ready', error: null });
+    } catch (e) {
+      set({ status: 'error', error: e instanceof Error ? e.message : 'تعذّر تحميل الطلبات' });
+    }
+  },
+
+  submitToBackend: async (input) => {
+    try {
+      const dto = await request<OrderDTO>('/api/orders', {
+        method: 'POST',
+        body: {
+          customerId: input.customerId,
+          branchId: input.branchId,
+          type: APP_TYPE_TO_BACKEND[input.type],
+          items: input.lines.map(toCartItem), // backend ignores the extra unitPrice
+          customerNotes: input.customerNotes,
+        },
+      });
+      const order = mapOrder(dto);
+      set((s) => ({ orders: upsert(s.orders, order) }));
+      return order;
+    } catch {
+      return null;
+    }
+  },
+
+  fetchOrder: async (id) => {
+    if (!USE_BACKEND) return get().getById(id);
+    try {
+      const dto = await request<OrderDTO>(`/api/orders/${id}`);
+      const order = mapOrder(dto);
+      set((s) => ({ orders: upsert(s.orders, order) }));
+      return order;
+    } catch {
+      return get().getById(id);
+    }
+  },
+
+  advanceBackend: async (id) => {
+    const current = get().getById(id);
+    if (!current) return;
+    const next = nextBackendStatus(current);
+    if (!next) return;
+    try {
+      const dto = await request<OrderDTO>(`/api/orders/${id}/status`, {
+        method: 'PATCH',
+        body: { status: next },
+      });
+      const order = mapOrder(dto);
+      set((s) => ({ orders: upsert(s.orders, order) }));
+    } catch {
+      /* ignore — UI keeps the previous status */
+    }
+  },
 }));

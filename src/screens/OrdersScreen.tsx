@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -16,8 +17,8 @@ import { branchById } from '@/data';
 import { strings } from '@/i18n';
 import { formatRiyal, toArabicDigits } from '@/utils/numerals';
 import { useResponsive } from '@/hooks/useResponsive';
-import { useSimulatedLoad } from '@/hooks/useSimulatedLoad';
-import { useOrderStore, isActiveOrder, orderStage } from '@/store';
+import { USE_BACKEND } from '@/services/api';
+import { useAuthStore, useOrderStore, isActiveOrder, orderStage, orderRef } from '@/store';
 
 function relativeDay(createdAt: number): string {
   const days = Math.floor((Date.now() - createdAt) / (24 * 60 * 60 * 1000));
@@ -28,9 +29,22 @@ function relativeDay(createdAt: number): string {
 
 export function OrdersScreen() {
   const orders = useOrderStore((s) => s.orders);
-  const { loading, error, reload } = useSimulatedLoad();
+  const status = useOrderStore((s) => s.status);
+  const loadOrders = useOrderStore((s) => s.loadOrders);
+  const user = useAuthStore((s) => s.user);
+  const isGuest = useAuthStore((s) => s.isGuest);
   const { contentMaxWidth } = useResponsive();
   const t = strings();
+
+  // Only the backend list needs fetching; mock orders live in the store already
+  // (and re-loading would wipe a just-placed mock order).
+  useEffect(() => {
+    if (USE_BACKEND) loadOrders(isGuest ? undefined : user?.id);
+  }, [loadOrders, isGuest, user?.id]);
+
+  const loading = status === 'loading';
+  const error = status === 'error';
+  const reload = () => loadOrders(isGuest ? undefined : user?.id);
   const active = orders.filter((o) => isActiveOrder(o));
   const past = orders.filter((o) => !isActiveOrder(o));
 
@@ -97,7 +111,7 @@ export function OrdersScreen() {
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Ionicons name={order.type === 'delivery' ? 'bicycle' : 'storefront'} size={16} color={colors.terracotta} />
               <Txt size={15} weight="black" color={colors.ink}>
-                {order.id}
+                {orderRef(order.id)}
               </Txt>
             </View>
             <Txt size={12} color={colors.textFaint} style={{ marginTop: 3 }}>

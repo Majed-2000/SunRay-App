@@ -1,22 +1,46 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { colors, radius, shadows, spacing } from '@/theme';
-import { Button, Card, Header, ScreenContainer, TrackSteps, Txt } from '@/components';
+import { Button, Card, Header, ScreenContainer, Spinner, TrackSteps, Txt } from '@/components';
 import { strings } from '@/i18n';
 import { toArabicDigits } from '@/utils/numerals';
-import { flowStages, currentStepIndex, orderStage, useOrderStore } from '@/store';
+import { USE_BACKEND } from '@/services/api';
+import { flowStages, currentStepIndex, orderStage, orderRef, useOrderStore } from '@/store';
 
 export function TrackScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const order = useOrderStore((s) => s.getById(id));
   const advance = useOrderStore((s) => s.advance);
+  const fetchOrder = useOrderStore((s) => s.fetchOrder);
+  const advanceBackend = useOrderStore((s) => s.advanceBackend);
   const t = strings();
+  const [loading, setLoading] = useState(USE_BACKEND && !order);
 
-  // Simulate live progress until the order completes.
   useEffect(() => {
     if (!id) return;
+
+    if (USE_BACKEND) {
+      // Backend mode: POLL the real order every 3s so any status change (from the
+      // dev button or a `curl PATCH`) shows up. We do NOT auto-mutate the backend.
+      let active = true;
+      fetchOrder(id).finally(() => active && setLoading(false));
+      const timer = setInterval(() => {
+        const current = useOrderStore.getState().getById(id);
+        if (current && orderStage(current) === 'completed') {
+          clearInterval(timer);
+          return;
+        }
+        fetchOrder(id);
+      }, 3000);
+      return () => {
+        active = false;
+        clearInterval(timer);
+      };
+    }
+
+    // Mock mode: simulate live progress locally (unchanged).
     const timer = setInterval(() => {
       const current = useOrderStore.getState().getById(id);
       if (!current || orderStage(current) === 'completed') {
@@ -26,14 +50,18 @@ export function TrackScreen() {
       advance(id);
     }, 2600);
     return () => clearInterval(timer);
-  }, [id, advance]);
+  }, [id, advance, fetchOrder]);
 
   if (!order) {
     return (
-      <ScreenContainer header={<Header showBack title="تتبع الطلب" />}>
-        <Txt size={15} color={colors.textMuted} center style={{ marginTop: spacing['4xl'] }}>
-          الطلب غير موجود
-        </Txt>
+      <ScreenContainer scroll={false} header={<Header showBack title="تتبع الطلب" />}>
+        {loading ? (
+          <Spinner />
+        ) : (
+          <Txt size={15} color={colors.textMuted} center style={{ marginTop: spacing['4xl'] }}>
+            الطلب غير موجود
+          </Txt>
+        )}
       </ScreenContainer>
     );
   }
@@ -54,7 +82,7 @@ export function TrackScreen() {
 
       <View style={{ padding: spacing['2xl'] }}>
         <Txt size={13} weight="bold" color={colors.textFaint}>
-          رقم الطلب {order.id}
+          رقم الطلب {orderRef(order.id)}
         </Txt>
         <Txt size={24} weight="black" color={colors.ink} style={{ marginTop: 2 }}>
           {done ? 'وصل طلبك، بالهنا ☀' : `الوصول خلال ${toArabicDigits(order.etaMinutes)} دقيقة`}
@@ -85,7 +113,17 @@ export function TrackScreen() {
           </Card>
         ) : null}
 
-        <Button label="العودة للرئيسية" variant="outline" style={{ marginTop: spacing.xl }} onPress={() => router.replace('/(tabs)/home')} />
+        {USE_BACKEND && !done ? (
+          <Button
+            label="تقديم الحالة (اختبار)"
+            variant="ghost"
+            size="sm"
+            style={{ marginTop: spacing.lg }}
+            onPress={() => advanceBackend(order.id)}
+          />
+        ) : null}
+
+        <Button label="العودة للرئيسية" variant="outline" style={{ marginTop: spacing.md }} onPress={() => router.replace('/(tabs)/home')} />
       </View>
     </ScreenContainer>
   );

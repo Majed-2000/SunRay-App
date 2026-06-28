@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Local SQLite database files (never commit data/db)
+prisma/*.db
+prisma/*.db-journal
+*.db
+
+# Secrets / local environment (commit .env.example instead)
+.env
+
+# Logs / OS
+*.log
+.DS_Store

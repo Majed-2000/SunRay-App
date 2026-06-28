@@ -1,0 +1,235 @@
+// Prisma schema — defines our database tables and how they relate.
+//
+// Beginner notes:
+// - Money is stored as INTEGER "halalas" (1 SAR = 100 halalas). e.g. 1800 = 18.00 SAR.
+//   This avoids floating-point rounding bugs with money.
+// - SQLite does NOT support Prisma `enum`, so status-like fields are `String`.
+//   The allowed values are written in a comment next to each field and enforced
+//   in code with Zod. When we move to PostgreSQL later we can turn them into real enums.
+// - `id String @id @default(cuid())` gives every row a unique text id automatically.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  // To switch to PostgreSQL later: change provider to "postgresql" and set a
+  // postgresql:// DATABASE_URL in .env. The models below stay the same.
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Customer {
+  id         String   @id @default(cuid())
+  name       String
+  phone      String   @unique
+  email      String?
+  gender     String? // "male" | "female"
+  city       String?
+  birthDay   Int? //   1-31 (no year — for birthday offers)
+  birthMonth Int? //   1-12
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  addresses          Address[]
+  orders             Order[]
+  walletTransactions WalletTransaction[]
+  loyaltyCounter     LoyaltyCounter?
+  loyaltyRewards     LoyaltyReward[]
+  notifications      Notification[]
+  giftCardsSent      GiftCard[]          @relation("GiftSender")
+  giftCardsRedeemed  GiftCard[]          @relation("GiftRedeemer")
+}
+
+model Address {
+  id         String   @id @default(cuid())
+  customerId String
+  label      String // "home" | "work" | "other"
+  city       String
+  district   String?
+  street     String?
+  details    String?
+  latitude   Float?
+  longitude  Float?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  customer Customer @relation(fields: [customerId], references: [id])
+}
+
+model Branch {
+  id          String   @id @default(cuid())
+  name        String
+  address     String?
+  latitude    Float?
+  longitude   Float?
+  openingFrom String? // "HH:MM"
+  openingTo   String? // "HH:MM"
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  orders Order[]
+}
+
+model Category {
+  id        String   @id @default(cuid())
+  nameAr    String
+  nameEn    String?
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  products Product[]
+}
+
+model Product {
+  id              String   @id @default(cuid())
+  categoryId      String
+  nameAr          String
+  nameEn          String?
+  descriptionAr   String?
+  descriptionEn   String?
+  price           Int //     halalas
+  image           String?
+  calories        Int?
+  isAvailable     Boolean  @default(true)
+  isFeatured      Boolean  @default(false)
+  preparationTime Int? //    minutes
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  category   Category    @relation(fields: [categoryId], references: [id])
+  modifiers  Modifier[]
+  orderItems OrderItem[]
+}
+
+model Modifier {
+  id          String   @id @default(cuid())
+  productId   String
+  nameAr      String
+  nameEn      String?
+  minSelected Int      @default(0)
+  maxSelected Int      @default(1)
+  isRequired  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  product Product          @relation(fields: [productId], references: [id])
+  options ModifierOption[]
+}
+
+model ModifierOption {
+  id          String   @id @default(cuid())
+  modifierId  String
+  nameAr      String
+  nameEn      String?
+  price       Int      @default(0) // halalas
+  isAvailable Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  modifier Modifier @relation(fields: [modifierId], references: [id])
+}
+
+model Order {
+  id            String    @id @default(cuid())
+  customerId    String?
+  branchId      String?
+  type          String //  "PICKUP" | "DELIVERY" | "DINE_IN"
+  status        String    @default("PENDING") // PENDING|ACCEPTED|PREPARING|READY|EN_ROUTE|COMPLETED|CANCELLED
+  subtotal      Int //     halalas
+  vat           Int
+  deliveryFee   Int       @default(0)
+  discount      Int       @default(0)
+  total         Int
+  customerNotes String?
+  scheduledAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  customer Customer?   @relation(fields: [customerId], references: [id])
+  branch   Branch?     @relation(fields: [branchId], references: [id])
+  items    OrderItem[]
+}
+
+model OrderItem {
+  id          String   @id @default(cuid())
+  orderId     String
+  productId   String
+  productName String
+  quantity    Int
+  unitPrice   Int //     halalas
+  totalPrice  Int //     halalas
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  order   Order   @relation(fields: [orderId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+}
+
+model WalletTransaction {
+  id           String   @id @default(cuid())
+  customerId   String
+  type         String //  "CREDIT" | "DEBIT"
+  source       String //  "TOP_UP" | "ORDER_PAYMENT" | "GIFT_CARD" | "REFUND" | "ADMIN"
+  amount       Int //     halalas (always positive; `type` says credit/debit)
+  balanceAfter Int //     halalas
+  note         String?
+  createdAt    DateTime @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id])
+}
+
+model GiftCard {
+  id                   String    @id @default(cuid())
+  senderCustomerId     String?
+  recipientPhone       String
+  recipientName        String?
+  amount               Int //      halalas
+  code                 String    @unique
+  status               String    @default("ACTIVE") // ACTIVE|REDEEMED|EXPIRED|CANCELLED
+  message              String?
+  redeemedByCustomerId String?
+  redeemedAt           DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  senderCustomer     Customer? @relation("GiftSender", fields: [senderCustomerId], references: [id])
+  redeemedByCustomer Customer? @relation("GiftRedeemer", fields: [redeemedByCustomerId], references: [id])
+}
+
+model LoyaltyCounter {
+  id         String   @id @default(cuid())
+  customerId String   @unique
+  cupCount   Int      @default(0)
+  goal       Int      @default(6)
+  updatedAt  DateTime @updatedAt
+
+  customer Customer @relation(fields: [customerId], references: [id])
+}
+
+model LoyaltyReward {
+  id         String    @id @default(cuid())
+  customerId String
+  code       String    @unique
+  type       String //   e.g. "FREE_COFFEE"
+  status     String    @default("ACTIVE") // ACTIVE|REDEEMED|EXPIRED
+  issuedAt   DateTime  @default(now())
+  redeemedAt DateTime?
+
+  customer Customer @relation(fields: [customerId], references: [id])
+}
+
+model Notification {
+  id         String   @id @default(cuid())
+  customerId String?
+  title      String
+  body       String
+  type       String //  "orderAccepted" | "orderReady" | "pointsEarned" | "giftReceived" | "birthdayOffer"
+  isRead     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  customer Customer? @relation(fields: [customerId], references: [id])
+}

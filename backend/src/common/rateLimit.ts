@@ -10,7 +10,7 @@
  * shared store (e.g. `rate-limit-redis`). IP-based keying also depends on a
  * correct `trust proxy` setting (see config/env TRUST_PROXY).
  */
-import rateLimit, { type RateLimitRequestHandler } from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator, type RateLimitRequestHandler } from 'express-rate-limit';
 import type { Request, Response } from 'express';
 import { env } from '../config/env';
 
@@ -31,6 +31,20 @@ interface LimiterOpts {
   skipInTest?: boolean;
 }
 
+/**
+ * Identify the client. Behind Cloudflare (Render fronts every service with it),
+ * `CF-Connecting-IP` is the real, unspoofable client IP — using it makes per-client
+ * limiting correct regardless of how many proxy hops sit in front (so we don't have
+ * to guess the exact `trust proxy` depth). Falls back to req.ip in plain setups.
+ */
+function clientKey(req: Request): string {
+  const cf = req.headers['cf-connecting-ip'];
+  const ip = typeof cf === 'string' && cf.length > 0 ? cf : req.ip ?? req.socket.remoteAddress ?? 'unknown';
+  // Normalize (masks IPv6 to a /64) so an IPv6 client can't rotate addresses to
+  // evade limits — this is what silences express-rate-limit's IPv6 key warning.
+  return ipKeyGenerator(ip);
+}
+
 /** Build a limiter with our standard envelope + headers. */
 export function createLimiter({ windowMs, limit, skipInTest }: LimiterOpts): RateLimitRequestHandler {
   return rateLimit({
@@ -38,6 +52,7 @@ export function createLimiter({ windowMs, limit, skipInTest }: LimiterOpts): Rat
     limit,
     standardHeaders: true,
     legacyHeaders: false,
+    keyGenerator: clientKey,
     handler: rateLimitedHandler,
     skip: skipInTest ? () => env.NODE_ENV === 'test' : undefined,
   });

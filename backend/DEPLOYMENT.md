@@ -36,14 +36,25 @@ committed `render.yaml` blueprint.
    curl https://sunray-backend.onrender.com/health        # {ok:true,...}
    curl https://sunray-backend.onrender.com/health/ready  # DB reachable
    ```
-4. (Optional) seed the catalog so the menu isn't empty — Render shell:
-   `node scripts/use-postgres.mjs postgresql && npx prisma db seed`
+4. **Seed the catalog (required, once).** `db push` creates empty tables, so the
+   menu/branches screens are blank until you seed. In the Render **Shell**, run:
+   ```
+   npx prisma db seed
+   ```
+   ⚠️ Run this **only once** — `seed.ts` is destructive (it `deleteMany`s before
+   inserting), so re-running wipes any real orders/customers. Never put it in the
+   start command.
 5. Point the app at it: in the project root `.env`
    ```
    EXPO_PUBLIC_API_BASE_URL=https://sunray-backend.onrender.com
    EXPO_PUBLIC_USE_BACKEND=true
    ```
    Rebuild the app (`npx expo start -c`, or an EAS build) and it works globally.
+
+> **Free-tier cold starts:** a free Render service sleeps after ~15 min idle and
+> takes 30–50s to wake. The app uses a 60s request timeout and pings `/health` at
+> launch to warm it, so the first login works — it may just be slow the first time.
+> Override the timeout with `EXPO_PUBLIC_REQUEST_TIMEOUT_MS` if needed.
 
 > Other managed hosts (Railway, Fly.io) work the same way — provision Postgres,
 > set the env vars below, build with the buildCommand, start with the startCommand.

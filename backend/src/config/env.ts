@@ -57,6 +57,14 @@ if (isProd && env.JWT_ACCESS_SECRET === DEV_JWT_SECRET) {
   process.exit(1);
 }
 
+// Reject a weak (crackable) signing secret in production. Render's generated value
+// (~44 chars) and a randomBytes(48) value (~64 chars) both pass; keep the exact
+// dev-default check above too (the dev default is 34 chars and would slip past this).
+if (isProd && env.JWT_ACCESS_SECRET.length < 32) {
+  console.error('❌ JWT_ACCESS_SECRET must be at least 32 characters in production.');
+  process.exit(1);
+}
+
 /** Parsed CORS allowlist (empty array = reflect any origin, intended for dev). */
 export const corsOrigins = env.CORS_ORIGINS.split(',')
   .map((s) => s.trim())

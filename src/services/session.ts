@@ -71,11 +71,17 @@ export function refreshAccessToken(): Promise<boolean> {
 async function doRefresh(): Promise<boolean> {
   const refreshToken = await loadRefreshToken();
   if (!refreshToken) return false;
+  // Bound the fetch — RN/Android fetch has no default timeout, so without this a
+  // stalled network on app launch would hang the splash screen indefinitely
+  // (restoreSession awaits this before clearing the hydration gate).
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 60_000);
   try {
     const res = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
       body: JSON.stringify({ refreshToken }),
+      signal: controller.signal,
     });
     const json = (await res.json().catch(() => null)) as
       | { ok: true; data: { accessToken: string; refreshToken: string } }
@@ -91,8 +97,10 @@ async function doRefresh(): Promise<boolean> {
     await saveRefreshToken(json.data.refreshToken); // rotation
     return true;
   } catch {
-    // Network error — keep the refresh token; the caller will surface a network error.
+    // Network error or timeout — keep the refresh token; caller surfaces a network error.
     return false;
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 

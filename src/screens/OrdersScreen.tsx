@@ -31,20 +31,27 @@ export function OrdersScreen() {
   const orders = useOrderStore((s) => s.orders);
   const status = useOrderStore((s) => s.status);
   const loadOrders = useOrderStore((s) => s.loadOrders);
-  const user = useAuthStore((s) => s.user);
   const isGuest = useAuthStore((s) => s.isGuest);
   const { contentMaxWidth } = useResponsive();
   const t = strings();
 
   // Only the backend list needs fetching; mock orders live in the store already
-  // (and re-loading would wipe a just-placed mock order).
+  // (and re-loading would wipe a just-placed mock order). The backend scopes the
+  // list to the authenticated customer, so guests (who can't order) show empty.
   useEffect(() => {
-    if (USE_BACKEND) loadOrders(isGuest ? undefined : user?.id);
-  }, [loadOrders, isGuest, user?.id]);
+    if (!USE_BACKEND) return;
+    if (isGuest) {
+      useOrderStore.setState({ status: 'ready', orders: [] });
+    } else {
+      loadOrders();
+    }
+  }, [loadOrders, isGuest]);
 
   const loading = status === 'loading';
   const error = status === 'error';
-  const reload = () => loadOrders(isGuest ? undefined : user?.id);
+  const reload = () => {
+    if (!isGuest) loadOrders();
+  };
   const active = orders.filter((o) => isActiveOrder(o));
   const past = orders.filter((o) => !isActiveOrder(o));
 

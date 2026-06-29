@@ -12,18 +12,22 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 export function LoginScreen() {
   const insets = useSafeAreaInsets();
   const [phone, setPhone] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const requestOtp = useAuthStore((s) => s.requestOtp);
   const continueAsGuest = useAuthStore((s) => s.continueAsGuest);
 
   const valid = isValidSaudiMobile(phone);
 
   const onLogin = async () => {
+    if (submitting) return; // guard against double-tap (real network call in backend mode)
     if (!valid) {
       toast('أدخل رقم جوال صحيح');
       return;
     }
     // In mock mode this is instant; in backend mode it calls POST /api/auth/login.
+    setSubmitting(true);
     const sent = await requestOtp(normalizeMobile(phone));
+    setSubmitting(false);
     if (!sent) {
       toast('تعذّر الاتصال بالخادم، تأكد من تشغيله');
       return;
@@ -57,7 +61,7 @@ export function LoginScreen() {
       {/* phone field — LTR digits in an RTL app */}
       <PhoneField value={phone} onChangeText={setPhone} style={[shadows.sm, { width: '100%', marginTop: 34 }]} />
 
-      <Button label="تسجيل الدخول" onPress={onLogin} style={{ marginTop: 12 }} />
+      <Button label="تسجيل الدخول" onPress={onLogin} loading={submitting} style={{ marginTop: 12 }} />
 
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, width: '100%', marginTop: 20 }}>
         <View style={{ flex: 1, height: 1, backgroundColor: colors.divider }} />

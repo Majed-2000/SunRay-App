@@ -43,7 +43,7 @@ function toOrderDTO(o: OrderWithItems) {
   };
 }
 
-export async function createOrder(input: CreateOrderInput) {
+export async function createOrder(input: CreateOrderInput, customerId: string) {
   // 1) Load the real products (with their modifier options) from the DB.
   const productIds = [...new Set(input.items.map((i) => i.productId))];
   const products = await prisma.product.findMany({
@@ -84,13 +84,15 @@ export async function createOrder(input: CreateOrderInput) {
   const subtotal = lines.reduce((sum, l) => sum + l.totalPrice, 0);
   const vat = vatOf(subtotal);
   const deliveryFee = input.type === 'DELIVERY' ? DELIVERY_FEE : 0;
-  const discount = input.discount ?? 0;
+  // Discount must be authorized server-side (coupon/points). Until that exists we
+  // never apply a client-supplied discount — it's forced to 0.
+  const discount = 0;
   const total = Math.max(0, subtotal + vat + deliveryFee - discount);
 
-  // 4) Save order + items together.
+  // 4) Save order + items together. The owner is the authenticated customer.
   const order = await prisma.order.create({
     data: {
-      customerId: input.customerId,
+      customerId,
       branchId: input.branchId,
       type: input.type,
       status: 'PENDING',
@@ -107,30 +109,30 @@ export async function createOrder(input: CreateOrderInput) {
   });
 
   // 5) Simplified Path-A loyalty: each ordered item adds a "cup".
-  if (input.customerId) {
-    const cups = lines.reduce((sum, l) => sum + l.quantity, 0);
-    await prisma.loyaltyCounter.upsert({
-      where: { customerId: input.customerId },
-      create: { customerId: input.customerId, cupCount: cups, goal: 6 },
-      update: { cupCount: { increment: cups } },
-    });
-  }
+  const cups = lines.reduce((sum, l) => sum + l.quantity, 0);
+  await prisma.loyaltyCounter.upsert({
+    where: { customerId },
+    create: { customerId, cupCount: cups, goal: 6 },
+    update: { cupCount: { increment: cups } },
+  });
 
   return toOrderDTO(order);
 }
 
-export async function listOrders(customerId?: string) {
+export async function listOrders(customerId: string) {
   const orders = await prisma.order.findMany({
-    where: customerId ? { customerId } : undefined,
+    where: { customerId },
     include: { items: true },
     orderBy: { createdAt: 'desc' },
   });
   return orders.map(toOrderDTO);
 }
 
-export async function getOrderById(id: string) {
+export async function getOrderById(id: string, requesterId: string) {
   const order = await prisma.order.findUnique({ where: { id }, include: { items: true } });
-  if (!order) throw NotFound('الطلب غير موجود');
+  // 404 (not 403) when it isn't the caller's order, so we don't reveal that an
+  // order with this id exists for someone else.
+  if (!order || order.customerId !== requesterId) throw NotFound('الطلب غير موجود');
   return toOrderDTO(order);
 }
 

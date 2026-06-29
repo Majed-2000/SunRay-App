@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Image, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
@@ -10,9 +10,11 @@ import { useAuthStore } from '@/store';
 export function SplashScreen() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const hasOnboarded = useAuthStore((s) => s.hasOnboarded);
+  const isHydrating = useAuthStore((s) => s.isHydrating);
   const scale = useRef(new Animated.Value(0.8)).current;
   const opacity = useRef(new Animated.Value(0)).current;
   const glow = useRef(new Animated.Value(0)).current;
+  const [minElapsed, setMinElapsed] = useState(false);
 
   useEffect(() => {
     Animated.parallel([
@@ -26,13 +28,18 @@ export function SplashScreen() {
       ]),
     ).start();
 
-    const timer = setTimeout(() => {
-      if (isAuthenticated) router.replace('/(tabs)/home');
-      else if (hasOnboarded) router.replace('/(auth)/login');
-      else router.replace('/(auth)/onboarding');
-    }, 1700);
+    const timer = setTimeout(() => setMinElapsed(true), 1700);
     return () => clearTimeout(timer);
-  }, [glow, opacity, scale, isAuthenticated, hasOnboarded]);
+  }, [glow, opacity, scale]);
+
+  // Route only after the minimum splash time AND once session restore finishes
+  // (so we don't flash login before a saved backend session is restored).
+  useEffect(() => {
+    if (!minElapsed || isHydrating) return;
+    if (isAuthenticated) router.replace('/(tabs)/home');
+    else if (hasOnboarded) router.replace('/(auth)/login');
+    else router.replace('/(auth)/onboarding');
+  }, [minElapsed, isHydrating, isAuthenticated, hasOnboarded]);
 
   return (
     <LinearGradient colors={gradients.screen} style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>

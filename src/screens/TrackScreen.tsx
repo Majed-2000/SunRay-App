@@ -113,7 +113,7 @@ export function TrackScreen() {
           </Card>
         ) : null}
 
-        {USE_BACKEND && !done ? (
+        {USE_BACKEND && !done && __DEV__ ? (
           <Button
             label="تقديم الحالة (اختبار)"
             variant="ghost"

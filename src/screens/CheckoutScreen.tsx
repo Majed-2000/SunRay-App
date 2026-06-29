@@ -53,7 +53,6 @@ export function CheckoutScreen() {
   const walletBalance = useWalletStore((s) => s.balance);
   const points = useLoyaltyStore((s) => s.points);
   const branch = useBranchStore((s) => s.current());
-  const user = useAuthStore((s) => s.user);
   const isGuest = useAuthStore((s) => s.isGuest);
   const totals = useCartTotals();
   const { contentMaxWidth } = useResponsive();
@@ -62,25 +61,45 @@ export function CheckoutScreen() {
   const [method, setMethod] = useState<PaymentMethod>(walletBalance > 0 ? 'wallet' : 'card');
   const [submitting, setSubmitting] = useState(false);
 
+  // In backend mode the server ignores coupon/points/wallet (discount is forced to
+  // 0 this phase), so we show the server-aligned total and hide those perks — the
+  // checkout must never display a discount it won't actually apply.
+  const displayTotal = USE_BACKEND ? totals.subtotal + totals.vat + totals.deliveryFee : totals.total;
+
   const place = async () => {
     // Backend mode: send the cart to the server (it computes the totals), then
     // go to success. Wallet/loyalty stay mock and are not touched here.
     if (USE_BACKEND) {
+      // Ordering requires a signed-in customer (no anonymous orders). Send guests
+      // to login first; the cart is preserved so they can come back and check out.
+      if (isGuest) {
+        toast('سجّل دخولك لإتمام الطلب');
+        router.push('/(auth)/login');
+        return;
+      }
       if (submitting) return;
       setSubmitting(true);
-      const order = await useOrderStore.getState().submitToBackend({
-        customerId: isGuest ? undefined : user?.id,
+      const result = await useOrderStore.getState().submitToBackend({
         branchId: branch.id,
         type: orderType,
         lines,
       });
       setSubmitting(false);
-      if (!order) {
-        toast('تعذّر إرسال الطلب، تأكد من الاتصال وحاول مجددًا');
+      if (!result.ok) {
+        // Cart is kept in every failure case so nothing is lost.
+        if (result.reason === 'auth') {
+          // The session expired and couldn't refresh — onSessionExpired already
+          // routes to login; just explain why.
+          toast('انتهت الجلسة، يرجى تسجيل الدخول مرة أخرى لإكمال الطلب');
+        } else if (result.reason === 'network') {
+          toast('تعذّر الاتصال بالإنترنت، تأكد من الشبكة وحاول مجددًا');
+        } else {
+          toast('تعذّر إرسال الطلب، حاول مجددًا');
+        }
         return;
       }
       clear();
-      router.replace(`/order-success?id=${order.id}`);
+      router.replace(`/order-success?id=${result.order.id}`);
       return;
     }
 
@@ -213,29 +232,33 @@ export function CheckoutScreen() {
             })}
           </View>
 
-          {/* perks */}
-          <Txt size={15} weight="black" color={colors.ink} style={{ marginTop: spacing.xl, marginBottom: spacing.md }}>
-            خصومات ومكافآت
-          </Txt>
-          <Card radiusKey="lg" padding={0} style={{ overflow: 'hidden' }}>
-            <PerkToggle
-              icon="wallet-outline"
-              label="استخدام رصيد المحفظة"
-              sub={formatRiyal(walletBalance)}
-              value={useWallet}
-              disabled={walletBalance <= 0 || method === 'wallet'}
-              onToggle={() => setUseWallet(!useWallet)}
-            />
-            <Divider marginV={0} />
-            <PerkToggle
-              icon="star-outline"
-              label="استبدال نقاطي"
-              sub={`${toArabicDigits(points)} نقطة متاحة`}
-              value={redeemPoints}
-              disabled={points <= 0}
-              onToggle={() => setRedeemPoints(!redeemPoints)}
-            />
-          </Card>
+          {/* perks — hidden in backend mode (the server doesn't apply them yet) */}
+          {!USE_BACKEND ? (
+            <>
+              <Txt size={15} weight="black" color={colors.ink} style={{ marginTop: spacing.xl, marginBottom: spacing.md }}>
+                خصومات ومكافآت
+              </Txt>
+              <Card radiusKey="lg" padding={0} style={{ overflow: 'hidden' }}>
+                <PerkToggle
+                  icon="wallet-outline"
+                  label="استخدام رصيد المحفظة"
+                  sub={formatRiyal(walletBalance)}
+                  value={useWallet}
+                  disabled={walletBalance <= 0 || method === 'wallet'}
+                  onToggle={() => setUseWallet(!useWallet)}
+                />
+                <Divider marginV={0} />
+                <PerkToggle
+                  icon="star-outline"
+                  label="استبدال نقاطي"
+                  sub={`${toArabicDigits(points)} نقطة متاحة`}
+                  value={redeemPoints}
+                  disabled={points <= 0}
+                  onToggle={() => setRedeemPoints(!redeemPoints)}
+                />
+              </Card>
+            </>
+          ) : null}
 
           {/* totals */}
           <Card radiusKey="lg" style={{ marginTop: spacing.lg }}>
@@ -244,13 +267,13 @@ export function CheckoutScreen() {
             {orderType === 'delivery' ? (
               <PriceRow label="رسوم التوصيل" amount={totals.deliveryFee === 0 ? 'مجانًا' : totals.deliveryFee} />
             ) : null}
-            {totals.discount > 0 ? <PriceRow label="خصم الكوبون" amount={totals.discount} positive /> : null}
-            {totals.pointsDiscount > 0 ? (
+            {!USE_BACKEND && totals.discount > 0 ? <PriceRow label="خصم الكوبون" amount={totals.discount} positive /> : null}
+            {!USE_BACKEND && totals.pointsDiscount > 0 ? (
               <PriceRow label={`استبدال ${toArabicDigits(totals.pointsSpent)} نقطة`} amount={totals.pointsDiscount} positive />
             ) : null}
-            {totals.walletApplied > 0 ? <PriceRow label="رصيد المحفظة" amount={totals.walletApplied} positive /> : null}
+            {!USE_BACKEND && totals.walletApplied > 0 ? <PriceRow label="رصيد المحفظة" amount={totals.walletApplied} positive /> : null}
             <Divider dashed />
-            <PriceRow label="الإجمالي المستحق" amount={totals.total} emphasize />
+            <PriceRow label="الإجمالي المستحق" amount={displayTotal} emphasize />
           </Card>
 
           <View style={{ marginTop: spacing.lg, gap: 6 }}>
@@ -283,7 +306,7 @@ export function CheckoutScreen() {
         <View style={{ width: '100%', maxWidth: contentMaxWidth, alignSelf: 'center' }}>
           <Button
             label={orderType === 'delivery' ? 'اطلب التوصيل' : 'أكمل الطلب'}
-            trailing={formatRiyal(totals.total)}
+            trailing={formatRiyal(displayTotal)}
             onPress={place}
             loading={submitting}
           />

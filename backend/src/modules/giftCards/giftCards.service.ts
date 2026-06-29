@@ -10,7 +10,7 @@ import type { GiftCard } from '@prisma/client';
 import { prisma } from '../../database/prisma';
 import { BadRequest, NotFound } from '../../common/errors';
 import { creditWallet, getBalance } from '../wallet/wallet.service';
-import type { IssueGiftCardInput, RedeemGiftCardInput } from './giftCards.schemas';
+import type { IssueGiftCardInput } from './giftCards.schemas';
 
 function toGiftCardDTO(c: GiftCard) {
   return {
@@ -32,10 +32,10 @@ function generateCode() {
   return `SR-GIFT-${randomInt(1000, 9999)}-${randomInt(1000, 9999)}`;
 }
 
-export async function issueGiftCard(input: IssueGiftCardInput) {
+export async function issueGiftCard(input: IssueGiftCardInput, senderCustomerId: string) {
   const card = await prisma.giftCard.create({
     data: {
-      senderCustomerId: input.senderCustomerId,
+      senderCustomerId,
       recipientPhone: input.recipientPhone,
       recipientName: input.recipientName,
       amount: input.amount,
@@ -57,30 +57,24 @@ export async function listForCustomer(customerId: string) {
   return cards.map(toGiftCardDTO);
 }
 
-export async function redeem(input: RedeemGiftCardInput) {
-  const customer = await prisma.customer.findUnique({
-    where: { id: input.customerId },
-    select: { id: true },
-  });
-  if (!customer) throw NotFound('العميل غير موجود');
-
-  const card = await prisma.giftCard.findUnique({ where: { code: input.code } });
+export async function redeem(code: string, recipientCustomerId: string) {
+  const card = await prisma.giftCard.findUnique({ where: { code } });
   if (!card) throw NotFound('البطاقة غير موجودة');
   if (card.status !== 'ACTIVE') throw BadRequest('هذه البطاقة غير قابلة للاستبدال');
 
   // Credit the recipient's wallet, then mark the card redeemed.
-  await creditWallet(input.customerId, card.amount, 'GIFT_CARD', 'استبدال بطاقة إهداء');
+  await creditWallet(recipientCustomerId, card.amount, 'GIFT_CARD', 'استبدال بطاقة إهداء');
   const updated = await prisma.giftCard.update({
     where: { id: card.id },
     data: {
       status: 'REDEEMED',
-      redeemedByCustomerId: input.customerId,
+      redeemedByCustomerId: recipientCustomerId,
       redeemedAt: new Date(),
     },
   });
 
   return {
     card: toGiftCardDTO(updated),
-    walletBalance: await getBalance(input.customerId),
+    walletBalance: await getBalance(recipientCustomerId),
   };
 }

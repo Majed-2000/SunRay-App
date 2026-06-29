@@ -1,11 +1,18 @@
 # Connecting the Expo app to the local backend
 
-This phase connects **only**: Auth (login/verify), Branches, Menu (categories/products),
-and Product details. Orders, wallet, loyalty, gift cards, and notifications are still mock.
+This connects: Auth (login/verify/**refresh/logout/me**), Branches, Menu, Product
+details, and Orders to the backend with **real token-based auth**. Wallet, loyalty,
+gift cards, and notifications are still mock on the app.
 
 The app uses a **feature flag**: when `EXPO_PUBLIC_USE_BACKEND` is `false` (default) it uses
-mock data and never calls the backend. When `true` (with a reachable URL) those four areas
-load from the backend instead.
+mock data and never calls the backend. When `true` (with a reachable URL) the connected
+areas load from the backend instead.
+
+> **Security model:** see `backend/SECURITY.md`. In short: verify returns a short-lived
+> access token + a long-lived refresh token. The app stores the refresh token in
+> **expo-secure-store**, auto-attaches the access token to every request, and on a 401
+> transparently refreshes + retries. Identity is derived from the token server-side — the
+> app no longer sends `customerId`. See the **Auth & sessions** section below.
 
 ---
 
@@ -58,7 +65,8 @@ Open it in Expo Go. Env vars are read at startup, so if you change `.env`, **res
 ## What to expect when connected
 
 - **Login → OTP:** entering a phone calls `POST /api/auth/login`; entering any 4 digits
-  calls `POST /api/auth/verify` and signs you in with the backend customer + token.
+  calls `POST /api/auth/verify`, which returns an **access token + refresh token + customer**.
+  The app keeps you signed in across restarts and refreshes the token automatically.
 - **Home / Menu:** categories and products load from `GET /api/menu` (you'll see a brief
   loading spinner, then the real seeded items). Branches load from `GET /api/branches`.
 - **Product details:** options (size/milk) come from the backend product's modifiers.
@@ -78,20 +86,45 @@ Open it in Expo Go. Env vars are read at startup, so if you change `.env`, **res
    The success screen shows the order reference.
 3. Open **طلباتي** → your order appears (from `GET /api/orders`). Open it → **order detail**
    (from `GET /api/orders/:id`). For a delivery order, open **tracking**.
-4. **Advance the status** (two ways):
-   - In the app: on the order detail / tracking screen tap **"تقديم الحالة (اختبار)"** — this
-     calls `PATCH /api/orders/:id/status` and the UI updates.
-   - Or from your PC with curl (replace the id):
+4. **Advance the status** (DEV/ADMIN only — `PATCH /api/orders/:id/status` now requires
+   auth and is allowed only in development or with `ADMIN_ENABLED=true`):
+   - In the app: the **"تقديم الحالة (اختبار)"** button shows only in dev builds (`__DEV__`)
+     and sends the request with your token automatically.
+   - Or from your PC with curl — you need a **Bearer access token** (copy `accessToken`
+     from the `verify` response) and the order must be **yours**:
      ```bash
      curl -X PATCH http://localhost:4000/api/orders/<ORDER_ID>/status \
+       -H "Authorization: Bearer <ACCESS_TOKEN>" \
        -H "Content-Type: application/json" -d '{"status":"READY"}'
      ```
      The tracking screen **polls every 3s**, so the new status appears automatically.
    Valid statuses: `PENDING ACCEPTED PREPARING READY EN_ROUTE COMPLETED CANCELLED`.
 
 **Still mock even in backend mode:** wallet, loyalty, gift cards, notifications, coupons, and
-the payment-method choice (cosmetic). Guests (continue-as-guest) submit orders without a
-customer id, so their orders won't appear in "طلباتي".
+the payment-method choice (cosmetic — checkout never performs a real payment). **Guests must
+log in to order:** in backend mode, continue-as-guest can browse but is routed to login at
+checkout (the cart is preserved). There are no anonymous orders.
+
+---
+
+## Auth & sessions (security hardening)
+
+| What | How |
+|------|-----|
+| Tokens | access JWT (~15m) + rotating refresh token (~30d) |
+| Storage | refresh token in **expo-secure-store**; access token in memory |
+| Every request | `Authorization: Bearer <access>` attached automatically |
+| Expired access | client calls `POST /api/auth/refresh`, then retries the request once |
+| Refresh fails | session ends → routed to login (cart & local state preserved) |
+| Cold start | `restoreSession()` → `GET /api/auth/me` keeps you logged in |
+| Logout | `POST /api/auth/logout` revokes the session immediately (server-side) |
+| Identity | derived from the token server-side — the app never sends `customerId` |
+
+**Checkout in backend mode** shows the **server-aligned total** and hides coupon/points/
+wallet perks (the server forces `discount=0` this phase), so it never displays a discount it
+won't apply. If the session expires mid-checkout you'll see
+"انتهت الجلسة، يرجى تسجيل الدخول مرة أخرى لإكمال الطلب", the cart is kept, and you're sent to
+login to retry. Network failures show a friendly retry message; the cart is never lost.
 
 ## Switching back to mock
 Set `EXPO_PUBLIC_USE_BACKEND=false` (or remove it) and restart `expo start`. Everything

@@ -14,9 +14,11 @@
       "resizeMode": "contain"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.sunray.cafe"
     },
     "android": {
+      "package": "com.sunray.cafe",
       "adaptiveIcon": {
         "backgroundColor": "#efe6d6",
         "foregroundImage": "./assets/android-icon-foreground.png",

@@ -1,6 +1,11 @@
 import type { Category, Modifier, ModifierOption, Product } from '@prisma/client';
 import { prisma } from '../../database/prisma';
 import { NotFound } from '../../common/errors';
+import { cached } from '../../common/cache';
+
+/** Catalog data is public and changes rarely — cache briefly. Call
+ * `invalidateCatalog()` from cache.ts after any future menu mutation. */
+const CATALOG_TTL_MS = 60_000;
 
 type ModifierWithOptions = Modifier & { options: ModifierOption[] };
 type ProductWithModifiers = Product & { modifiers: ModifierWithOptions[] };
@@ -48,18 +53,22 @@ export function toProductDTO(p: ProductWithModifiers) {
 const productInclude = { modifiers: { include: { options: true } } } as const;
 
 export async function getMenu() {
-  const [categories, products] = await Promise.all([
-    prisma.category.findMany({ where: { isActive: true }, orderBy: { sortOrder: 'asc' } }),
-    prisma.product.findMany({ include: productInclude, orderBy: { createdAt: 'asc' } }),
-  ]);
-  return {
-    categories: categories.map(toCategoryDTO),
-    products: products.map(toProductDTO),
-  };
+  return cached('menu', CATALOG_TTL_MS, async () => {
+    const [categories, products] = await Promise.all([
+      prisma.category.findMany({ where: { isActive: true }, orderBy: { sortOrder: 'asc' } }),
+      prisma.product.findMany({ include: productInclude, orderBy: { createdAt: 'asc' } }),
+    ]);
+    return {
+      categories: categories.map(toCategoryDTO),
+      products: products.map(toProductDTO),
+    };
+  });
 }
 
 export async function getProductById(id: string) {
-  const product = await prisma.product.findUnique({ where: { id }, include: productInclude });
-  if (!product) throw NotFound('المنتج غير موجود');
-  return toProductDTO(product);
+  return cached(`product:${id}`, CATALOG_TTL_MS, async () => {
+    const product = await prisma.product.findUnique({ where: { id }, include: productInclude });
+    if (!product) throw NotFound('المنتج غير موجود');
+    return toProductDTO(product);
+  });
 }

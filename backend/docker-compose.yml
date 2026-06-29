@@ -1,0 +1,42 @@
+# Local PRODUCTION-LIKE stack: Postgres + the backend built from the Dockerfile.
+# Use this to validate the Postgres path before deploying:
+#   cd backend && docker compose up --build
+# Then: curl http://localhost:4000/health/ready  → { ok:true, data:{ status:"ready" } }
+#
+# This does NOT touch your SQLite dev setup (npm run dev still uses prisma/dev.db).
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: sunray
+      POSTGRES_PASSWORD: sunray_dev_password
+      POSTGRES_DB: sunray
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U sunray']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: postgresql://sunray:sunray_dev_password@db:5432/sunray?schema=public
+      JWT_ACCESS_SECRET: local-compose-secret-not-for-prod
+      TRUST_PROXY: 1
+      ADMIN_ENABLED: 'false'
+      BODY_LIMIT: 100kb
+    ports:
+      - '4000:4000'
+
+volumes:
+  pgdata:

@@ -19,6 +19,8 @@ import { walletRouter } from '../modules/wallet/wallet.routes';
 import { loyaltyRouter } from '../modules/loyalty/loyalty.routes';
 import { notificationsRouter } from '../modules/notifications/notifications.routes';
 import { giftCardsRouter, customerGiftCardsRouter } from '../modules/giftCards/giftCards.routes';
+import { authenticate } from '../middleware/authenticate';
+import { requireSelfParam } from '../middleware/requireSelf';
 
 export const rootRouter = Router();
 
@@ -34,11 +36,14 @@ api.use('/products', productsRouter);
 api.use('/orders', ordersRouter);
 api.use('/gift-cards', giftCardsRouter);
 
-// Customer-scoped routers (more specific → registered first).
-api.use('/customers/:id/wallet', walletRouter);
-api.use('/customers/:id/loyalty', loyaltyRouter);
-api.use('/customers/:id/notifications', notificationsRouter);
-api.use('/customers/:id/gift-cards', customerGiftCardsRouter);
+// Customer-scoped routers (more specific → registered first). Every one is
+// guarded: you must be logged in AND the `:id` must be YOUR id (IDOR prevention).
+// These mount paths contain `:id`, so the guard sees req.params.id here.
+const self = [authenticate, requireSelfParam('id')];
+api.use('/customers/:id/wallet', ...self, walletRouter);
+api.use('/customers/:id/loyalty', ...self, loyaltyRouter);
+api.use('/customers/:id/notifications', ...self, notificationsRouter);
+api.use('/customers/:id/gift-cards', ...self, customerGiftCardsRouter);
 api.use('/customers', customersRouter);
 
 rootRouter.use('/api', api);

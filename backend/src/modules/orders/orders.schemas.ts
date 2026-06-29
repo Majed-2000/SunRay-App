@@ -1,8 +1,10 @@
 import { z } from 'zod';
 import { ORDER_STATUSES, ORDER_TYPES } from '../cart/cart.types';
 
+// NOTE: customerId is intentionally NOT accepted from the client — it is derived
+// from the access token (IDOR prevention). `discount` is also not accepted: any
+// coupon/discount must be computed and authorized server-side (forced to 0 for now).
 export const createOrderSchema = z.object({
-  customerId: z.string().optional(),
   branchId: z.string().optional(),
   type: z.enum(ORDER_TYPES as [string, ...string[]]),
   items: z
@@ -17,8 +19,6 @@ export const createOrderSchema = z.object({
     .min(1, 'الطلب يجب أن يحتوي على عنصر واحد على الأقل'),
   customerNotes: z.string().max(300).optional(),
   scheduledAt: z.string().datetime().optional(),
-  // discount in halalas (e.g. from a coupon) — optional, defaults to 0
-  discount: z.number().int().min(0).optional(),
 });
 
 export const updateStatusSchema = z.object({

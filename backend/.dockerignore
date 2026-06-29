@@ -1,0 +1,17 @@
+node_modules
+dist
+npm-debug.log
+.env
+.env.*
+!.env.example
+!.env.production.example
+prisma/*.db
+prisma/*.db-journal
+*.db
+.git
+.gitignore
+README.md
+SECURITY.md
+DEPLOYMENT.md
+src/__tests__
+vitest.config.ts

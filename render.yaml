@@ -1,0 +1,44 @@
+# Render Blueprint — one-click deploy of the Sun Ray backend + managed PostgreSQL.
+# In Render: New → Blueprint → connect this repo. Render reads this file, creates
+# the database and the web service, and wires DATABASE_URL automatically.
+#
+# After deploy, set the app's EXPO_PUBLIC_API_BASE_URL to the service URL Render
+# gives you (https://sunray-backend.onrender.com).
+#
+# NOTE: free Postgres on Render expires after ~90 days — fine for a demo, upgrade
+# the plan for anything lasting.
+
+databases:
+  - name: sunray-db
+    databaseName: sunray
+    user: sunray
+    plan: free
+
+services:
+  - type: web
+    name: sunray-backend
+    runtime: node
+    rootDir: backend
+    plan: free
+    healthCheckPath: /health
+    # Build: install, target Postgres, generate the matching client, compile TS.
+    buildCommand: npm ci && node scripts/use-postgres.mjs postgresql && npx prisma generate && npm run build
+    # Start: create/update the schema on Postgres, then run the server.
+    startCommand: npx prisma db push --skip-generate && node dist/server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: sunray-db
+          property: connectionString
+      - key: JWT_ACCESS_SECRET
+        generateValue: true # Render generates a strong random secret
+      - key: TRUST_PROXY
+        value: '1'
+      - key: BODY_LIMIT
+        value: 100kb
+      - key: ADMIN_ENABLED
+        value: 'false'
+      # CORS_ORIGINS left unset → the mobile app (which sends no Origin) works.
+      # Set it to your web origins if you add a browser client.

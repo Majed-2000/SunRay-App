@@ -12,7 +12,7 @@ import {
   type PaymentMethod,
 } from '@/types';
 import { mockOrders } from '@/data';
-import { request, USE_BACKEND } from '@/services/api';
+import { request, USE_BACKEND, ApiError } from '@/services/api';
 import { mapOrder, APP_TYPE_TO_BACKEND, type OrderDTO, type BackendOrderStatus } from '@/services/dto';
 import { toCartItem } from '@/services/orders';
 
@@ -117,12 +117,17 @@ function nextBackendStatus(o: Order): BackendOrderStatus | null {
 }
 
 export interface SubmitToBackendInput {
-  customerId?: string;
   branchId: string;
   type: OrderType;
   lines: CartLine[];
   customerNotes?: string;
 }
+
+/** Why an order submission failed, so checkout can react appropriately. */
+export type SubmitFailReason = 'auth' | 'network' | 'server';
+export type SubmitResult =
+  | { ok: true; order: Order }
+  | { ok: false; reason: SubmitFailReason };
 
 type Status = 'idle' | 'loading' | 'ready' | 'error';
 
@@ -135,11 +140,15 @@ interface OrderState {
   advance: (id: string) => void;
   getById: (id: string) => Order | undefined;
   // backend (used when USE_BACKEND)
-  loadOrders: (customerId?: string) => Promise<void>;
-  submitToBackend: (input: SubmitToBackendInput) => Promise<Order | null>;
+  loadOrders: () => Promise<void>;
+  submitToBackend: (input: SubmitToBackendInput) => Promise<SubmitResult>;
   fetchOrder: (id: string) => Promise<Order | undefined>;
   advanceBackend: (id: string) => Promise<void>;
 }
+
+// Belt-and-braces guard so a double-tap (or remount) can't submit twice even if
+// a screen's local guard is bypassed. Module-scoped: one in-flight submit at a time.
+let submitInFlight = false;
 
 /** Replace an order in the list, or prepend it if new. */
 function upsert(orders: Order[], order: Order): Order[] {
@@ -186,16 +195,15 @@ export const useOrderStore = create<OrderState>((set, get) => ({
   getById: (id) => get().orders.find((o) => o.id === id),
 
   // ── Backend actions (only used when USE_BACKEND) ──────────────────────────
-  loadOrders: async (customerId) => {
+  loadOrders: async () => {
     if (!USE_BACKEND) {
       set({ orders: mockOrders, status: 'ready', error: null });
       return;
     }
     set({ status: 'loading', error: null });
     try {
-      const dtos = await request<OrderDTO[]>('/api/orders', {
-        query: customerId ? { customerId } : undefined,
-      });
+      // The backend scopes the list to the authenticated customer (token-derived).
+      const dtos = await request<OrderDTO[]>('/api/orders');
       set({ orders: dtos.map(mapOrder), status: 'ready', error: null });
     } catch (e) {
       set({ status: 'error', error: e instanceof Error ? e.message : 'تعذّر تحميل الطلبات' });
@@ -203,11 +211,13 @@ export const useOrderStore = create<OrderState>((set, get) => ({
   },
 
   submitToBackend: async (input) => {
+    if (submitInFlight) return { ok: false, reason: 'server' };
+    submitInFlight = true;
     try {
+      // customerId is NOT sent — the backend derives the owner from the access token.
       const dto = await request<OrderDTO>('/api/orders', {
         method: 'POST',
         body: {
-          customerId: input.customerId,
           branchId: input.branchId,
           type: APP_TYPE_TO_BACKEND[input.type],
           items: input.lines.map(toCartItem), // backend ignores the extra unitPrice
@@ -216,9 +226,13 @@ export const useOrderStore = create<OrderState>((set, get) => ({
       });
       const order = mapOrder(dto);
       set((s) => ({ orders: upsert(s.orders, order) }));
-      return order;
-    } catch {
-      return null;
+      return { ok: true, order };
+    } catch (e) {
+      const status = e instanceof ApiError ? e.status : -1;
+      const reason: SubmitFailReason = status === 401 ? 'auth' : status === 0 ? 'network' : 'server';
+      return { ok: false, reason };
+    } finally {
+      submitInFlight = false;
     }
   },
 

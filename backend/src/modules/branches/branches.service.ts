@@ -1,5 +1,6 @@
 import type { Branch } from '@prisma/client';
 import { prisma } from '../../database/prisma';
+import { cached } from '../../common/cache';
 
 export function toBranchDTO(b: Branch) {
   return {
@@ -15,9 +16,11 @@ export function toBranchDTO(b: Branch) {
 }
 
 export async function listBranches() {
-  const branches = await prisma.branch.findMany({
-    where: { isActive: true },
-    orderBy: { createdAt: 'asc' },
+  return cached('branches', 60_000, async () => {
+    const branches = await prisma.branch.findMany({
+      where: { isActive: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    return branches.map(toBranchDTO);
   });
-  return branches.map(toBranchDTO);
 }

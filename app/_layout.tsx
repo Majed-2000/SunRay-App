@@ -22,6 +22,7 @@ import {
 } from '@expo-google-fonts/plus-jakarta-sans';
 import { colors } from '@/theme';
 import { Toast } from '@/components';
+import { useAuthStore } from '@/store';
 
 // Force RTL for the Arabic-first experience.
 if (!I18nManager.isRTL) {
@@ -50,6 +51,11 @@ export default function RootLayout() {
       SplashScreen.hideAsync().catch(() => {});
     }
   }, [fontsLoaded, fontError]);
+
+  // Restore a saved backend session (if any) once on app start. No-op in mock mode.
+  useEffect(() => {
+    useAuthStore.getState().restoreSession();
+  }, []);
 
   if (!fontsLoaded && !fontError) return null;
 

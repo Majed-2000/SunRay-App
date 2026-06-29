@@ -39,6 +39,26 @@ model Customer {
   notifications      Notification[]
   giftCardsSent      GiftCard[]          @relation("GiftSender")
   giftCardsRedeemed  GiftCard[]          @relation("GiftRedeemer")
+  sessions           Session[]
+}
+
+// A login session. We store ONLY the sha256 hash of the refresh token (never the
+// raw token). The access token is a short-lived JWT; the refresh token is a long-
+// lived opaque secret used to mint new access tokens. Logout/expiry sets revokedAt
+// / expiresAt so the session can be invalidated server-side.
+model Session {
+  id               String    @id @default(cuid())
+  customerId       String
+  refreshTokenHash String    @unique // sha256(rawRefreshToken)
+  userAgent        String?
+  expiresAt        DateTime
+  createdAt        DateTime  @default(now())
+  lastUsedAt       DateTime  @default(now())
+  revokedAt        DateTime?
+
+  customer Customer @relation(fields: [customerId], references: [id])
+
+  @@index([customerId])
 }
 
 model Address {

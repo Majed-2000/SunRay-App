@@ -9,6 +9,7 @@
  */
 import type { NextFunction, Request, Response } from 'express';
 import { ZodError } from 'zod';
+import { Prisma } from '@prisma/client';
 import { logger } from './logger';
 
 export class AppError extends Error {
@@ -28,6 +29,14 @@ export const NotFound = (message = 'غير موجود') => new AppError(404, 'NO
 export const BadRequest = (message = 'طلب غير صالح', details?: unknown) =>
   new AppError(400, 'BAD_REQUEST', message, details);
 export const Conflict = (message = 'تعارض في البيانات') => new AppError(409, 'CONFLICT', message);
+export const Unauthorized = (message = 'مطلوب تسجيل الدخول') =>
+  new AppError(401, 'UNAUTHORIZED', message);
+export const Forbidden = (message = 'غير مصرح لك بالوصول') =>
+  new AppError(403, 'FORBIDDEN', message);
+export const RateLimited = (message = 'محاولات كثيرة، يرجى المحاولة لاحقًا') =>
+  new AppError(429, 'RATE_LIMITED', message);
+export const ServiceUnavailable = (message = 'الخدمة غير متاحة مؤقتًا') =>
+  new AppError(503, 'SERVICE_UNAVAILABLE', message);
 
 type AsyncRoute = (req: Request, res: Response, next: NextFunction) => Promise<unknown>;
 
@@ -61,6 +70,20 @@ export function errorHandler(err: unknown, _req: Request, res: Response, _next: 
       ok: false,
       error: { code: err.code, message: err.message, details: err.details },
     });
+    return;
+  }
+
+  // Known Prisma errors → friendly status codes (never leak the raw DB error).
+  if (err instanceof Prisma.PrismaClientKnownRequestError) {
+    if (err.code === 'P2025') {
+      res.status(404).json({ ok: false, error: { code: 'NOT_FOUND', message: 'غير موجود' } });
+      return;
+    }
+    if (err.code === 'P2002') {
+      res.status(409).json({ ok: false, error: { code: 'CONFLICT', message: 'تعارض في البيانات' } });
+      return;
+    }
+    res.status(400).json({ ok: false, error: { code: 'BAD_REQUEST', message: 'طلب غير صالح' } });
     return;
   }
 

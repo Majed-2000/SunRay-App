@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, TextInput, View } from 'react-native';
+import { Animated, Easing, Pressable, TextInput, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { colors, radius, shadows, spacing } from '@/theme';
 import { CONFIG } from '@/constants/config';
@@ -9,12 +10,15 @@ import { toArabicDigits, toWesternDigits } from '@/utils/numerals';
 import { formatMobileDisplay } from '@/utils/validators';
 
 const LENGTH = 4;
+/** How long the success state lingers before continuing to home. */
+const SUCCESS_DELAY = 1200;
 
 export function OtpScreen() {
   const phone = useAuthStore((s) => s.pendingPhone);
   const verifyOtp = useAuthStore((s) => s.verifyOtp);
   const [code, setCode] = useState('');
   const [seconds, setSeconds] = useState(30);
+  const [verified, setVerified] = useState(false);
   const inputRef = useRef<TextInput>(null);
 
   useEffect(() => {
@@ -23,9 +27,10 @@ export function OtpScreen() {
   }, []);
 
   useEffect(() => {
+    if (verified) return; // stop trying to focus once we've switched to success
     const t = setTimeout(() => inputRef.current?.focus(), 350);
     return () => clearTimeout(t);
-  }, []);
+  }, [verified]);
 
   const submit = async (value: string) => {
     if (value.length < LENGTH) {
@@ -38,8 +43,18 @@ export function OtpScreen() {
       toast('رمز غير صحيح أو تعذّر الاتصال بالخادم');
       return;
     }
-    router.replace('/(tabs)/home');
+    // Show a brief "verified successfully" moment, then continue.
+    inputRef.current?.blur();
+    setVerified(true);
   };
+
+  useEffect(() => {
+    if (!verified) return;
+    const t = setTimeout(() => router.replace('/(tabs)/home'), SUCCESS_DELAY);
+    return () => clearTimeout(t);
+  }, [verified]);
+
+  if (verified) return <VerifiedSuccess />;
 
   return (
     <ScreenContainer header={<Header showBack />}>
@@ -124,6 +139,53 @@ export function OtpScreen() {
         <Txt size={12} color={colors.textFaint} center style={{ marginTop: spacing.lg }}>
           للتجربة: أدخل أي ٤ أرقام
         </Txt>
+      </View>
+    </ScreenContainer>
+  );
+}
+
+/** "تم التحقق بنجاح" — brief success state shown after a correct code. */
+function VerifiedSuccess() {
+  const scale = useRef(new Animated.Value(0.6)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.spring(scale, { toValue: 1, friction: 5, tension: 90, useNativeDriver: true }),
+      Animated.timing(opacity, { toValue: 1, duration: 300, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+    ]).start();
+  }, [opacity, scale]);
+
+  return (
+    <ScreenContainer scroll={false}>
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+        <Animated.View style={{ opacity, transform: [{ scale }], alignItems: 'center' }}>
+          <View
+            style={[
+              shadows.goldStrong,
+              {
+                width: 104,
+                height: 104,
+                borderRadius: radius['2xl'],
+                backgroundColor: colors.gold,
+                alignItems: 'center',
+                justifyContent: 'center',
+              },
+            ]}
+          >
+            <Ionicons name="checkmark" size={56} color={colors.inkDeep} />
+          </View>
+
+          <Txt size={28} weight="black" color={colors.ink} center style={{ marginTop: spacing.xl }}>
+            تم التحقق بنجاح
+          </Txt>
+          <Txt size={14} color={colors.textMuted} center style={{ marginTop: 8 }}>
+            تم تأكيد رقم هاتفك بنجاح
+          </Txt>
+          <Txt size={12} color={colors.textFaint} center style={{ marginTop: spacing.xl }}>
+            ...جارٍ المتابعة
+          </Txt>
+        </Animated.View>
       </View>
     </ScreenContainer>
   );

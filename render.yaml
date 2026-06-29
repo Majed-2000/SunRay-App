@@ -21,10 +21,12 @@ services:
     rootDir: backend
     plan: free
     healthCheckPath: /health
-    # Build: install, target Postgres, generate the matching client, compile TS.
-    buildCommand: npm ci && node scripts/use-postgres.mjs postgresql && npx prisma generate && npm run build
+    # Build: install (incl. devDeps — tsc/prisma are devDependencies and NODE_ENV=
+    # production would otherwise skip them), target Postgres, generate client, compile.
+    buildCommand: npm ci --include=dev && node scripts/use-postgres.mjs postgresql && npx prisma generate && npm run build
     # Start: create/update the schema on Postgres, then run the server.
-    startCommand: npx prisma db push --skip-generate && node dist/server.js
+    # (tsc emits to dist/src/ because tsconfig rootDir is the project root.)
+    startCommand: npx prisma db push --skip-generate && node dist/src/server.js
     envVars:
       - key: NODE_ENV
         value: production

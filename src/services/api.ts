@@ -29,8 +29,22 @@ export const USE_BACKEND =
 /** Whether a real backend is configured (URL present). */
 export const isBackendConfigured = () => API_BASE_URL.length > 0;
 
-/** Abort a request that hangs this long (ms). */
-const REQUEST_TIMEOUT_MS = 15_000;
+/**
+ * Fire-and-forget liveness ping to wake a sleeping free-tier host while the user
+ * is still on the login screen, so their first real request isn't the cold start.
+ * No-op in mock mode. Never throws.
+ */
+export function warmUpBackend(): void {
+  if (!USE_BACKEND) return;
+  fetch(`${API_BASE_URL}/health`).catch(() => {});
+}
+
+/**
+ * Abort a request that hangs this long (ms). Defaults to 60s so a sleeping
+ * free-tier host (which can take 30–50s to cold-start) doesn't time out the very
+ * first request (e.g. login). Override with EXPO_PUBLIC_REQUEST_TIMEOUT_MS.
+ */
+const REQUEST_TIMEOUT_MS = Number(process.env.EXPO_PUBLIC_REQUEST_TIMEOUT_MS) || 60_000;
 
 export interface ApiOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';

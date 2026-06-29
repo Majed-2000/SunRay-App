@@ -23,6 +23,7 @@ import {
 import { colors } from '@/theme';
 import { Toast } from '@/components';
 import { useAuthStore } from '@/store';
+import { warmUpBackend } from '@/services/api';
 
 // Force RTL for the Arabic-first experience.
 if (!I18nManager.isRTL) {
@@ -53,7 +54,9 @@ export default function RootLayout() {
   }, [fontsLoaded, fontError]);
 
   // Restore a saved backend session (if any) once on app start. No-op in mock mode.
+  // Also nudge a sleeping free-tier host awake so the first login isn't a cold start.
   useEffect(() => {
+    warmUpBackend();
     useAuthStore.getState().restoreSession();
   }, []);
 

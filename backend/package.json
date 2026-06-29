@@ -12,6 +12,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "prisma:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "prisma:deploy": "prisma migrate deploy",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",

@@ -35,6 +35,8 @@ export const Forbidden = (message = 'غير مصرح لك بالوصول') =>
   new AppError(403, 'FORBIDDEN', message);
 export const RateLimited = (message = 'محاولات كثيرة، يرجى المحاولة لاحقًا') =>
   new AppError(429, 'RATE_LIMITED', message);
+export const ServiceUnavailable = (message = 'الخدمة غير متاحة مؤقتًا') =>
+  new AppError(503, 'SERVICE_UNAVAILABLE', message);
 
 type AsyncRoute = (req: Request, res: Response, next: NextFunction) => Promise<unknown>;
 

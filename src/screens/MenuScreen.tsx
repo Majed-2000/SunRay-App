@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { ScrollView, View } from 'react-native';
+import { useCallback, useMemo, useState } from 'react';
+import { FlatList, ScrollView, View, type ListRenderItemInfo } from 'react-native';
 import { router } from 'expo-router';
 import { colors, radius, spacing } from '@/theme';
 import {
@@ -14,8 +14,17 @@ import {
   Spinner,
   Txt,
 } from '@/components';
+import { PRODUCT_ROW_HEIGHT } from '@/components/ProductCard';
 import { useResponsive } from '@/hooks/useResponsive';
 import { useCartStore, useCatalogStore } from '@/store';
+import type { Product } from '@/types';
+
+/** Row height plus the 12px gap between rows — the stride FlatList measures by. */
+const ROW_GAP_SIZE = 12;
+const ROW_STRIDE = PRODUCT_ROW_HEIGHT + ROW_GAP_SIZE;
+
+/** Separator element — cheaper than a gap style recreated on every render. */
+const ROW_GAP = () => <View style={{ height: ROW_GAP_SIZE }} />;
 
 type Filter = string; // 'all' | a category id (mock key or backend id)
 
@@ -32,7 +41,35 @@ export function MenuScreen() {
   const setOrderType = useCartStore((s) => s.setOrderType);
   const quickAdd = useCartStore((s) => s.quickAdd);
 
-  const list = products.filter((p) => filter === 'all' || p.categoryId === filter);
+  // Recomputed only when the catalog or the chosen category changes — not on
+  // every cart update, which also re-renders this screen.
+  const list = useMemo(
+    () => products.filter((p) => filter === 'all' || p.categoryId === filter),
+    [products, filter],
+  );
+
+  const openProduct = useCallback((id: string) => router.push(`/product/${id}`), []);
+
+  const renderRow = useCallback(
+    ({ item }: ListRenderItemInfo<Product>) => (
+      <ProductRow product={item} onPress={() => openProduct(item.id)} onAdd={() => quickAdd(item)} />
+    ),
+    [openProduct, quickAdd],
+  );
+
+  const keyExtractor = useCallback((p: Product) => p.id, []);
+
+  // Every row is the same height, so FlatList can compute offsets arithmetically
+  // instead of measuring each one. This is what makes jumping into "الكل" with
+  // 111 items instant rather than a long layout pass.
+  const getItemLayout = useCallback(
+    (_data: ArrayLike<Product> | null | undefined, index: number) => ({
+      length: ROW_STRIDE,
+      offset: ROW_STRIDE * index,
+      index,
+    }),
+    [],
+  );
 
   return (
     <>
@@ -102,43 +139,59 @@ export function MenuScreen() {
 
         {/* items — flex:1 so it fills the remaining space and scrolls internally,
             keeping a stable layout across loading/loaded states */}
-        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: spacing.xs, paddingBottom: 140 }}>
-          <View style={{ width: '100%', maxWidth: contentMaxWidth, alignSelf: 'center' }}>
-            {loading ? (
-              <Spinner label="نحضّر القائمة لك…" />
-            ) : error ? (
-              <ErrorState onRetry={reload} />
-            ) : list.length === 0 ? (
-              <EmptyState emoji="🔍" title="لا توجد أصناف" subtitle="جرّب تصنيفًا آخر" />
-            ) : isTablet ? (
-              <View style={{ paddingHorizontal: spacing.lg }}>
-                <ResponsiveGrid
-                  data={list}
-                  columns={gridColumns}
-                  keyExtractor={(p) => p.id}
-                  renderItem={(p) => (
-                    <ProductCard
-                      product={p}
-                      onPress={() => router.push(`/product/${p.id}`)}
-                      onAdd={() => quickAdd(p)}
-                    />
-                  )}
-                />
-              </View>
-            ) : (
-              <View style={{ paddingHorizontal: spacing.lg, gap: 12 }}>
-                {list.map((p) => (
-                  <ProductRow
-                    key={p.id}
-                    product={p}
-                    onPress={() => router.push(`/product/${p.id}`)}
-                    onAdd={() => quickAdd(p)}
-                  />
-                ))}
-              </View>
-            )}
-          </View>
-        </ScrollView>
+        {/*
+          The phone list is virtualised. It used to be a ScrollView mapping over
+          every product, which mounted all 111 rows at once — that is what made
+          "الكل" hang. FlatList keeps roughly a screenful mounted instead.
+          Tablets keep the grid: far fewer, larger cards, and no hang observed.
+        */}
+        {loading ? (
+          <Spinner label="نحضّر القائمة لك…" />
+        ) : error ? (
+          <ErrorState onRetry={reload} />
+        ) : list.length === 0 ? (
+          <EmptyState emoji="🔍" title="لا توجد أصناف" subtitle="جرّب تصنيفًا آخر" />
+        ) : isTablet ? (
+          <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: spacing.xs, paddingBottom: 140 }}>
+            <View style={{ width: '100%', maxWidth: contentMaxWidth, alignSelf: 'center', paddingHorizontal: spacing.lg }}>
+              <ResponsiveGrid
+                data={list}
+                columns={gridColumns}
+                keyExtractor={(p) => p.id}
+                renderItem={(p) => (
+                  <ProductCard product={p} onPress={() => openProduct(p.id)} onAdd={() => quickAdd(p)} />
+                )}
+              />
+            </View>
+          </ScrollView>
+        ) : (
+          <FlatList
+            data={list}
+            renderItem={renderRow}
+            keyExtractor={keyExtractor}
+            getItemLayout={getItemLayout}
+            style={{ flex: 1 }}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{
+              paddingTop: spacing.xs,
+              paddingBottom: 140,
+              paddingHorizontal: spacing.lg,
+              width: '100%',
+              maxWidth: contentMaxWidth,
+              alignSelf: 'center',
+            }}
+            ItemSeparatorComponent={ROW_GAP}
+            // Tuned for a ~90px row on a phone: fill the first screen, then
+            // extend in small batches so scrolling never blocks the UI thread.
+            initialNumToRender={8}
+            maxToRenderPerBatch={8}
+            updateCellsBatchingPeriod={50}
+            windowSize={7}
+            removeClippedSubviews
+            // Switching category should start at the top, not mid-list.
+            key={filter}
+          />
+        )}
       </ScreenContainer>
 
       <FloatingCartBar bottom={70} />

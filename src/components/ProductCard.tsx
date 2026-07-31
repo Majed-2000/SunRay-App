@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { Product } from '@/types';
@@ -75,7 +76,7 @@ export function ProductCard({ product, onPress, onAdd }: ProductCardProps) {
 }
 
 /** Horizontal list row used in the menu list. */
-export function ProductRow({ product, onPress, onAdd }: ProductCardProps) {
+function ProductRowBase({ product, onPress, onAdd }: ProductCardProps) {
   const sold = !product.isAvailable;
   return (
     <Pressable
@@ -203,3 +204,16 @@ function AddButton({
     </Pressable>
   );
 }
+
+/**
+ * Fixed row height, exported so FlatList can use getItemLayout and skip
+ * measuring 111 rows: 66px image + 12px padding top and bottom.
+ */
+export const PRODUCT_ROW_HEIGHT = 90;
+
+/**
+ * Memoised: without this every parent re-render (a category tap, a cart change)
+ * re-renders every mounted row. Product objects are replaced wholesale by the
+ * catalog store, so identity comparison is enough.
+ */
+export const ProductRow = memo(ProductRowBase);

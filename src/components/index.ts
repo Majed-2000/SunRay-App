@@ -33,3 +33,4 @@ export { OfferCard } from './OfferCard';
 export { BranchPickerSheet } from './BranchPickerSheet';
 export { FloatingCartBar } from './FloatingCartBar';
 export { TransactionRow } from './TransactionRow';
+export { SegmentedTabs, type SegmentedTab } from './SegmentedTabs';

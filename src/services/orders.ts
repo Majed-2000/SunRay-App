@@ -66,3 +66,43 @@ export async function listOrders(): Promise<Order[]> {
 export async function getOrder(id: string): Promise<Order> {
   return request<Order>(`/api/orders/${id}`);
 }
+
+// ── Past orders from Foodics ──────────────────────────────────────────────────
+
+export interface PastOrderItem {
+  name: string;
+  quantity: number;
+  totalPrice: number; // halalas
+}
+
+export interface PastOrder {
+  reference: number;
+  foodicsOrderId: string;
+  businessDate: string | null;
+  totalPrice: number; // halalas
+  status: number; // Foodics order status (4 = Closed)
+  type: number; // Foodics order type (2 = Pick Up, 3 = Delivery)
+  items: PastOrderItem[];
+}
+
+export interface PastOrdersResult {
+  /** False when the backend refuses to serve history — see `reason`. */
+  available: boolean;
+  reason?: string;
+  /** True when this phone exists in Foodics. False simply means "no history". */
+  matched: boolean;
+  customerName?: string;
+  totalOrders: number;
+  orders: PastOrder[];
+}
+
+/**
+ * Orders this customer placed at the counter before the app existed.
+ *
+ * The backend derives the phone from the session token, so there is nothing to
+ * pass. It returns `available: false` while OTP is still mock — the caller
+ * should treat that as "no history yet", not as an error worth showing.
+ */
+export async function fetchPastOrders(): Promise<PastOrdersResult> {
+  return request<PastOrdersResult>('/api/orders/history');
+}

@@ -1,5 +1,7 @@
 import { type ReactNode } from 'react';
 import {
+  KeyboardAvoidingView,
+  Platform,
   ScrollView,
   View,
   type ScrollViewProps,
@@ -57,39 +59,51 @@ export function ScreenContainer({
   );
 
   return (
-    <View
-      style={{
-        flex: 1,
-        backgroundColor,
-        paddingTop: topInset ? insets.top : 0,
-      }}
+    // Keyboard handling: from Android 15 the system no longer resizes the window
+    // for `adjustResize` when the app draws edge-to-edge, so the keyboard can sit
+    // on top of a focused input. KeyboardAvoidingView shrinks the content instead.
+    // iOS never resized on its own and has always needed `padding`.
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      {header ? <View style={[column, { paddingHorizontal: px }]}>{header}</View> : null}
-      {scroll ? (
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          contentContainerStyle={{
-            paddingBottom: footer ? 0 : insets.bottom + spacing.lg,
-            paddingTop: isTablet ? spacing.sm : 0,
-          }}
-          {...scrollProps}
-        >
-          {body}
-        </ScrollView>
-      ) : (
-        body
-      )}
-      {footer ? (
-        <View
-          style={{
-            paddingBottom: insets.bottom + spacing.sm,
-            backgroundColor,
-          }}
-        >
-          <View style={column}>{footer}</View>
-        </View>
-      ) : null}
-    </View>
+      <View
+        style={{
+          flex: 1,
+          backgroundColor,
+          paddingTop: topInset ? insets.top : 0,
+        }}
+      >
+        {header ? <View style={[column, { paddingHorizontal: px }]}>{header}</View> : null}
+        {scroll ? (
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            // Follow the focused field as the keyboard opens instead of leaving it
+            // hidden behind it.
+            automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+            contentContainerStyle={{
+              paddingBottom: footer ? 0 : insets.bottom + spacing.lg,
+              paddingTop: isTablet ? spacing.sm : 0,
+            }}
+            {...scrollProps}
+          >
+            {body}
+          </ScrollView>
+        ) : (
+          body
+        )}
+        {footer ? (
+          <View
+            style={{
+              paddingBottom: insets.bottom + spacing.sm,
+              backgroundColor,
+            }}
+          >
+            <View style={column}>{footer}</View>
+          </View>
+        ) : null}
+      </View>
+    </KeyboardAvoidingView>
   );
 }

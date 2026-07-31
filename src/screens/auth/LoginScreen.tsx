@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Image, View } from 'react-native';
+import { Image, KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { colors, gradients, shadows, spacing } from '@/theme';
@@ -41,41 +41,65 @@ export function LoginScreen() {
   };
 
   return (
-    <LinearGradient
-      colors={['#f6eedd', '#efe6d6']}
-      style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing['4xl'], paddingTop: insets.top }}
-    >
-      <View style={{ position: 'absolute', top: 80, width: 260, height: 260, borderRadius: 130, backgroundColor: colors.gold, opacity: 0.16 }} />
+    <LinearGradient colors={['#f6eedd', '#efe6d6']} style={{ flex: 1 }}>
+      <View style={{ position: 'absolute', top: 80, alignSelf: 'center', width: 260, height: 260, borderRadius: 130, backgroundColor: colors.gold, opacity: 0.16 }} />
 
-      <Image source={LOGO} style={{ width: 120, height: 120 }} resizeMode="contain" />
-      <Txt size={36} weight="black" color={colors.ink} latin style={{ marginTop: 14 }}>
-        Sun Ray
-      </Txt>
-      <Txt size={17} weight="extraBold" color={colors.terracotta}>
-        سن راي
-      </Txt>
-      <Txt size={13} weight="medium" color={colors.textMuted} style={{ marginTop: 10 }}>
-        سجّل دخولك لتبدأ يومك مشرقًا
-      </Txt>
+      {/*
+        The keyboard used to cover the phone field: this screen centres its content
+        with no scroll, so there was nowhere for the input to move. It's now a
+        scrollable centred column inside a KeyboardAvoidingView — the content lifts
+        while the keyboard is open and re-centres when it closes.
 
-      {/* phone field — LTR digits in an RTL app */}
-      <PhoneField value={phone} onChangeText={setPhone} style={[shadows.sm, { width: '100%', marginTop: 34 }]} />
+        `insets.bottom` also matters here: Android draws edge-to-edge, so without it
+        the guest button and terms text sit underneath the system navigation bar.
+      */}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{
+            flexGrow: 1,
+            alignItems: 'center',
+            justifyContent: 'center',
+            paddingHorizontal: spacing['4xl'],
+            paddingTop: insets.top + spacing.lg,
+            paddingBottom: insets.bottom + spacing.lg,
+          }}
+        >
+          <Image source={LOGO} style={{ width: 120, height: 120 }} resizeMode="contain" />
+          <Txt size={36} weight="black" color={colors.ink} latin style={{ marginTop: 14 }}>
+            Sun Ray
+          </Txt>
+          <Txt size={17} weight="extraBold" color={colors.terracotta}>
+            سن راي
+          </Txt>
+          <Txt size={13} weight="medium" color={colors.textMuted} style={{ marginTop: 10 }}>
+            سجّل دخولك لتبدأ يومك مشرقًا
+          </Txt>
 
-      <Button label="تسجيل الدخول" onPress={onLogin} loading={submitting} style={{ marginTop: 12 }} />
+          {/* phone field — LTR digits in an RTL app */}
+          <PhoneField value={phone} onChangeText={setPhone} style={[shadows.sm, { width: '100%', marginTop: 34 }]} />
 
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, width: '100%', marginTop: 20 }}>
-        <View style={{ flex: 1, height: 1, backgroundColor: colors.divider }} />
-        <Txt size={11} color={colors.textFaint}>
-          أو
-        </Txt>
-        <View style={{ flex: 1, height: 1, backgroundColor: colors.divider }} />
-      </View>
+          <Button label="تسجيل الدخول" onPress={onLogin} loading={submitting} style={{ marginTop: 12 }} />
 
-      <Button label="المتابعة كضيف" variant="outline" onPress={onGuest} style={{ marginTop: 16 }} />
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, width: '100%', marginTop: 20 }}>
+            <View style={{ flex: 1, height: 1, backgroundColor: colors.divider }} />
+            <Txt size={11} color={colors.textFaint}>
+              أو
+            </Txt>
+            <View style={{ flex: 1, height: 1, backgroundColor: colors.divider }} />
+          </View>
 
-      <Txt size={11} color={colors.textFaint} center style={{ marginTop: 20, lineHeight: 18 }}>
-        بالمتابعة فأنت توافق على الشروط وسياسة الخصوصية
-      </Txt>
+          <Button label="المتابعة كضيف" variant="outline" onPress={onGuest} style={{ marginTop: 16 }} />
+
+          <Txt size={11} color={colors.textFaint} center style={{ marginTop: 20, lineHeight: 18 }}>
+            بالمتابعة فأنت توافق على الشروط وسياسة الخصوصية
+          </Txt>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </LinearGradient>
   );
 }

@@ -10,6 +10,7 @@
     "backgroundColor": "#efe6d6",
     "newArchEnabled": true,
     "splash": {
+      "image": "./assets/splash-icon.png",
       "backgroundColor": "#efe6d6",
       "resizeMode": "contain"
     },
@@ -25,7 +26,13 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "edgeToEdgeEnabled": true,
+      "softwareKeyboardLayoutMode": "resize",
+      "navigationBar": {
+        "backgroundColor": "#efe6d6",
+        "barStyle": "dark-content"
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -33,8 +40,25 @@
     "plugins": [
       "expo-router",
       "expo-font",
-      "expo-splash-screen",
-      "expo-secure-store"
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#efe6d6"
+        }
+      ],
+      "expo-secure-store",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableProguardInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true
+          }
+        }
+      ],
+      "./plugins/withAndroidAbiFilters"
     ],
     "experiments": {
       "typedRoutes": true

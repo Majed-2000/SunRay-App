@@ -1,0 +1,2 @@
+# The filled-in production secrets live here on the server only.
+.env

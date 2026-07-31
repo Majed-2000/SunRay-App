@@ -1,0 +1,81 @@
+# Production stack for a single VPS: Caddy (HTTPS) → API → PostgreSQL.
+#
+#   cd ~/sunray/backend/deploy
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# Secrets come from ./.env (copy prod.env.example → .env and fill it in).
+# Compose reads ./.env twice, on purpose:
+#   1. for ${...} substitution in THIS file (automatic, because it's named .env)
+#   2. as `env_file:` so the values also land inside the containers
+#
+# Postgres has NO published port — it is reachable only from the api container
+# over the private compose network. Never add `ports:` to the db service.
+
+name: sunray
+
+services:
+  # ── TLS terminator / public entrypoint ─────────────────────────────────────
+  # Caddy gets and renews Let's Encrypt certificates automatically, as long as
+  # DOMAIN resolves to this server's public IP and ports 80+443 are reachable.
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+    env_file: ./.env
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # caddy_data holds the issued certificates. Do NOT delete this volume
+      # casually — Let's Encrypt rate-limits re-issuing (5 per domain per week).
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+
+  # ── The Sun Ray backend ────────────────────────────────────────────────────
+  # Built from backend/Dockerfile. Not published to the host: only Caddy talks
+  # to it, over the compose network. TRUST_PROXY=1 because Caddy is the one hop
+  # in front, so the rate limiter sees the real client IP.
+  api:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: ./.env
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      # Internal connection over the compose network — no sslmode needed, the
+      # traffic never leaves the host.
+      DATABASE_URL: postgresql://sunray:${POSTGRES_PASSWORD}@db:5432/sunray?schema=public
+      TRUST_PROXY: 1
+      ADMIN_ENABLED: 'false'
+      BODY_LIMIT: 100kb
+    depends_on:
+      db:
+        condition: service_healthy
+    expose:
+      - '4000'
+
+  # ── PostgreSQL ─────────────────────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: sunray
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: sunray
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U sunray -d sunray']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

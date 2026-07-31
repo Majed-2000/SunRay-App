@@ -83,6 +83,31 @@ curl http://localhost:4000/health/ready
 ```
 This validates the exact production config without touching your SQLite dev DB.
 
+## Option C — VPS in Saudi Arabia (in-Kingdom hosting) ← current setup
+**The path to use for anything with real Saudi customers.** Puts the backend on
+a VPS inside Saudi Arabia (LightNode Riyadh; Oracle Cloud's free Jeddah tier
+documented as an appendix), with Caddy for automatic HTTPS, Postgres in Docker,
+and nightly backups. Data stays in-Kingdom (PDPL) and there are no free-tier cold
+starts. Serves `https://api.sunray.sa`.
+
+Everything lives in [`deploy/`](deploy/):
+
+| File | Purpose |
+|------|---------|
+| `SAUDI_VPS.md` | **Start here** — full step-by-step walkthrough |
+| `docker-compose.prod.yml` | Caddy + API + Postgres (Postgres is not published) |
+| `Caddyfile` | Reverse proxy + automatic Let's Encrypt TLS |
+| `prod.env.example` | Production secrets template → copy to `deploy/.env` |
+| `provision.sh` | One-time server setup (Docker, ufw, auto security updates) |
+| `backup.sh` | Nightly `pg_dump` with rotation + restore instructions |
+
+```
+# on the server, after provision.sh
+cd ~/sunray/backend/deploy
+cp prod.env.example .env && nano .env
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
 ---
 
 ## Required production env (see `.env.production.example`)

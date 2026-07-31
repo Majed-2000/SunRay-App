@@ -1,0 +1,35 @@
+# Caddy reverse proxy — terminates HTTPS and forwards to the API container.
+#
+# Caddy obtains and renews Let's Encrypt certificates by itself. Requirements:
+#   - DOMAIN (in .env) resolves to this server's public IPv4
+#   - ports 80 and 443 are open in BOTH the Oracle VCN security list and the
+#     host firewall (provision.sh handles the host side)
+#
+# {$VAR} is Caddy's environment-variable syntax — the values come from .env
+# via `env_file:` in docker-compose.prod.yml.
+
+{
+	# Let's Encrypt sends expiry warnings here if renewal ever fails.
+	email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+	encode zstd gzip
+
+	# Caddy sets X-Forwarded-For / X-Forwarded-Proto automatically; the backend
+	# reads them because TRUST_PROXY=1. That is what makes express-rate-limit
+	# and the audit logs see the real client IP instead of the proxy's.
+	reverse_proxy api:4000
+
+	# Keep the server's identity out of responses.
+	header {
+		-Server
+	}
+
+	log {
+		output file /data/access.log {
+			roll_size 10MiB
+			roll_keep 5
+		}
+	}
+}

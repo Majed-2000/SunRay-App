@@ -23,12 +23,17 @@ else
   SUDO="sudo"
 fi
 
+# Always set environment variables via `env`, never as a bare `$SUDO VAR=x cmd`
+# prefix. Bash decides whether a word is an assignment prefix at PARSE time — so
+# once $SUDO expands to nothing, `VAR=x` becomes the command name and you get
+# "DEBIAN_FRONTEND=noninteractive: command not found". `env` works either way.
+
 log() { printf '\n\033[1;36m▸ %s\033[0m\n' "$*"; }
 
 # ── 1. System packages ───────────────────────────────────────────────────────
 log "Updating system packages"
 $SUDO apt-get update -y
-$SUDO DEBIAN_FRONTEND=noninteractive apt-get upgrade -y
+$SUDO env DEBIAN_FRONTEND=noninteractive apt-get upgrade -y
 $SUDO apt-get install -y ca-certificates curl gnupg ufw fail2ban unattended-upgrades
 
 # ── 2. Firewall ──────────────────────────────────────────────────────────────
@@ -44,7 +49,7 @@ $SUDO ufw allow 443/tcp comment 'HTTPS'
 # cause of "my site won't load" on those providers. Remove them if present.
 if dpkg -l | grep -qE '^ii\s+(netfilter-persistent|iptables-persistent)'; then
   log "Removing the image's pre-installed iptables rules"
-  $SUDO DEBIAN_FRONTEND=noninteractive apt-get purge -y netfilter-persistent iptables-persistent
+  $SUDO env DEBIAN_FRONTEND=noninteractive apt-get purge -y netfilter-persistent iptables-persistent
   $SUDO iptables -P INPUT ACCEPT
   $SUDO iptables -F INPUT
 fi
@@ -88,7 +93,7 @@ $SUDO systemctl enable --now docker
 # You are running a public server holding customer phone numbers and addresses.
 # Unattended security patching is not optional.
 log "Enabling unattended security upgrades"
-$SUDO DEBIAN_FRONTEND=noninteractive dpkg-reconfigure -f noninteractive unattended-upgrades
+$SUDO env DEBIAN_FRONTEND=noninteractive dpkg-reconfigure -f noninteractive unattended-upgrades
 $SUDO systemctl enable --now fail2ban
 
 # ── 5. Verify SSH is key-only ────────────────────────────────────────────────

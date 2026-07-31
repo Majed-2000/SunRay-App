@@ -92,26 +92,73 @@ $SUDO systemctl enable --now docker
 # ── 4. Automatic security updates ────────────────────────────────────────────
 # You are running a public server holding customer phone numbers and addresses.
 # Unattended security patching is not optional.
+#
+# Several VPS providers (LightNode among them) ship images with apt's automatic
+# updates disabled THREE separate ways: the timers masked, the services they
+# trigger masked (symlinked to /dev/null), and APT::Periodic::* set to "0".
+# dpkg-reconfigure alone does not undo any of that, so undo all three explicitly.
 log "Enabling unattended security upgrades"
-$SUDO env DEBIAN_FRONTEND=noninteractive dpkg-reconfigure -f noninteractive unattended-upgrades
-$SUDO systemctl enable --now fail2ban
+$SUDO systemctl unmask apt-daily.timer apt-daily-upgrade.timer >/dev/null 2>&1 || true
+$SUDO systemctl unmask apt-daily.service apt-daily-upgrade.service unattended-upgrades.service >/dev/null 2>&1 || true
+$SUDO systemctl daemon-reload
 
-# ── 5. Verify SSH is key-only ────────────────────────────────────────────────
+$SUDO tee /etc/apt/apt.conf.d/20auto-upgrades >/dev/null <<'EOF'
+APT::Periodic::Update-Package-Lists "1";
+APT::Periodic::Unattended-Upgrade "1";
+EOF
+
+$SUDO systemctl enable --now unattended-upgrades.service >/dev/null 2>&1 || true
+$SUDO systemctl enable --now apt-daily.timer apt-daily-upgrade.timer >/dev/null 2>&1 || true
+
+# Verify rather than assume — this is exactly the kind of step that silently
+# does nothing and leaves you unpatched for months.
+if $SUDO systemctl is-active apt-daily-upgrade.timer >/dev/null 2>&1; then
+  echo "  ✓ automatic security updates active"
+else
+  echo "  ⚠ apt-daily-upgrade.timer is NOT running — patch this manually:"
+  echo "     systemctl unmask apt-daily-upgrade.service apt-daily-upgrade.timer"
+  echo "     systemctl enable --now apt-daily-upgrade.timer"
+fi
+
+$SUDO systemctl enable --now fail2ban >/dev/null 2>&1 || true
+
+# ── 5. Enforce key-only SSH ──────────────────────────────────────────────────
 # Providers that hand you a root password (LightNode does, by default) leave
-# password login ON — which means the whole internet can brute-force your root
-# account. Once your SSH key works, turn it off.
-log "SSH password authentication check"
-if $SUDO sshd -T 2>/dev/null | grep -qi '^passwordauthentication yes'; then
-  cat <<'WARN'
-  ⚠  Password login is ENABLED — the internet can brute-force this server.
-     Confirm your SSH KEY works first (open a second terminal and log in),
-     then disable passwords:
+# password login ON — the whole internet can then brute-force your root account.
+#
+# NOTE: `sshd -T` can fail transiently (e.g. openssh is mid-upgrade from step 1).
+# An earlier version of this script piped it to grep with stderr discarded, so a
+# FAILED probe produced no output, matched nothing, and cheerfully reported
+# "key-only" on a box that accepted passwords. Never infer "secure" from the
+# absence of output — check the command actually succeeded.
+log "Enforcing key-only SSH"
+SSHD_OUT="$($SUDO sshd -T 2>/dev/null)" && SSHD_OK=1 || SSHD_OK=0
 
-       sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
-       rm -f /etc/ssh/sshd_config.d/*cloud-init* 2>/dev/null || true
-       systemctl restart ssh
-
-WARN
+if [ "$SSHD_OK" -ne 1 ]; then
+  echo "  ⚠ could not read sshd config (sshd -T failed) — check manually:"
+  echo "     sshd -T | grep -i passwordauthentication"
+elif echo "$SSHD_OUT" | grep -qi '^passwordauthentication yes'; then
+  # Only safe to disable passwords if a key is actually installed — otherwise
+  # we would lock the user out of their own server.
+  KEYFILE="$HOME/.ssh/authorized_keys"
+  if [ -s "$KEYFILE" ]; then
+    echo "  → password auth is ON and an authorized key exists; disabling passwords"
+    # Both files matter: the cloud-init drop-in overrides the main config.
+    $SUDO sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
+    for f in /etc/ssh/sshd_config.d/*.conf; do
+      [ -e "$f" ] && $SUDO sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication no/' "$f"
+    done
+    # Validate BEFORE restarting — a bad config means no more SSH, ever.
+    if $SUDO sshd -t; then
+      $SUDO systemctl restart ssh
+      echo "  ✓ $($SUDO sshd -T | grep -i '^passwordauthentication')"
+    else
+      echo "  ⚠ sshd config invalid after edit — NOT restarting. Fix before disconnecting."
+    fi
+  else
+    echo "  ⚠ password auth is ON but no authorized_keys found — refusing to disable"
+    echo "     (that would lock you out). Install your key, then re-run this script."
+  fi
 else
   echo "  ✓ Key-only login (password auth disabled)"
 fi
@@ -123,6 +170,6 @@ Next steps:
   1. Upload the project, create deploy/.env, then:
        cd \$HOME/sunray/backend/deploy
        docker compose -f docker-compose.prod.yml up -d --build
-  2. Full walkthrough: backend/deploy/JEDDAH_VPS.md
+  2. Full walkthrough: backend/deploy/SAUDI_VPS.md
 
 EOF

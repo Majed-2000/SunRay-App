@@ -19,6 +19,7 @@ import { walletRouter } from '../modules/wallet/wallet.routes';
 import { loyaltyRouter } from '../modules/loyalty/loyalty.routes';
 import { notificationsRouter } from '../modules/notifications/notifications.routes';
 import { giftCardsRouter, customerGiftCardsRouter } from '../modules/giftCards/giftCards.routes';
+import { foodicsRouter } from '../modules/foodics/foodics.routes';
 import { authenticate } from '../middleware/authenticate';
 import { requireSelfParam } from '../middleware/requireSelf';
 
@@ -30,6 +31,8 @@ rootRouter.use('/health', healthRouter);
 // Everything else under /api.
 const api = Router();
 api.use('/auth', authRouter);
+// Operator-only (requireDev): Foodics status + menu sync. Not customer-facing.
+api.use('/foodics', foodicsRouter);
 api.use('/branches', branchesRouter);
 api.use('/menu', menuRouter);
 api.use('/products', productsRouter);

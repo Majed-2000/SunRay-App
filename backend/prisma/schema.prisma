@@ -79,6 +79,8 @@ model Address {
 
 model Branch {
   id          String   @id @default(cuid())
+  /// Foodics branch UUID. Null for local-only branches (the original seed data).
+  foodicsId   String?  @unique
   name        String
   address     String?
   latitude    Float?
@@ -94,6 +96,8 @@ model Branch {
 
 model Category {
   id        String   @id @default(cuid())
+  /// Foodics category UUID — the upsert key during menu sync.
+  foodicsId String?  @unique
   nameAr    String
   nameEn    String?
   sortOrder Int      @default(0)
@@ -106,6 +110,8 @@ model Category {
 
 model Product {
   id              String   @id @default(cuid())
+  /// Foodics product UUID — the upsert key during menu sync.
+  foodicsId       String?  @unique
   categoryId      String
   nameAr          String
   nameEn          String?

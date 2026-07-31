@@ -39,6 +39,32 @@ const EnvSchema = z.object({
     .enum(['true', 'false'])
     .default('false')
     .transform((v) => v === 'true'),
+
+  // ── Foodics POS ────────────────────────────────────────────────────────────
+  /**
+   * Long-lived Foodics access token. This is a SECRET with write access to the
+   * real business — it belongs in deploy/.env on the server, never in the app
+   * bundle and never in git. Empty disables all Foodics calls, so the backend
+   * still boots and serves the locally-seeded menu.
+   */
+  FOODICS_TOKEN: z.string().default(''),
+  FOODICS_BASE_URL: z.string().url().default('https://api.foodics.com/v5'),
+  /**
+   * Foodics branch UUID that the app orders from. Menu sync keeps only products
+   * linked to this branch, because /products cannot be filtered by branch
+   * server-side (filter[branches.id] returns 400) — we filter locally instead.
+   */
+  FOODICS_BRANCH_ID: z.string().default(''),
+  /**
+   * Master switch for anything that WRITES to Foodics (order injection).
+   * Deliberately separate from the token: syncing the menu is read-only and
+   * harmless, whereas POST /orders puts a real ticket in front of real staff at
+   * the counter. Keep this false until the branch is genuinely ready.
+   */
+  FOODICS_ORDER_INJECTION: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
 });
 
 const parsed = EnvSchema.safeParse(process.env);

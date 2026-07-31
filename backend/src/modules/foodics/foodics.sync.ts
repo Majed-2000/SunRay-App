@@ -41,6 +41,38 @@ interface FoodicsCategory {
   deleted_at: string | null;
 }
 
+/**
+ * A modifier as it appears INSIDE a product (include=modifiers).
+ *
+ * It carries no options — only the link and its `pivot`. The options live on the
+ * modifier definition and must be fetched separately (see fetchModifierOptions).
+ */
+interface FoodicsModifierLink {
+  id: string;
+  name: string;
+  name_localized: string | null;
+  deleted_at: string | null;
+  pivot?: {
+    minimum_options: number;
+    maximum_options: number;
+    free_options: number;
+    /** Options hidden for THIS product even though the modifier defines them. */
+    excluded_options_ids?: string[];
+    default_options_ids?: string[];
+    index: number;
+  };
+}
+
+interface FoodicsModifierOption {
+  id: string;
+  name: string;
+  name_localized: string | null;
+  price: number;
+  is_active: boolean;
+  deleted_at: string | null;
+  index: number;
+}
+
 interface FoodicsProduct {
   id: string;
   name: string;
@@ -53,6 +85,7 @@ interface FoodicsProduct {
   is_active: boolean;
   deleted_at: string | null;
   category?: { id: string } | null;
+  modifiers?: FoodicsModifierLink[];
   branches?: Array<{
     id: string;
     pivot?: { price: number | null; is_active: boolean; is_in_stock: boolean };
@@ -63,10 +96,39 @@ export interface SyncReport {
   branches: { seen: number; upserted: number; missingCoordinates: string[] };
   categories: { seen: number; upserted: number };
   products: { seen: number; kept: number; upserted: number; skipped: Record<string, number> };
+  modifiers: { definitionsFetched: number; linksCreated: number; optionsCreated: number };
 }
 
 /** SAR (decimal) → halalas (integer). Money is never a float in this codebase. */
 const toHalalas = (sar: number): number => Math.round(sar * 100);
+
+/**
+ * Fetch a modifier's options, memoised for the duration of one sync run.
+ *
+ * Two API quirks force this shape:
+ *  - `include=modifiers` on a product returns the link and its pivot, but NEVER
+ *    the options.
+ *  - `GET /modifiers?include=options` (the LIST) returns options as an empty
+ *    array. Only the SINGLE `GET /modifiers/{id}` populates them.
+ *
+ * Modifiers are shared across products (22 definitions covering 111 products),
+ * so without the cache this would issue hundreds of calls and risk the 429 that
+ * previously delayed a live customer order.
+ */
+async function fetchModifierOptions(
+  modifierId: string,
+  cache: Map<string, FoodicsModifierOption[]>,
+): Promise<FoodicsModifierOption[]> {
+  const hit = cache.get(modifierId);
+  if (hit) return hit;
+
+  const res = await foodics.get<{ data: { options?: FoodicsModifierOption[] } }>(
+    `/modifiers/${modifierId}`,
+  );
+  const options = res.data?.options ?? [];
+  cache.set(modifierId, options);
+  return options;
+}
 
 export async function syncFoodicsMenu(): Promise<SyncReport> {
   if (!foodics.configured) throw new Error('FOODICS_TOKEN is not configured');
@@ -76,7 +138,10 @@ export async function syncFoodicsMenu(): Promise<SyncReport> {
     branches: { seen: 0, upserted: 0, missingCoordinates: [] },
     categories: { seen: 0, upserted: 0 },
     products: { seen: 0, kept: 0, upserted: 0, skipped: {} },
+    modifiers: { definitionsFetched: 0, linksCreated: 0, optionsCreated: 0 },
   };
+  /** modifier id → its options, fetched at most once per sync run. */
+  const optionCache = new Map<string, FoodicsModifierOption[]>();
   const skip = (reason: string) => {
     report.products.skipped[reason] = (report.products.skipped[reason] ?? 0) + 1;
   };
@@ -176,7 +241,7 @@ export async function syncFoodicsMenu(): Promise<SyncReport> {
     const priceSar = link?.pivot?.price ?? p.price;
     report.products.kept += 1;
 
-    await prisma.product.upsert({
+    const productRow = await prisma.product.upsert({
       where: { foodicsId: p.id },
       create: {
         foodicsId: p.id,
@@ -203,10 +268,70 @@ export async function syncFoodicsMenu(): Promise<SyncReport> {
       },
     });
     report.products.upserted += 1;
+
+    // ── Modifiers for this product ───────────────────────────────────────────
+    // Our schema stores a Modifier per product, whereas Foodics defines each
+    // modifier once and shares it across products via a pivot. So we rebuild
+    // this product's rows from scratch every sync: it keeps Foodics as the
+    // single source of truth and avoids stale options lingering after a change
+    // in the console. Safe to delete — nothing references Modifier or
+    // ModifierOption (OrderItem points at Product, not at these).
+    const existing = await prisma.modifier.findMany({
+      where: { productId: productRow.id },
+      select: { id: true },
+    });
+    if (existing.length) {
+      const ids = existing.map((m) => m.id);
+      await prisma.modifierOption.deleteMany({ where: { modifierId: { in: ids } } });
+      await prisma.modifier.deleteMany({ where: { id: { in: ids } } });
+    }
+
+    const links = (p.modifiers ?? [])
+      .filter((m) => !m.deleted_at)
+      .sort((a, b) => (a.pivot?.index ?? 0) - (b.pivot?.index ?? 0));
+
+    for (const m of links) {
+      const before = optionCache.size;
+      const allOptions = await fetchModifierOptions(m.id, optionCache);
+      if (optionCache.size > before) report.modifiers.definitionsFetched += 1;
+
+      const excluded = new Set(m.pivot?.excluded_options_ids ?? []);
+      const options = allOptions
+        .filter((o) => !o.deleted_at && o.is_active && !excluded.has(o.id))
+        .sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
+
+      // A modifier with no selectable options would render as an empty group in
+      // the app — skip it rather than show the customer a dead control.
+      if (!options.length) continue;
+
+      const minimum = m.pivot?.minimum_options ?? 0;
+      await prisma.modifier.create({
+        data: {
+          productId: productRow.id,
+          nameAr: m.name_localized || m.name,
+          nameEn: m.name,
+          minSelected: minimum,
+          maxSelected: m.pivot?.maximum_options ?? 1,
+          isRequired: minimum > 0,
+          options: {
+            create: options.map((o) => ({
+              nameAr: o.name_localized || o.name,
+              nameEn: o.name,
+              price: toHalalas(o.price ?? 0),
+              isAvailable: true,
+            })),
+          },
+        },
+      });
+      report.modifiers.linksCreated += 1;
+      report.modifiers.optionsCreated += options.length;
+    }
   }
 
   logger.info(
-    `Foodics sync: ${report.branches.upserted} branches, ${report.categories.upserted} categories, ${report.products.upserted} products`,
+    `Foodics sync: ${report.branches.upserted} branches, ${report.categories.upserted} categories, ` +
+      `${report.products.upserted} products, ${report.modifiers.linksCreated} modifier groups ` +
+      `(${report.modifiers.optionsCreated} options, ${report.modifiers.definitionsFetched} definitions fetched)`,
   );
   if (report.branches.missingCoordinates.length) {
     logger.warn(

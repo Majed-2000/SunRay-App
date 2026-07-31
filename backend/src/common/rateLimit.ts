@@ -32,14 +32,22 @@ interface LimiterOpts {
 }
 
 /**
- * Identify the client. Behind Cloudflare (Render fronts every service with it),
- * `CF-Connecting-IP` is the real, unspoofable client IP — using it makes per-client
- * limiting correct regardless of how many proxy hops sit in front (so we don't have
- * to guess the exact `trust proxy` depth). Falls back to req.ip in plain setups.
+ * Identify the client for rate limiting.
+ *
+ * We use `req.ip`, which Express derives from X-Forwarded-For according to the
+ * `trust proxy` setting (TRUST_PROXY=1 — exactly one hop, our Caddy container).
+ * That hop is under our control and rewrites the header, so the value is sound.
+ *
+ * ⚠️ Do NOT reintroduce `CF-Connecting-IP` here. An earlier version preferred it,
+ * which was safe *only* on Render, where Cloudflare fronted every service and
+ * overwrote the header on the way in. We no longer run behind Cloudflare, and
+ * nothing in the current stack strips it — so trusting it would let any client
+ * send a fresh `CF-Connecting-IP` per request and bypass every limit, including
+ * the brute-force protection on login/OTP. If Cloudflare is ever put in front of
+ * this service, re-enable it behind an explicit env flag, never unconditionally.
  */
 function clientKey(req: Request): string {
-  const cf = req.headers['cf-connecting-ip'];
-  const ip = typeof cf === 'string' && cf.length > 0 ? cf : req.ip ?? req.socket.remoteAddress ?? 'unknown';
+  const ip = req.ip ?? req.socket.remoteAddress ?? 'unknown';
   // Normalize (masks IPv6 to a /64) so an IPv6 client can't rotate addresses to
   // evade limits — this is what silences express-rate-limit's IPv6 key warning.
   return ipKeyGenerator(ip);

@@ -23,41 +23,23 @@ The data models are identical; this just targets a different engine.
 
 ---
 
-## Option A — Render (recommended, ~10 min)
-A managed host that gives HTTPS + a public URL + managed Postgres from the
-committed `render.yaml` blueprint.
+## Option A — Render — ❌ retired (kept as history)
+We deployed here first. The free tier expired and the service is gone;
+`render.yaml` has been deleted. **Do not resurrect this path** — the data would
+sit outside Saudi Arabia, which is the opposite of what Option C is for.
 
-1. Push this repo to GitHub (ask me — I won't push without your go-ahead).
-2. Render → **New → Blueprint** → pick the repo. It reads `render.yaml`, creates
-   `sunray-db` (Postgres) and `sunray-backend` (web service), and wires
-   `DATABASE_URL` + a generated `JWT_ACCESS_SECRET` automatically.
-3. Wait for the deploy, then verify:
-   ```
-   curl https://sunray-backend.onrender.com/health        # {ok:true,...}
-   curl https://sunray-backend.onrender.com/health/ready  # DB reachable
-   ```
-4. **Seed the catalog (required, once).** `db push` creates empty tables, so the
-   menu/branches screens are blank until you seed. In the Render **Shell**, run:
-   ```
-   npx prisma db seed
-   ```
-   ⚠️ Run this **only once** — `seed.ts` is destructive (it `deleteMany`s before
-   inserting), so re-running wipes any real orders/customers. Never put it in the
-   start command.
-5. Point the app at it: in the project root `.env`
-   ```
-   EXPO_PUBLIC_API_BASE_URL=https://sunray-backend.onrender.com
-   EXPO_PUBLIC_USE_BACKEND=true
-   ```
-   Rebuild the app (`npx expo start -c`, or an EAS build) and it works globally.
+Two things it left behind, both since fixed — worth knowing if you see traces:
 
-> **Free-tier cold starts:** a free Render service sleeps after ~15 min idle and
-> takes 30–50s to wake. The app uses a 60s request timeout and pings `/health` at
-> launch to warm it, so the first login works — it may just be slow the first time.
-> Override the timeout with `EXPO_PUBLIC_REQUEST_TIMEOUT_MS` if needed.
+- The rate limiter trusted the `CF-Connecting-IP` header, which was correct only
+  because Cloudflare fronted every Render service and overwrote it. Behind our own
+  Caddy, nothing strips that header, so trusting it let any client rotate a fake
+  value per request and bypass every rate limit — including brute-force protection
+  on login. `rateLimit.ts` now keys on `req.ip` via `TRUST_PROXY`.
+- Free-tier cold starts (30–50s) are why the app has a 60s request timeout and a
+  `/health` ping at launch. Harmless now, and still useful on a slow network.
 
-> Other managed hosts (Railway, Fly.io) work the same way — provision Postgres,
-> set the env vars below, build with the buildCommand, start with the startCommand.
+Other managed hosts (Railway, Fly.io) would work the same way — provision Postgres,
+set the env vars below, build with the buildCommand, start with the startCommand.
 
 ## Option B — Docker (any host / VPS)
 The `Dockerfile` produces a production image targeting Postgres.

@@ -179,8 +179,14 @@ export async function syncFoodicsMenu(): Promise<SyncReport> {
       },
       update: {
         name: b.name_localized || b.name,
-        latitude: b.latitude,
-        longitude: b.longitude,
+        // Only overwrite coordinates when Foodics actually has them. Both
+        // branches currently return null, and blindly copying that would wipe
+        // any coordinates set locally on every sync — breaking the app's branch
+        // map for no reason. Foodics stays authoritative for what it knows;
+        // absence of data is not data.
+        ...(b.latitude != null && b.longitude != null
+          ? { latitude: b.latitude, longitude: b.longitude }
+          : {}),
         openingFrom: b.opening_from,
         openingTo: b.opening_to,
       },

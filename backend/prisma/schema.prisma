@@ -262,3 +262,21 @@ model Notification {
 
   customer Customer? @relation(fields: [customerId], references: [id])
 }
+
+/// A pending OTP login challenge.
+///
+/// Only the sha256 of the code is stored — a database leak must not hand anyone
+/// a working login code. `attempts` caps brute force on a 4-digit code (10,000
+/// possibilities is trivial to exhaust without it), and `consumedAt` makes each
+/// code strictly single-use.
+model OtpChallenge {
+  id         String    @id @default(cuid())
+  phone      String
+  codeHash   String
+  expiresAt  DateTime
+  attempts   Int       @default(0)
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([phone, expiresAt])
+}

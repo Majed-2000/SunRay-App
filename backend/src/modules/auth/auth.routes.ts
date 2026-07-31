@@ -14,7 +14,7 @@ authRouter.post(
   authLimiter,
   asyncHandler(async (req, res) => {
     const { phone } = loginSchema.parse(req.body);
-    ok(res, service.requestOtp(phone));
+    ok(res, await service.requestOtp(phone));
   }),
 );
 

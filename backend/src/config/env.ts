@@ -74,7 +74,20 @@ const EnvSchema = z.object({
    * personal data keyed by phone MUST refuse to run while this is `mock`; see
    * foodics.history.ts. Set to a real provider only once it genuinely verifies.
    */
-  OTP_PROVIDER: z.enum(['mock', 'unifonic', 'msegat', 'twilio']).default('mock'),
+  OTP_PROVIDER: z.enum(['mock', 'yamamah', 'unifonic', 'msegat', 'twilio']).default('mock'),
+
+  // ── SMS (Yamamah via our IP-whitelisted proxy) ─────────────────────────────
+  /** Proxy endpoint. Yamamah authorises by IP, and the VPS is not whitelisted. */
+  SMS_URL: z.string().default(''),
+  SMS_USERNAME: z.string().default(''),
+  SMS_PASSWORD: z.string().default(''),
+  /** Registered sender name shown to the recipient. */
+  SMS_SENDER: z.string().default('SUNRAY'),
+  /** How long a login code stays valid. */
+  OTP_TTL_SECONDS: z.coerce.number().int().positive().default(300),
+  /** Wrong guesses allowed before a code is burned. A 4-digit code has only
+   *  10,000 possibilities, so this is what makes it safe at all. */
+  OTP_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5),
 });
 
 const parsed = EnvSchema.safeParse(process.env);

@@ -65,6 +65,16 @@ const EnvSchema = z.object({
     .enum(['true', 'false'])
     .default('false')
     .transform((v) => v === 'true'),
+
+  /**
+   * Which OTP provider actually verifies the login code.
+   *
+   * `mock` means ANY 4-digit code authenticates ANY phone number — so the phone
+   * in a session proves nothing about who is holding it. Features that expose
+   * personal data keyed by phone MUST refuse to run while this is `mock`; see
+   * foodics.history.ts. Set to a real provider only once it genuinely verifies.
+   */
+  OTP_PROVIDER: z.enum(['mock', 'unifonic', 'msegat', 'twilio']).default('mock'),
 });
 
 const parsed = EnvSchema.safeParse(process.env);

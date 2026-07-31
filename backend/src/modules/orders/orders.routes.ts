@@ -31,6 +31,25 @@ ordersRouter.get(
   }),
 );
 
+// GET /api/orders/history  → the caller's PAST orders from Foodics, i.e. what
+// they bought at the counter before the app existed.
+//
+// MUST be declared before '/:id', otherwise Express matches "history" as an id.
+//
+// The phone is read from the database using the customer id in the token — it is
+// never accepted from the query string or body. Taking it as a parameter would
+// turn this into an IDOR that dumps any of the ~4,000 customers' names and
+// purchase history to anyone who guesses a number.
+//
+// It also refuses to run while OTP_PROVIDER=mock; see foodics.history.ts.
+ordersRouter.get(
+  '/history',
+  authenticate,
+  asyncHandler(async (req, res) => {
+    ok(res, await service.getFoodicsHistory(req.auth!.customerId));
+  }),
+);
+
 // GET /api/orders/:id  → one order, only if it belongs to the caller.
 ordersRouter.get(
   '/:id',

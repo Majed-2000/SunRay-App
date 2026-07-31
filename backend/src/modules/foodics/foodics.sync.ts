@@ -152,6 +152,15 @@ export async function syncFoodicsMenu(): Promise<SyncReport> {
 
   for (const b of branches) {
     if (b.deleted_at) continue;
+    // Only the configured branch is ours. "البلد" was a seasonal branch that has
+    // since closed, and it still exists in Foodics — syncing it would put a
+    // branch customers cannot order from into the app's branch picker.
+    if (branchId && b.id !== branchId) {
+      await prisma.branch
+        .updateMany({ where: { foodicsId: b.id }, data: { isActive: false } })
+        .catch(() => undefined);
+      continue;
+    }
     // Missing coordinates are a SILENT failure mode: POST /orders still returns
     // 2xx but the order never reaches the cashier. Surface it loudly instead.
     if (b.latitude == null || b.longitude == null) {

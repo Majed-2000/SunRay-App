@@ -13,6 +13,7 @@ import { prisma } from '../../database/prisma';
 import { BadRequest, NotFound } from '../../common/errors';
 import { DELIVERY_FEE, vatOf } from '../../common/money';
 import type { CreateOrderInput, UpdateStatusInput } from './orders.schemas';
+import { getFoodicsHistoryForPhone } from '../foodics/foodics.history';
 
 type OrderWithItems = Order & { items: OrderItem[] };
 
@@ -145,4 +146,21 @@ export async function updateStatus(id: string, input: UpdateStatusInput) {
     include: { items: true },
   });
   return toOrderDTO(order);
+}
+
+/**
+ * Past orders from Foodics for the authenticated customer.
+ *
+ * The phone is looked up from OUR database using the customer id carried by the
+ * session token, so a caller can only ever see their own history. See
+ * foodics.history.ts for why this is additionally gated on a real OTP provider.
+ */
+export async function getFoodicsHistory(customerId: string) {
+  const customer = await prisma.customer.findUnique({
+    where: { id: customerId },
+    select: { id: true, phone: true },
+  });
+  if (!customer) throw NotFound('العميل غير موجود');
+
+  return getFoodicsHistoryForPhone(customer.phone, customer.id);
 }

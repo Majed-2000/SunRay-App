@@ -21,6 +21,9 @@ datasource db {
 
 model Customer {
   id         String   @id @default(cuid())
+  /// Foodics customer UUID, resolved by matching dial_code + phone. Lets us show
+  /// a customer the order history they built up at the counter before the app.
+  foodicsId  String?  @unique
   name       String
   phone      String   @unique
   email      String?

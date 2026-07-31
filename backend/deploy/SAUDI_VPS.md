@@ -55,26 +55,23 @@ Sign up at <https://www.lightnode.com>, add funds, then **Create Instance**:
 and building the Prisma engines on the first deploy. 4 GB gives comfortable
 headroom for the build plus Postgres.
 
-Your existing public key — safe to paste, it's the public half:
+LightNode's dialog only accepts an **RSA** public key in OpenSSH `.pub` format,
+so we generated a dedicated pair for it:
 
+```powershell
+ssh-keygen -t rsa -b 4096 -f "$env:USERPROFILE\.ssh\lightnode_rsa" -N '""' -C "sunray-lightnode"
 ```
-ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFJXZsHx2t2VkrQPRdivO0Bd3QR4JGQ0JEOmWe9uNzZy smaji@Majed
-```
+
+Upload the **public** half — `C:\Users\smaji\.ssh\lightnode_rsa.pub`.
+
+> ⚠️ Never upload `lightnode_rsa` (no extension). That's the private key; it
+> never leaves your machine. Only the `.pub` file is meant to be shared.
 
 **Use the SSH Key tab, not Password.** A public IP is found by automated scanners
 within minutes of booting, and every one of them tries `root` with common
 passwords. Key auth rejects all of them outright, because they hold no key.
 LightNode also emails you the root password in plaintext — that's full access to
 your customer database sitting in an inbox.
-
-Note LightNode's dialog asks for an **RSA** public key. If it rejects the ed25519
-key above, generate an RSA one and use that instead — remember to add
-`-i ~/.ssh/lightnode_rsa` to every `ssh`/`scp` command in this guide:
-
-```powershell
-ssh-keygen -t rsa -b 4096 -f "$env:USERPROFILE\.ssh\lightnode_rsa" -C "sunray"
-Get-Content "$env:USERPROFILE\.ssh\lightnode_rsa.pub"
-```
 
 If you take a root password to get unstuck, that's recoverable — but add your key
 and disable password auth immediately after (`provision.sh` in step 3 prints the
@@ -114,11 +111,12 @@ Only continue once that returns the right address.
 From your project folder in PowerShell:
 
 ```powershell
-$IP = "<your server IP>"
+$IP  = "<your server IP>"
+$KEY = "$env:USERPROFILE\.ssh\lightnode_rsa"
 
-ssh root@$IP                                    # accept the fingerprint once
-scp backend\deploy\provision.sh root@${IP}:~
-ssh root@$IP 'bash provision.sh'
+ssh -i $KEY root@$IP                            # accept the fingerprint once
+scp -i $KEY backend\deploy\provision.sh root@${IP}:~
+ssh -i $KEY root@$IP 'bash provision.sh'
 ```
 
 It installs Docker, configures `ufw` (allowing 22, 80, 443), and enables
@@ -128,7 +126,7 @@ that **password login is enabled**, follow the three commands it prints.
 ## Step 4 — Deploy the stack
 
 ```bash
-ssh root@$IP
+ssh -i $KEY root@$IP
 git clone https://github.com/Majed-2000/SunRay-App.git sunray
 cd sunray/backend/deploy
 ```

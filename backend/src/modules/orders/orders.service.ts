@@ -6,7 +6,8 @@
  * totals here. We never trust a price sent by the client. (This is also how the
  * future Foodics order injection will work.)
  *
- * For now orders are saved to OUR database only — no Foodics, no real payment.
+ * Orders are also injected into Foodics when FOODICS_ORDER_INJECTION is on, so
+ * they appear as a ticket in the cashier. Payment is still taken at the branch.
  */
 import type { Order, OrderItem } from '@prisma/client';
 import { prisma } from '../../database/prisma';
@@ -14,8 +15,10 @@ import { BadRequest, NotFound } from '../../common/errors';
 import { DELIVERY_FEE, vatIncludedIn } from '../../common/money';
 import type { CreateOrderInput, UpdateStatusInput } from './orders.schemas';
 import { getFoodicsHistoryForPhone } from '../foodics/foodics.history';
+import { injectOrder } from '../foodics/foodics.orders';
+import { logger } from '../../common/logger';
 
-type OrderWithItems = Order & { items: OrderItem[] };
+type OrderWithItems = Order & { items: (OrderItem & { options?: { nameAr: string; price: number }[] })[] };
 
 function toOrderDTO(o: OrderWithItems) {
   return {
@@ -40,6 +43,9 @@ function toOrderDTO(o: OrderWithItems) {
       unitPrice: i.unitPrice,
       totalPrice: i.totalPrice,
       notes: i.notes ?? undefined,
+      // Chosen size / milk / extras, so the app can show what was ordered
+      // without re-resolving option ids that may no longer exist.
+      options: (i.options ?? []).map((o) => ({ nameAr: o.nameAr, price: o.price })),
     })),
   };
 }
@@ -64,11 +70,19 @@ export async function createOrder(input: CreateOrderInput, customerId: string) {
       product.modifiers.flatMap((m) => m.options.map((o) => [o.id, o])),
     );
     let unitPrice = product.price;
-    for (const optionId of item.modifierOptionIds) {
+    // Snapshot the chosen options: the invoice must keep saying what was bought
+    // and at what price even after the menu changes in the Foodics console.
+    const chosenOptions = item.modifierOptionIds.map((optionId) => {
       const option = validOptions.get(optionId);
       if (!option) throw BadRequest(`خيار غير صالح لهذا المنتج: ${optionId}`);
       unitPrice += option.price;
-    }
+      return {
+        modifierOptionId: option.id,
+        foodicsOptionId: option.foodicsId,
+        nameAr: option.nameAr,
+        price: option.price,
+      };
+    });
 
     const totalPrice = unitPrice * item.quantity;
     return {
@@ -78,6 +92,7 @@ export async function createOrder(input: CreateOrderInput, customerId: string) {
       unitPrice,
       totalPrice,
       notes: item.notes,
+      options: { create: chosenOptions },
     };
   });
 
@@ -112,7 +127,7 @@ export async function createOrder(input: CreateOrderInput, customerId: string) {
       scheduledAt: input.scheduledAt ? new Date(input.scheduledAt) : undefined,
       items: { create: lines },
     },
-    include: { items: true },
+    include: { items: { include: { options: true } } },
   });
 
   // 5) Simplified Path-A loyalty: each ordered item adds a "cup".
@@ -123,20 +138,31 @@ export async function createOrder(input: CreateOrderInput, customerId: string) {
     update: { cupCount: { increment: cups } },
   });
 
-  return toOrderDTO(order);
+  // 6) Send it to the cashier. No-op unless FOODICS_ORDER_INJECTION is on.
+  //
+  // Awaited rather than fired-and-forgotten: the customer is looking at a
+  // spinner, and an order that silently failed to reach the counter is worse
+  // than a slow confirmation. injectOrder never throws — a Foodics outage must
+  // not lose an order we have already accepted and stored.
+  const injection = await injectOrder(order.id);
+  if (!injection.injected && injection.reason !== 'FOODICS_ORDER_INJECTION is off') {
+    logger.warn(`Order ${order.id} not sent to Foodics: ${injection.reason}`);
+  }
+
+  return { ...toOrderDTO(order), foodicsOrderId: injection.foodicsOrderId ?? null };
 }
 
 export async function listOrders(customerId: string) {
   const orders = await prisma.order.findMany({
     where: { customerId },
-    include: { items: true },
+    include: { items: { include: { options: true } } },
     orderBy: { createdAt: 'desc' },
   });
   return orders.map(toOrderDTO);
 }
 
 export async function getOrderById(id: string, requesterId: string) {
-  const order = await prisma.order.findUnique({ where: { id }, include: { items: true } });
+  const order = await prisma.order.findUnique({ where: { id }, include: { items: { include: { options: true } } } });
   // 404 (not 403) when it isn't the caller's order, so we don't reveal that an
   // order with this id exists for someone else.
   if (!order || order.customerId !== requesterId) throw NotFound('الطلب غير موجود');
@@ -149,7 +175,7 @@ export async function updateStatus(id: string, input: UpdateStatusInput) {
   const order = await prisma.order.update({
     where: { id },
     data: { status: input.status },
-    include: { items: true },
+    include: { items: { include: { options: true } } },
   });
   return toOrderDTO(order);
 }

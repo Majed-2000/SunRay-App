@@ -322,6 +322,10 @@ export async function syncFoodicsMenu(): Promise<SyncReport> {
       const minimum = m.pivot?.minimum_options ?? 0;
       await prisma.modifier.create({
         data: {
+          // Foodics ids are carried through because order injection needs them:
+          // POST /orders identifies a chosen option by its Foodics UUID, not by
+          // our local id.
+          foodicsId: m.id,
           productId: productRow.id,
           nameAr: m.name_localized || m.name,
           nameEn: m.name,
@@ -330,6 +334,7 @@ export async function syncFoodicsMenu(): Promise<SyncReport> {
           isRequired: minimum > 0,
           options: {
             create: options.map((o) => ({
+              foodicsId: o.id,
               nameAr: o.name_localized || o.name,
               nameEn: o.name,
               price: toHalalas(o.price ?? 0),

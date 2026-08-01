@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { Linking, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { colors, spacing } from '@/theme';
 import { Card, Header, ListRow, ScreenContainer, Txt } from '@/components';
 import { toast } from '@/store';
+import { API_BASE_URL } from '@/services/api';
 
 export function SettingsScreen() {
   const [notifications, setNotifications] = useState(true);
@@ -30,8 +31,16 @@ export function SettingsScreen() {
         </Txt>
         <View style={{ gap: 10 }}>
           <ListRow icon="language-outline" label="اللغة" value="العربية" onPress={() => toast('الإنجليزية قريبًا ☀')} />
-          <ListRow icon="shield-checkmark-outline" label="الخصوصية والأمان" onPress={() => toast('قريبًا ☀')} />
-          <ListRow icon="document-text-outline" label="الشروط والأحكام" onPress={() => toast('قريبًا ☀')} />
+          <ListRow
+            icon="shield-checkmark-outline"
+            label="سياسة الخصوصية"
+            onPress={() => Linking.openURL(`${API_BASE_URL}/privacy`)}
+          />
+          <ListRow
+            icon="document-text-outline"
+            label="الشروط والأحكام"
+            onPress={() => Linking.openURL(`${API_BASE_URL}/terms`)}
+          />
           <ListRow icon="information-circle-outline" label="عن التطبيق" value="١.٠.٠" onPress={() => toast('Sun Ray · سن راي')} />
         </View>
 

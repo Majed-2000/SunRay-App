@@ -136,6 +136,10 @@ model Product {
 
 model Modifier {
   id          String   @id @default(cuid())
+  /// Foodics modifier UUID. NOT unique: Foodics defines each modifier once and
+  /// shares it across products, while we store one row per product — so the
+  /// same id legitimately repeats. Needed to build the Foodics order payload.
+  foodicsId   String?
   productId   String
   nameAr      String
   nameEn      String?
@@ -151,6 +155,9 @@ model Modifier {
 
 model ModifierOption {
   id          String   @id @default(cuid())
+  /// Foodics modifier-option UUID — what `POST /orders` needs as
+  /// `options[].modifier_option_id`. Not unique, for the same reason as Modifier.
+  foodicsId   String?
   modifierId  String
   nameAr      String
   nameEn      String?
@@ -194,8 +201,9 @@ model OrderItem {
   notes       String?
   createdAt   DateTime @default(now())
 
-  order   Order   @relation(fields: [orderId], references: [id])
-  product Product @relation(fields: [productId], references: [id])
+  order   Order             @relation(fields: [orderId], references: [id])
+  product Product           @relation(fields: [productId], references: [id])
+  options OrderItemOption[]
 }
 
 model WalletTransaction {
@@ -279,4 +287,26 @@ model OtpChallenge {
   createdAt  DateTime  @default(now())
 
   @@index([phone, expiresAt])
+}
+
+/// A modifier option chosen on an order line (size, milk, extra shot…).
+///
+/// Stored as a SNAPSHOT, not a live reference: `nameAr`, `price` and
+/// `foodicsOptionId` are copied at order time. Menu prices and names change in
+/// the Foodics console, and a past invoice must keep saying what the customer
+/// actually bought and paid. The link back to ModifierOption is intentionally
+/// loose (a plain id, no foreign key) so a re-sync that rebuilds modifier rows
+/// can never orphan or rewrite history.
+model OrderItemOption {
+  id               String   @id @default(cuid())
+  orderItemId      String
+  modifierOptionId String?
+  foodicsOptionId  String?
+  nameAr           String
+  price            Int      @default(0) // halalas, at time of order
+  createdAt        DateTime @default(now())
+
+  orderItem OrderItem @relation(fields: [orderItemId], references: [id])
+
+  @@index([orderItemId])
 }

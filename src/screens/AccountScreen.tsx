@@ -1,4 +1,4 @@
-import { View } from 'react-native';
+import { View, Share } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -30,7 +30,15 @@ export function AccountScreen() {
     { icon: 'settings-outline', label: 'الإعدادات', onPress: () => router.push('/settings') },
     { icon: 'help-circle-outline', label: 'الدعم والمساعدة', onPress: () => router.push('/support') },
     { icon: 'chatbubble-ellipses-outline', label: 'الأسئلة الشائعة', onPress: () => router.push('/faq') },
-    { icon: 'share-social-outline', label: 'ادعُ صديقًا', onPress: () => toast('قريبًا ☀') },
+    // A real share sheet. A button that only says 'soon' is worse than no button.
+    {
+      icon: 'share-social-outline',
+      label: 'ادعُ صديقًا',
+      onPress: () =>
+        Share.share({ message: 'جرّب تطبيق سن راي ☀ اطلب قهوتك من الحلقة الغربية قبل ما توصل.' }).catch(
+          () => undefined,
+        ),
+    },
   ];
 
   return (

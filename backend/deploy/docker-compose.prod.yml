@@ -26,6 +26,9 @@ services:
     env_file: ./.env
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Privacy policy and terms — required by both app stores, served straight
+      # from Caddy so they do not depend on the API being up.
+      - ./public:/srv/public:ro
       # caddy_data holds the issued certificates. Do NOT delete this volume
       # casually — Let's Encrypt rate-limits re-issuing (5 per domain per week).
       - caddy_data:/data

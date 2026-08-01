@@ -16,10 +16,29 @@
 {$DOMAIN} {
 	encode zstd gzip
 
+	# Privacy policy and terms, served as static files.
+	#
+	# Both app stores REQUIRE a publicly reachable privacy policy URL, and Google
+	# additionally wants one that describes account deletion. sunray.sa is held by
+	# a third party, but we own this domain — so these do not wait on anyone.
+	# Declared before reverse_proxy so the API never sees these paths.
+	handle /privacy* {
+		root * /srv/public
+		try_files /privacy.html
+		file_server
+	}
+	handle /terms* {
+		root * /srv/public
+		try_files /terms.html
+		file_server
+	}
+
 	# Caddy sets X-Forwarded-For / X-Forwarded-Proto automatically; the backend
 	# reads them because TRUST_PROXY=1. That is what makes express-rate-limit
 	# and the audit logs see the real client IP instead of the proxy's.
-	reverse_proxy api:4000
+	handle {
+		reverse_proxy api:4000
+	}
 
 	# Keep the server's identity out of responses.
 	header {

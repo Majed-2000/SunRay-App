@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { colors, spacing } from '@/theme';
 import { Card, Header, ListRow, ScreenContainer, Txt } from '@/components';
 import { toast } from '@/store';
@@ -33,6 +34,24 @@ export function SettingsScreen() {
           <ListRow icon="document-text-outline" label="الشروط والأحكام" onPress={() => toast('قريبًا ☀')} />
           <ListRow icon="information-circle-outline" label="عن التطبيق" value="١.٠.٠" onPress={() => toast('Sun Ray · سن راي')} />
         </View>
+
+        {/*
+          Account deletion. Apple 5.1.1(v) and Google Play require this to be
+          reachable in-app, and reviewers look for it — burying it would fail
+          review as surely as omitting it.
+
+          It sits in its own group at the bottom, away from the ordinary rows, so
+          it reads as a different weight of action and is hard to hit by accident
+          while scrolling.
+        */}
+        <Txt size={13} weight="black" color={colors.textMuted} style={{ marginTop: spacing.xl, marginBottom: spacing.md }}>
+          الحساب
+        </Txt>
+        <ListRow
+          icon="trash-outline"
+          label="حذف الحساب"
+          onPress={() => router.push('/delete-account')}
+        />
       </View>
     </ScreenContainer>
   );

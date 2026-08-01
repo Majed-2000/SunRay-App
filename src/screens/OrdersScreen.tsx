@@ -15,12 +15,11 @@ import {
 } from '@/components';
 import { fetchPastOrders, type PastOrder } from '@/services/orders';
 import type { Order } from '@/types';
-import { branchById } from '@/data';
 import { strings } from '@/i18n';
 import { formatRiyal, toArabicDigits } from '@/utils/numerals';
 import { useResponsive } from '@/hooks/useResponsive';
 import { USE_BACKEND } from '@/services/api';
-import { useAuthStore, useOrderStore, isActiveOrder, orderStage, orderRef } from '@/store';
+import { useAuthStore, useBranchStore, useOrderStore, isActiveOrder, orderStage, orderRef } from '@/store';
 
 function relativeDay(createdAt: number): string {
   const days = Math.floor((Date.now() - createdAt) / (24 * 60 * 60 * 1000));
@@ -40,6 +39,7 @@ export function OrdersScreen() {
   const loadOrders = useOrderStore((s) => s.loadOrders);
   const isGuest = useAuthStore((s) => s.isGuest);
   const { contentMaxWidth } = useResponsive();
+  const branches = useBranchStore((s) => s.branches);
   const t = strings();
 
   // Only the backend list needs fetching; mock orders live in the store already
@@ -182,7 +182,11 @@ export function OrdersScreen() {
   );
 
   function OrderCard({ order }: { order: Order }) {
-    const branch = branchById(order.branchId);
+    // Look the branch up in the live store, not the mock array in @/data. Orders
+    // now carry backend branch ids sourced from Foodics, which never match the
+    // hardcoded mock ids — the lookup always missed and the card rendered a
+    // dangling "· اليوم" with no branch name in front of it.
+    const branch = branches.find((b) => b.id === order.branchId);
     const isActive = isActiveOrder(order);
     return (
       <Card

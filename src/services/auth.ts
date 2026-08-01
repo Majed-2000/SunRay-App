@@ -43,3 +43,15 @@ export async function verifyOtp(phone: string, code: string): Promise<VerifyOtpR
 export async function getMe(token: string): Promise<Customer> {
   return request<Customer>('/api/auth/me', { token });
 }
+
+/**
+ * Erase the signed-in account. Required by the App Store and Google Play.
+ *
+ * Takes no id — the backend resolves the account from the session token, so a
+ * caller can only ever delete their own.
+ */
+export async function deleteAccount(): Promise<{ deleted: true; forfeitedWalletBalance: number }> {
+  return request<{ deleted: true; forfeitedWalletBalance: number }>('/api/customers/me', {
+    method: 'DELETE',
+  });
+}

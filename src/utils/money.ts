@@ -27,11 +27,18 @@ export function calcSubtotal(lines: CartLine[]): number {
   return lines.reduce((sum, l) => sum + lineTotal(l), 0);
 }
 
-/** Compute the full order breakdown applied in a sensible order. */
+/**
+ * Compute the full order breakdown applied in a sensible order.
+ *
+ * 🔴 VAT is INCLUSIVE. Menu prices come from Foodics as shelf prices and already
+ * contain the tax, so it is EXTRACTED from the total for the receipt, never
+ * added on top. Adding it would show 11.50 for a 10.00 coffee while the counter
+ * charges 10.00 — which is exactly the bug this replaced. The backend computes
+ * the same way in `common/money.ts`; the two must not drift apart.
+ */
 export function calcTotals(input: TotalsInput): OrderTotals {
   const { lines, isDelivery } = input;
   const subtotal = calcSubtotal(lines);
-  const vat = round2(subtotal * CONFIG.VAT_RATE);
 
   let deliveryFee = 0;
   if (isDelivery) {
@@ -40,7 +47,9 @@ export function calcTotals(input: TotalsInput): OrderTotals {
   }
 
   const discount = clampNonNeg(input.discount ?? 0);
-  const gross = subtotal + vat + deliveryFee - discount;
+  const gross = subtotal + deliveryFee - discount;
+  // The tax already sitting inside `gross`, shown as a breakdown line.
+  const vat = round2(gross - gross / (1 + CONFIG.VAT_RATE));
 
   const pointsDiscount = Math.min(clampNonNeg(input.pointsDiscount ?? 0), gross);
   const afterPoints = gross - pointsDiscount;

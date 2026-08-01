@@ -64,7 +64,9 @@ export function CheckoutScreen() {
   // In backend mode the server ignores coupon/points/wallet (discount is forced to
   // 0 this phase), so we show the server-aligned total and hide those perks — the
   // checkout must never display a discount it won't actually apply.
-  const displayTotal = USE_BACKEND ? totals.subtotal + totals.vat + totals.deliveryFee : totals.total;
+  // VAT is inclusive, so the total is simply the lines plus delivery — see
+  // utils/money.ts. Adding totals.vat here would double-charge the tax.
+  const displayTotal = USE_BACKEND ? totals.subtotal + totals.deliveryFee : totals.total;
 
   const place = async () => {
     // Backend mode: send the cart to the server (it computes the totals), then
@@ -263,7 +265,7 @@ export function CheckoutScreen() {
           {/* totals */}
           <Card radiusKey="lg" style={{ marginTop: spacing.lg }}>
             <PriceRow label="المجموع الفرعي" amount={totals.subtotal} />
-            <PriceRow label="ضريبة القيمة المضافة (١٥٪)" amount={totals.vat} />
+            <PriceRow label="شامل ضريبة القيمة المضافة (١٥٪)" amount={totals.vat} />
             {orderType === 'delivery' ? (
               <PriceRow label="رسوم التوصيل" amount={totals.deliveryFee === 0 ? 'مجانًا' : totals.deliveryFee} />
             ) : null}

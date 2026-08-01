@@ -11,7 +11,7 @@
 import type { Order, OrderItem } from '@prisma/client';
 import { prisma } from '../../database/prisma';
 import { BadRequest, NotFound } from '../../common/errors';
-import { DELIVERY_FEE, vatOf } from '../../common/money';
+import { DELIVERY_FEE, vatIncludedIn } from '../../common/money';
 import type { CreateOrderInput, UpdateStatusInput } from './orders.schemas';
 import { getFoodicsHistoryForPhone } from '../foodics/foodics.history';
 
@@ -82,13 +82,19 @@ export async function createOrder(input: CreateOrderInput, customerId: string) {
   });
 
   // 3) Totals (all in halalas).
+  //
+  // 🔴 VAT is INCLUSIVE: menu prices come from Foodics as shelf prices and
+  // already contain the tax. The total is therefore what the lines add up to —
+  // adding VAT on top would charge 11.50 for a 10.00 coffee while the counter
+  // charges 10.00. `vat` is the portion sitting inside that total, reported for
+  // the receipt breakdown and for the taxes[] Foodics wants per line.
   const subtotal = lines.reduce((sum, l) => sum + l.totalPrice, 0);
-  const vat = vatOf(subtotal);
   const deliveryFee = input.type === 'DELIVERY' ? DELIVERY_FEE : 0;
   // Discount must be authorized server-side (coupon/points). Until that exists we
   // never apply a client-supplied discount — it's forced to 0.
   const discount = 0;
-  const total = Math.max(0, subtotal + vat + deliveryFee - discount);
+  const total = Math.max(0, subtotal + deliveryFee - discount);
+  const vat = vatIncludedIn(total);
 
   // 4) Save order + items together. The owner is the authenticated customer.
   const order = await prisma.order.create({

@@ -5,7 +5,7 @@
     "scheme": "sunray",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/sunray-logo-icon.png",
     "userInterfaceStyle": "light",
     "backgroundColor": "#efe6d6",
     "newArchEnabled": true,

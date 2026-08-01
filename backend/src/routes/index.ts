@@ -20,6 +20,7 @@ import { loyaltyRouter } from '../modules/loyalty/loyalty.routes';
 import { notificationsRouter } from '../modules/notifications/notifications.routes';
 import { giftCardsRouter, customerGiftCardsRouter } from '../modules/giftCards/giftCards.routes';
 import { foodicsRouter } from '../modules/foodics/foodics.routes';
+import { handleFoodicsWebhook, webhookSecret } from '../modules/foodics/foodics.webhook';
 import { authenticate } from '../middleware/authenticate';
 import { requireSelfParam } from '../middleware/requireSelf';
 
@@ -31,6 +32,21 @@ rootRouter.use('/health', healthRouter);
 // Everything else under /api.
 const api = Router();
 api.use('/auth', authRouter);
+
+// Foodics webhook — PUBLIC by necessity: Foodics calls it, so it cannot sit
+// behind authenticate or requireDev. Registered before the operator router so
+// the guard on that one never sees it.
+//
+// Deliberately NOT rate-limited. A 429 counts as a non-2xx, and 100 of those in
+// a minute makes Foodics block the URL for an hour — throttling them would
+// silence real order updates, which is the opposite of protection.
+//
+// The secret path segment is the authenticity check; without it configured the
+// route does not exist at all, rather than existing unauthenticated.
+if (webhookSecret()) {
+  api.post(`/foodics/webhook/${webhookSecret()}`, handleFoodicsWebhook);
+}
+
 // Operator-only (requireDev): Foodics status + menu sync. Not customer-facing.
 api.use('/foodics', foodicsRouter);
 api.use('/branches', branchesRouter);

@@ -74,6 +74,14 @@ const EnvSchema = z.object({
    * personal data keyed by phone MUST refuse to run while this is `mock`; see
    * foodics.history.ts. Set to a real provider only once it genuinely verifies.
    */
+  /**
+   * Secret path segment for the Foodics webhook, e.g. a random 32-char string.
+   * Foodics does not sign its webhooks, so an unguessable URL plus the business
+   * check inside the handler are the only authenticity we get. Empty disables
+   * the route entirely rather than exposing an unauthenticated one.
+   */
+  FOODICS_WEBHOOK_SECRET: z.string().default(''),
+
   OTP_PROVIDER: z.enum(['mock', 'yamamah', 'unifonic', 'msegat', 'twilio']).default('mock'),
 
   // ── SMS (Yamamah via our IP-whitelisted proxy) ─────────────────────────────

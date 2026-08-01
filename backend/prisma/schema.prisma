@@ -310,3 +310,26 @@ model OrderItemOption {
 
   @@index([orderItemId])
 }
+
+/// Raw log of every Foodics webhook we receive.
+///
+/// Exists for three reasons, all of them learned from Foodics' own delivery
+/// rules: events are retried 3 times then DROPPED forever, so we need a record
+/// of what arrived; retries mean the same event can arrive twice, so we need
+/// idempotency; and when processing has a bug we need to replay rather than
+/// lose the day's orders.
+///
+/// `dedupeKey` is what makes a repeat a no-op — Foodics sends no event id, so we
+/// derive one from the event name plus the entity it concerns.
+model WebhookEvent {
+  id          String    @id @default(cuid())
+  source      String    @default("foodics")
+  event       String
+  dedupeKey   String    @unique
+  payload     String //  raw JSON, kept verbatim for replay
+  receivedAt  DateTime  @default(now())
+  processedAt DateTime?
+  error       String?
+
+  @@index([event, receivedAt])
+}

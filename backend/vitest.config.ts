@@ -16,6 +16,8 @@ export default defineConfig({
       JWT_ACCESS_SECRET: 'test-secret-not-for-production',
       ACCESS_TTL: '15m',
       REFRESH_TTL_DAYS: '30',
+      // Registers the webhook route so its tests can exercise it.
+      FOODICS_WEBHOOK_SECRET: 'test-webhook-secret',
     },
   },
 });

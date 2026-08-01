@@ -39,7 +39,8 @@ RUN apt-get update -y \
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/prisma ./prisma
-COPY --from=build /app/scripts ./scripts
+# (no ./scripts — the only file there was the SQLite/Postgres provider flip,
+#  removed now that the schema targets PostgreSQL directly)
 COPY package*.json ./
 
 EXPOSE 4000

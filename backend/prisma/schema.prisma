@@ -497,8 +497,12 @@ model LoyaltyReward {
   id         String @id @default(cuid())
   customerId String @map("customer_id")
 
-  code   String @unique
-  status String @default("ISSUED") // ISSUED | REDEEMED | EXPIRED — CHECK constraint
+  code String @unique
+  /// What the reward grants, e.g. FREE_COFFEE. A CHECK rather than an enum:
+  /// new reward kinds are a product decision we expect to make, and adding one
+  /// should be a one-line constraint change, not a type migration.
+  type   String
+  status String @default("ACTIVE") // ACTIVE | REDEEMED | EXPIRED — CHECK constraint
 
   issuedAt   DateTime  @default(now()) @map("issued_at") @db.Timestamptz(6)
   redeemedAt DateTime? @map("redeemed_at") @db.Timestamptz(6)
@@ -514,9 +518,12 @@ model Notification {
   id         String  @id @default(cuid())
   customerId String? @map("customer_id")
 
-  title  String
-  body   String
-  kind   String  // order | loyalty | gift | offer | system — CHECK constraint
+  title String
+  body  String
+  /// orderAccepted | orderReady | pointsEarned | giftReceived | birthdayOffer.
+  /// A CHECK rather than an enum: the app gains notification kinds as features
+  /// ship, and that should not require rewriting a database type.
+  type   String
   isRead Boolean @default(false) @map("is_read")
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)

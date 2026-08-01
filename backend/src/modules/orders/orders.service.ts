@@ -10,6 +10,7 @@
  * they appear as a ticket in the cashier. Payment is still taken at the branch.
  */
 import type { Order, OrderItem } from '@prisma/client';
+import type { OrderType, OrderStatus } from '@prisma/client';
 import { prisma } from '../../database/prisma';
 import { BadRequest, NotFound } from '../../common/errors';
 import { DELIVERY_FEE, vatIncludedIn } from '../../common/money';
@@ -116,7 +117,9 @@ export async function createOrder(input: CreateOrderInput, customerId: string) {
     data: {
       customerId,
       branchId: input.branchId,
-      type: input.type,
+      // Zod already restricted this to the enum member names (ORDER_TYPES is
+      // typed from Prisma), so the narrowing is safe rather than a bypass.
+      type: input.type as OrderType,
       status: 'PENDING',
       subtotal,
       vat,
@@ -174,7 +177,7 @@ export async function updateStatus(id: string, input: UpdateStatusInput) {
   if (!existing) throw NotFound('الطلب غير موجود');
   const order = await prisma.order.update({
     where: { id },
-    data: { status: input.status },
+    data: { status: input.status as OrderStatus },
     include: { items: { include: { options: true } } },
   });
   return toOrderDTO(order);

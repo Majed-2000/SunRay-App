@@ -18,9 +18,10 @@ COPY package*.json ./
 RUN npm ci
 
 COPY . .
-# Target Postgres, generate the matching client, then compile TypeScript.
-RUN node scripts/use-postgres.mjs postgresql \
- && npx prisma generate \
+# The schema targets PostgreSQL directly now — development, test and production
+# all use it, so there is no provider to flip at build time. The script that did
+# that (scripts/use-postgres.mjs) is gone along with SQLite.
+RUN npx prisma generate \
  && npm run build
 
 # ── Runtime stage ────────────────────────────────────────────────────────────
@@ -47,4 +48,11 @@ EXPOSE 4000
 # `db push` creates/updates tables from the schema. For ongoing prod changes,
 # prefer generating real Postgres migrations and running `prisma migrate deploy`
 # as a separate release step (see DEPLOYMENT.md). Single-instance friendly.
-CMD ["sh", "-c", "npx prisma db push --skip-generate && node dist/src/server.js"]
+# `migrate deploy` applies the reviewed migration files and nothing else.
+#
+# This used to be `db push`, which infers changes from the schema and refuses
+# anything it deems risky — it rejected a unique constraint as "possible data
+# loss" and crash-looped the container, twice. Schema changes then had to be
+# applied by hand with psql, which is how production ended up with no migration
+# history at all. `migrate deploy` never guesses and never drops.
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/src/server.js"]

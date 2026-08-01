@@ -2,6 +2,7 @@
  * Customer "service" = the database logic for customers. Routes stay thin and
  * just call these functions. This separation makes the code easy to read/test.
  */
+import { Gender } from '@prisma/client';
 import type { Address, Customer } from '@prisma/client';
 import { prisma } from '../../database/prisma';
 import { NotFound } from '../../common/errors';
@@ -17,7 +18,7 @@ export function toCustomerDTO(c: CustomerWithAddresses) {
     phone: c.phone,
     countryCode: '+966',
     email: c.email ?? undefined,
-    gender: c.gender ?? undefined,
+    gender: fromDbGender(c.gender),
     city: c.city ?? undefined,
     birthDay: c.birthDay ?? undefined,
     birthMonth: c.birthMonth ?? undefined,
@@ -61,6 +62,22 @@ export async function findOrCreateByPhone(phone: string) {
   });
 }
 
+/**
+ * The API contract uses lowercase 'male'/'female' — that is what the app has
+ * always sent and changing it would break every installed build. The database
+ * uses a Gender enum. These two functions are the only place the two spellings
+ * meet; nothing else should translate between them.
+ */
+function toDbGender(g?: 'male' | 'female'): Gender | undefined {
+  if (!g) return undefined;
+  return g === 'male' ? Gender.MALE : Gender.FEMALE;
+}
+
+function fromDbGender(g: Gender | null): 'male' | 'female' | undefined {
+  if (!g) return undefined;
+  return g === Gender.MALE ? 'male' : 'female';
+}
+
 export async function updateProfile(id: string, patch: UpdateProfileInput) {
   await ensureExists(id);
   const updated = await prisma.customer.update({
@@ -68,7 +85,7 @@ export async function updateProfile(id: string, patch: UpdateProfileInput) {
     data: {
       name: patch.name,
       email: patch.email === '' ? null : patch.email,
-      gender: patch.gender,
+      gender: toDbGender(patch.gender),
       city: patch.city,
       birthDay: patch.birthDay,
       birthMonth: patch.birthMonth,

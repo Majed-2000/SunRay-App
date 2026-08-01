@@ -261,7 +261,8 @@ CREATE TABLE "loyalty_rewards" (
     "id" TEXT NOT NULL,
     "customer_id" TEXT NOT NULL,
     "code" TEXT NOT NULL,
-    "status" TEXT NOT NULL DEFAULT 'ISSUED',
+    "type" TEXT NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'ACTIVE',
     "issued_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "redeemed_at" TIMESTAMPTZ(6),
     "expires_at" TIMESTAMPTZ(6),
@@ -275,7 +276,7 @@ CREATE TABLE "notifications" (
     "customer_id" TEXT,
     "title" TEXT NOT NULL,
     "body" TEXT NOT NULL,
-    "kind" TEXT NOT NULL,
+    "type" TEXT NOT NULL,
     "is_read" BOOLEAN NOT NULL DEFAULT false,
     "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -520,10 +521,12 @@ ALTER TABLE "customers" ADD CONSTRAINT "customers_birth_month_valid"
 -- is one ALTER, and removing one does not require rewriting a type.
 ALTER TABLE "addresses" ADD CONSTRAINT "addresses_label_known"
   CHECK ("label" IN ('home', 'work', 'other'));
-ALTER TABLE "notifications" ADD CONSTRAINT "notifications_kind_known"
-  CHECK ("kind" IN ('order', 'loyalty', 'gift', 'offer', 'system'));
+ALTER TABLE "notifications" ADD CONSTRAINT "notifications_type_known"
+  CHECK ("type" IN ('orderAccepted', 'orderReady', 'pointsEarned', 'giftReceived', 'birthdayOffer'));
 ALTER TABLE "loyalty_rewards" ADD CONSTRAINT "loyalty_rewards_status_known"
-  CHECK ("status" IN ('ISSUED', 'REDEEMED', 'EXPIRED'));
+  CHECK ("status" IN ('ACTIVE', 'REDEEMED', 'EXPIRED'));
+ALTER TABLE "loyalty_rewards" ADD CONSTRAINT "loyalty_rewards_type_known"
+  CHECK ("type" IN ('FREE_COFFEE'));
 
 -- Loyalty counters cannot go negative, and the goal must be reachable.
 ALTER TABLE "loyalty_counters" ADD CONSTRAINT "loyalty_counters_sane"

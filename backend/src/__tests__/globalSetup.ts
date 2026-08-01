@@ -1,27 +1,57 @@
 /**
- * Vitest global setup — build a fresh, isolated SQLite test database before the
- * suite runs. We never touch the dev database (dev.db); tests use prisma/test.db.
+ * Vitest global setup — prepare an isolated PostgreSQL test database.
+ *
+ * Tests run against the same engine as production (see README §3). SQLite was
+ * the previous setup, and deleting a file was its isolation; PostgreSQL has no
+ * equivalent, so the safety has to be explicit.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * 🔴 THE GUARD BELOW IS NOT OPTIONAL
+ *
+ * The suite truncates tables. Development and production databases live on the
+ * SAME PostgreSQL instance, reachable through the same SSH tunnel, differing
+ * only by the name at the end of DATABASE_URL. One wrong tunnel, one copied
+ * .env, one exported shell variable — and a test run wipes real data.
+ *
+ * So we refuse to start unless the database name ends with `_test`. Cheap,
+ * absolute, and it fails before a single row is touched.
+ * ─────────────────────────────────────────────────────────────────────────────
  */
 import { execSync } from 'node:child_process';
-import { existsSync, rmSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-export default function setup() {
-  const backendRoot = resolve(__dirname, '../../');
-  const dbFile = resolve(backendRoot, 'prisma/test.db');
+/** Database name from a PostgreSQL URL, ignoring query parameters. */
+function databaseNameOf(url: string): string {
+  try {
+    return new URL(url).pathname.replace(/^\//, '');
+  } catch {
+    return '';
+  }
+}
 
-  // Remove any leftover test DB so each run starts clean (the file is the only
-  // state; deleting it is what guarantees isolation — no destructive reset needed).
-  for (const file of [dbFile, `${dbFile}-journal`]) {
-    if (existsSync(file)) rmSync(file);
+export default function setup() {
+  const url = process.env.DATABASE_URL ?? '';
+  const dbName = databaseNameOf(url);
+
+  if (!url) {
+    throw new Error('DATABASE_URL is not set — refusing to run tests against an unknown database.');
   }
 
-  // Apply migrations forward to the fresh, empty test DB. `migrate deploy` is the
-  // non-destructive, production-safe command (it never resets/drops data), so it
-  // builds the full schema from prisma/migrations without touching dev.db.
+  if (!dbName.endsWith('_test')) {
+    throw new Error(
+      `Refusing to run tests against "${dbName || url}".\n` +
+        'The suite truncates tables, and this database name does not end with "_test".\n' +
+        'Production and development sit on the same server; this guard is what stops a\n' +
+        'mistyped connection string from wiping them. Point DATABASE_URL at sunray_test.',
+    );
+  }
+
+  // Build the schema from the committed migrations. `migrate deploy` only rolls
+  // forward — it never resets or drops — so it stays safe even if this somehow
+  // ran against a populated database.
   execSync('npx prisma migrate deploy', {
-    cwd: backendRoot,
+    cwd: resolve(__dirname, '../../'),
     stdio: 'inherit',
-    env: { ...process.env, DATABASE_URL: 'file:./test.db' },
+    env: process.env,
   });
 }

@@ -23,6 +23,7 @@
  */
 import type { Request, Response } from 'express';
 import { createHash } from 'node:crypto';
+import { OrderStatus } from '@prisma/client';
 import { prisma } from '../../database/prisma';
 import { env } from '../../config/env';
 import { logger } from '../../common/logger';
@@ -147,13 +148,13 @@ async function processEvent(rowId: string, body: FoodicsWebhookBody): Promise<vo
 }
 
 /** Foodics order status (1 Pending … 8 Draft) → our order status. */
-const STATUS_MAP: Record<number, string> = {
-  1: 'PENDING',
-  2: 'PREPARING',
-  3: 'CANCELLED', // declined
-  4: 'COMPLETED', // closed
-  5: 'CANCELLED', // returned
-  7: 'CANCELLED', // void
+const STATUS_MAP: Record<number, OrderStatus> = {
+  1: OrderStatus.PENDING,
+  2: OrderStatus.PREPARING,
+  3: OrderStatus.CANCELLED, // declined
+  4: OrderStatus.COMPLETED, // closed
+  5: OrderStatus.CANCELLED, // returned
+  7: OrderStatus.CANCELLED, // void
 };
 
 /**

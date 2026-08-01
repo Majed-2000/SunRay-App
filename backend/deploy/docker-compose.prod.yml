@@ -65,6 +65,17 @@ services:
   db:
     image: postgres:16-alpine
     restart: unless-stopped
+    ports:
+      # Bound to the host LOOPBACK ONLY — never 0.0.0.0. Nothing outside this
+      # machine can reach it; the database stays off the internet exactly as
+      # before. What this enables is an SSH tunnel:
+      #
+      #   ssh -L 5433:127.0.0.1:5432 root@<server>
+      #
+      # so local development and the test suite can use the same PostgreSQL as
+      # production instead of SQLite. Writing `5432:5432` here (no interface)
+      # WOULD expose it publicly, since Docker publishes past ufw.
+      - '127.0.0.1:5432:5432'
     environment:
       POSTGRES_USER: sunray
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}

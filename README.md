@@ -52,7 +52,7 @@ never holds a Foodics token, never processes payments. Anything named
 | OS | Ubuntu 24.04 · Docker · ufw · fail2ban · unattended-upgrades |
 | SSH | `ssh -i ~/.ssh/lightnode_rsa root@130.94.120.78` — **key-only** |
 | Stack | `/root/sunray/backend/deploy` |
-| Backups | `/root/backups` (manual so far — **cron not installed**) |
+| Backups | `/root/backups` — nightly 03:15 via `/etc/cron.d/sunray-backup`, verified running |
 
 **The hostname is temporary.** `sunray.sa` DNS is held by a third party who was
 unreachable, so DuckDNS unblocked TLS. To switch: add an `A` record `api` →
@@ -82,37 +82,130 @@ docker compose -f docker-compose.prod.yml exec -T api ls /app/dist/src/modules/<
 docker compose -f docker-compose.prod.yml build --no-cache api
 ```
 
-### 🔴 `prisma db push` blocks on unique constraints
+### 🔴 History: `db push` blocked on unique constraints
 
-The container runs `db push` on start. Adding a `@unique` column makes it refuse
-with "possible data loss" and the container **crash-loops**. Apply such changes
-by hand first, then restart (`db push` then sees no diff):
+The container used to run `prisma db push` on start. Adding a `@unique` column
+made it refuse with "possible data loss" and crash-loop the container — twice.
+Schema changes then had to be applied by hand with `psql`, which is exactly how
+production ended up with no migration history at all.
+
+Fixed by the database rebuild: the container now runs `migrate deploy`, which
+applies reviewed migration files and never guesses. **`db push` must never be
+pointed at production again.**
+
+## 3. Database
+
+**PostgreSQL everywhere — development, test and production.** SQLite in dev was
+the previous setup; Prisma itself calls that an anti-pattern (no enums,
+incompatible migration SQL, dialect bugs that only surface in production).
+`scripts/use-postgres.mjs`, which flipped the datasource at build time, is gone.
+
+### Three databases, one server
+
+| Database | Purpose | Role |
+|---|---|---|
+| `sunray` | production | `sunray_app` — DML only |
+| `sunray_dev` | development | `sunray_dev` |
+| `sunray_test` | automated tests, wiped freely | `sunray_test` |
+
+Postgres listens on **`127.0.0.1:5432` only** — never `0.0.0.0`. It is not
+reachable from the internet (verified from outside). Local access goes through
+an SSH tunnel:
 
 ```bash
-docker compose -f docker-compose.prod.yml exec -T db psql -U sunray -d sunray -c '
-ALTER TABLE "X" ADD COLUMN IF NOT EXISTS "y" TEXT;
-CREATE UNIQUE INDEX IF NOT EXISTS "X_y_key" ON "X"("y");'
+npm run db:tunnel     # ssh -N -L 5433:127.0.0.1:5432 root@130.94.120.78
 ```
 
-Nullable + unique is safe in Postgres: every NULL counts as distinct.
+⚠️ Writing `5432:5432` in `docker-compose.prod.yml` instead of
+`127.0.0.1:5432:5432` **would expose the database publicly** — Docker publishes
+ports past `ufw` with its own iptables rules.
 
-## 3. Backend conventions
+### Least privilege
+
+| Role | Can do |
+|---|---|
+| `sunray_migrator` | `CREATE/ALTER/DROP` — used only at deploy time |
+| `sunray_app` | `SELECT/INSERT/UPDATE/DELETE` — **cannot alter the schema** |
+
+A leaked runtime credential can no longer reshape or drop the database.
+`sunray_dev` and `sunray_test` additionally hold `CREATEDB`, which Prisma needs
+for the shadow database when generating migrations. Production never runs
+`migrate dev`, only `migrate deploy`, which needs no shadow.
+
+### Schema conventions
+
+Each prevents a specific class of bug, not a style preference:
+
+- **Money is integer halalas** (1 SAR = 100). Never float, never decimal in app
+  code. Convert only at the edges. `CHECK` constraints enforce non-negative.
+- **VAT is INCLUSIVE.** `total` is what the customer pays; `vat` is the portion
+  inside it. `CHECK (vat <= total)` makes the old overcharging bug impossible.
+- **Every `DateTime` is `@db.Timestamptz(6)`.** Prisma's default is
+  `timestamp(3)` *without* time zone — it stores a wall-clock reading rather
+  than a moment, so two people in different zones read the same row differently.
+- **snake_case in the database, camelCase in Prisma** via `@map`/`@@map`. No
+  more quoting `"Order"` in hand-written SQL.
+- **Every foreign key has an index.** PostgreSQL does not create them; 13 of our
+  16 were missing before the rebuild, turning every join and parent delete into
+  a sequential scan.
+- **Stable value sets are native enums** (`OrderType`, `OrderStatus`,
+  `WalletTxType`, `WalletTxSource`, `GiftCardStatus`, `Gender`). Sets we expect
+  to churn stay strings with a `CHECK` — enums are cheap to extend, painful to
+  shrink.
+- **Soft delete via `deletedAt`** on `Product` and `Category`: a menu item
+  withdrawn from Foodics is hidden, not removed, so past orders stay intact.
+- **`OrderItem` and `OrderItemOption` snapshot** the name and price at order
+  time and hold no FK to `ModifierOption`. Menu sync rebuilds those rows
+  wholesale; an invoice must survive it.
+
+### 18 CHECK constraints — tested, not assumed
+
+Prisma cannot express these, so they are appended by hand to the init migration.
+Zod validates every request, so they should never fire from normal traffic; they
+exist for everything Zod does not see — a `psql` session, a repair script, a
+future service, a bug. Verified to actually reject:
+
+```
+negative price · phone "0501234567" · birth month 13 · unknown notification kind
+min_selected > max_selected · order status outside the enum
+```
+
+…while still accepting a valid phone **and** the `deleted:<hash>` tombstone that
+account deletion writes. That last case matters: a stricter phone rule would
+have silently broken account deletion.
+
+### Migrations
+
+One clean `init` migration, generated against PostgreSQL. The previous history
+was written for SQLite and the production database had been changed by hand with
+`psql`, so `migrate deploy` had nothing to reconcile against.
+
+```bash
+npx prisma migrate dev        # dev: generate + apply
+npx prisma migrate deploy     # prod: apply only
+npx prisma migrate status     # confirm — never declare success without it
+npm run db:check              # migrate diff: fails on any schema/database drift
+```
+
+⚠️ **Never `prisma db push` against production.** It refuses to add a unique
+constraint ("possible data loss") and leaves the container crash-looping — this
+happened, twice.
+
+## 4. Backend conventions
 
 `backend/src/modules/`: `auth branches cart customers foodics giftCards health
 loyalty menu notifications orders wallet`.
 
-- **Money is integer halalas.** 1 SAR = 100 halalas. Never floats.
 - **Phone is 9 digits starting with 5** (`501234567`) — `/^5\d{8}$/` in
-  `auth.schemas.ts`. Not `05…`, not `+966…`. Foodics stores the same shape.
+  `auth.schemas.ts`. Not `05…`, not `+966…`. Foodics stores the same shape, and
+  the database enforces it too.
 - Responses: `{ok: true, data}` / `{ok: false, error: {code, message}}`, errors in Arabic.
-- SQLite for dev, PostgreSQL in prod; `scripts/use-postgres.mjs` flips the
-  datasource at build time so the committed schema stays SQLite.
 - Env is Zod-validated in `config/env.ts`; the server refuses to boot on a bad
   config, on the dev JWT secret, or on a secret under 32 chars.
 - Identity always comes from `req.auth.customerId` (the session token), **never**
   from a parameter. That is what keeps every list scoped to its owner.
 
-## 4. Foodics integration
+## 5. Foodics integration
 
 **Business:** `sunray` · reference **850056** · plan `new advanced` ·
 owner Mohammed Alshahrani (`sunray.sa811@gmail.com`) · token type
@@ -209,7 +302,7 @@ customer's number and read their name, full purchase history and spending. For
 Saudi residents' personal data that is a PDPL exposure. The gate lifts by itself
 when a real provider is configured.
 
-## 5. SMS / OTP — Yamamah (اليمامة)
+## 6. SMS / OTP — Yamamah (اليمامة)
 
 Real OTP is **built and deployed** but inactive.
 
@@ -252,7 +345,7 @@ OTP_PROVIDER=yamamah      # in deploy/.env, then up -d
 
 That single line also lifts the order-history gate. No code change.
 
-## 6. The app
+## 7. The app
 
 ### Build
 
@@ -317,7 +410,7 @@ data model onto the customer. Foodics rows show **«تم التسليم»** and 
 deliberately not pressable — no detail screen exists behind them. History failing
 is silent; no history is the normal case.
 
-## 7. 🔴 Blockers
+## 8. 🔴 Blockers
 
 **Needs the owner (outside what the code can do):**
 
@@ -338,16 +431,20 @@ is silent; no history is the normal case.
    apply; use Moyasar / Tap / HyperPay / PayTabs, or ship pay-at-branch.
 9. **Apple review needs a demo account** — reviewers abroad cannot receive a
    Saudi SMS. Provide a fixed bypass code in the review notes.
-10. **Backups are not scheduled**, and would sit on the same box. Use `rclone`.
-11. **`prisma db push` runs on every start** — move to `migrate deploy`.
-12. **Single instance**; rate limiting and the catalog cache are in-memory, so
+10. **Backups sit on the same box.** Scheduled nightly and verified, but a lost
+    server takes them with it — get them offsite with `rclone`.
+11. **Single instance**; rate limiting and the catalog cache are in-memory, so
     scaling past one needs Redis.
-13. **PDPL** — hosting in Saudi Arabia is the foundation, not the whole story.
+12. **PDPL** — hosting in Saudi Arabia is the foundation, not the whole story.
+
+Resolved since the last revision: account deletion is built; privacy and terms
+pages are served; VAT is inclusive so the app no longer overcharges; migrations
+replaced `db push`; foreign keys are indexed; backups are scheduled.
 
 Store accounts: Apple $99/yr (**organisation needs a D-U-N-S number — slow,
 start early**), Google Play $25 once. Identifiers: `com.sunray.cafe`, v1.0.0.
 
-## 8. Environment variables
+## 9. Environment variables
 
 App (`.env` — ships in the bundle, no secrets):
 

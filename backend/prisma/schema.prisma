@@ -1,38 +1,128 @@
-// Prisma schema — defines our database tables and how they relate.
+// Sun Ray — database schema.
 //
-// Beginner notes:
-// - Money is stored as INTEGER "halalas" (1 SAR = 100 halalas). e.g. 1800 = 18.00 SAR.
-//   This avoids floating-point rounding bugs with money.
-// - SQLite does NOT support Prisma `enum`, so status-like fields are `String`.
-//   The allowed values are written in a comment next to each field and enforced
-//   in code with Zod. When we move to PostgreSQL later we can turn them into real enums.
-// - `id String @id @default(cuid())` gives every row a unique text id automatically.
+// ─────────────────────────────────────────────────────────────────────────────
+// CONVENTIONS. Not stylistic — each prevents a specific class of bug.
+//
+//  • PostgreSQL everywhere: development, test, production. SQLite in dev was the
+//    previous setup and Prisma itself calls it an anti-pattern — no enums,
+//    incompatible migration SQL, and dialect bugs that surface only in prod.
+//
+//  • Money is INTEGER halalas (1 SAR = 100). Never float, never decimal in app
+//    code. Convert only at the edges (API responses, UI).
+//
+//  • Every DateTime is @db.Timestamptz(6). Prisma's default maps to
+//    `timestamp(3)` WITHOUT time zone, storing a wall-clock reading rather than
+//    a moment — two people in different zones would read the same row as
+//    different instants.
+//
+//  • Database identifiers are snake_case via @map/@@map; the Prisma API stays
+//    camelCase. PostgreSQL convention, and it stops `"Order"` needing quotes in
+//    every hand-written query.
+//
+//  • EVERY foreign key has an explicit @@index. PostgreSQL does NOT create one,
+//    so without it each join and each parent delete degrades into a sequential
+//    scan. 13 of our 16 were missing before this rewrite.
+//
+//  • Stable value sets are native enums; sets we expect to churn stay strings
+//    with a CHECK constraint. Enums are cheap to extend, painful to shrink.
+//
+//  • CHECK constraints live in the migration SQL — Prisma cannot express them.
+//    They are the last defence when something writes directly to the database,
+//    bypassing Zod.
+// ─────────────────────────────────────────────────────────────────────────────
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  // To switch to PostgreSQL later: change provider to "postgresql" and set a
-  // postgresql:// DATABASE_URL in .env. The models below stay the same.
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
+// ── Enums ────────────────────────────────────────────────────────────────────
+
+/// How the customer receives the order. Mapped to Foodics types
+/// (1 dine-in · 2 pick-up · 3 delivery) in foodics.orders.ts.
+enum OrderType {
+  PICKUP
+  DELIVERY
+  DINE_IN
+
+  @@map("order_type")
+}
+
+/// Order lifecycle. Driven by Foodics webhooks once a ticket exists.
+enum OrderStatus {
+  PENDING
+  ACCEPTED
+  PREPARING
+  READY
+  EN_ROUTE
+  COMPLETED
+  CANCELLED
+
+  @@map("order_status")
+}
+
+enum WalletTxType {
+  CREDIT
+  DEBIT
+
+  @@map("wallet_tx_type")
+}
+
+/// Each source implies different accounting treatment; not casually added.
+enum WalletTxSource {
+  TOP_UP
+  ORDER_PAYMENT
+  GIFT_CARD
+  REFUND
+  ADMIN
+
+  @@map("wallet_tx_source")
+}
+
+enum GiftCardStatus {
+  ACTIVE
+  REDEEMED
+  EXPIRED
+  CANCELLED
+
+  @@map("gift_card_status")
+}
+
+enum Gender {
+  MALE
+  FEMALE
+
+  @@map("gender")
+}
+
+// ── Identity ─────────────────────────────────────────────────────────────────
+
 model Customer {
-  id         String   @id @default(cuid())
-  /// Foodics customer UUID, resolved by matching dial_code + phone. Lets us show
-  /// a customer the order history they built up at the counter before the app.
-  foodicsId  String?  @unique
-  name       String
-  phone      String   @unique
-  email      String?
-  gender     String? // "male" | "female"
-  city       String?
-  birthDay   Int? //   1-31 (no year — for birthday offers)
-  birthMonth Int? //   1-12
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id String @id @default(cuid())
+
+  /// Foodics customer UUID, resolved by matching dial_code + phone. Lets a
+  /// customer see history built at the counter before the app existed.
+  foodicsId String? @unique @map("foodics_id")
+
+  name String
+  /// Saudi national number: 9 digits starting with 5. Enforced by Zod on input
+  /// and by a CHECK constraint in the database.
+  phone String  @unique
+  email String?
+
+  gender Gender?
+  city   String?
+  /// Day and month only, no year — enough for a birthday offer, and collecting
+  /// less than we could is the point.
+  birthDay   Int? @map("birth_day")
+  birthMonth Int? @map("birth_month")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   addresses          Address[]
   orders             Order[]
@@ -43,293 +133,423 @@ model Customer {
   giftCardsSent      GiftCard[]          @relation("GiftSender")
   giftCardsRedeemed  GiftCard[]          @relation("GiftRedeemer")
   sessions           Session[]
+
+  @@map("customers")
 }
 
-// A login session. We store ONLY the sha256 hash of the refresh token (never the
-// raw token). The access token is a short-lived JWT; the refresh token is a long-
-// lived opaque secret used to mint new access tokens. Logout/expiry sets revokedAt
-// / expiresAt so the session can be invalidated server-side.
+/// Only sha256(refresh token) is stored — a database leak must not hand anyone
+/// a working session. This row is what allows server-side revocation.
 model Session {
   id               String    @id @default(cuid())
-  customerId       String
-  refreshTokenHash String    @unique // sha256(rawRefreshToken)
-  userAgent        String?
-  expiresAt        DateTime
-  createdAt        DateTime  @default(now())
-  lastUsedAt       DateTime  @default(now())
-  revokedAt        DateTime?
+  customerId       String    @map("customer_id")
+  refreshTokenHash String    @unique @map("refresh_token_hash")
+  userAgent        String?   @map("user_agent")
+  expiresAt        DateTime  @map("expires_at") @db.Timestamptz(6)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  lastUsedAt       DateTime  @default(now()) @map("last_used_at") @db.Timestamptz(6)
+  revokedAt        DateTime? @map("revoked_at") @db.Timestamptz(6)
 
-  customer Customer @relation(fields: [customerId], references: [id])
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
   @@index([customerId])
+  /// The revoke + expiry check that runs on every authenticated request.
+  @@index([customerId, revokedAt, expiresAt])
+  @@map("sessions")
+}
+
+/// A pending OTP login challenge. Only sha256(code) is stored; `attempts` caps
+/// brute force (a 4-digit code is 10,000 possibilities) and `consumedAt` makes
+/// each code strictly single-use.
+model OtpChallenge {
+  id         String    @id @default(cuid())
+  phone      String
+  codeHash   String    @map("code_hash")
+  expiresAt  DateTime  @map("expires_at") @db.Timestamptz(6)
+  attempts   Int       @default(0)
+  consumedAt DateTime? @map("consumed_at") @db.Timestamptz(6)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([phone, expiresAt])
+  /// Supports the cleanup job; without it this table grows without bound.
+  @@index([expiresAt])
+  @@map("otp_challenges")
 }
 
 model Address {
-  id         String   @id @default(cuid())
-  customerId String
-  label      String // "home" | "work" | "other"
+  id         String  @id @default(cuid())
+  customerId String  @map("customer_id")
+  label      String // home | work | other — CHECK constraint
   city       String
   district   String?
   street     String?
   details    String?
   latitude   Float?
   longitude  Float?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
 
-  customer Customer @relation(fields: [customerId], references: [id])
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  orders   Order[]
+
+  @@index([customerId])
+  @@map("addresses")
 }
 
+// ── Catalogue (synced from Foodics) ──────────────────────────────────────────
+
 model Branch {
-  id          String   @id @default(cuid())
-  /// Foodics branch UUID. Null for local-only branches (the original seed data).
-  foodicsId   String?  @unique
-  name        String
-  address     String?
-  latitude    Float?
-  longitude   Float?
-  openingFrom String? // "HH:MM"
-  openingTo   String? // "HH:MM"
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id String @id @default(cuid())
+
+  foodicsId String? @unique @map("foodics_id")
+
+  name    String
+  address String?
+
+  /// Missing coordinates are a SILENT failure in Foodics: POST /orders returns
+  /// 2xx and the ticket never reaches the cashier. Sync refuses to overwrite a
+  /// value here with Foodics' null — absence of data is not data.
+  latitude  Float?
+  longitude Float?
+
+  openingFrom String? @map("opening_from") // "HH:MM"
+  openingTo   String? @map("opening_to")
+  isActive    Boolean @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   orders Order[]
+
+  @@index([isActive])
+  @@map("branches")
 }
 
 model Category {
-  id        String   @id @default(cuid())
-  /// Foodics category UUID — the upsert key during menu sync.
-  foodicsId String?  @unique
-  nameAr    String
-  nameEn    String?
-  sortOrder Int      @default(0)
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id String @id @default(cuid())
+
+  foodicsId String? @unique @map("foodics_id")
+
+  nameAr    String  @map("name_ar")
+  nameEn    String? @map("name_en")
+  sortOrder Int     @default(0) @map("sort_order")
+  isActive  Boolean @default(true) @map("is_active")
+
+  /// Soft delete. A category withdrawn from Foodics is hidden, not removed, so
+  /// the products and past orders hanging off it stay intact.
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   products Product[]
+
+  @@index([isActive, sortOrder])
+  @@map("categories")
 }
 
 model Product {
-  id              String   @id @default(cuid())
-  /// Foodics product UUID — the upsert key during menu sync.
-  foodicsId       String?  @unique
-  categoryId      String
-  nameAr          String
-  nameEn          String?
-  descriptionAr   String?
-  descriptionEn   String?
-  price           Int //     halalas
+  id String @id @default(cuid())
+
+  foodicsId  String? @unique @map("foodics_id")
+  categoryId String  @map("category_id")
+
+  nameAr        String  @map("name_ar")
+  nameEn        String? @map("name_en")
+  descriptionAr String? @map("description_ar")
+  descriptionEn String? @map("description_en")
+
+  /// halalas. CHECK (price >= 0).
+  price           Int
   image           String?
   calories        Int?
-  isAvailable     Boolean  @default(true)
-  isFeatured      Boolean  @default(false)
-  preparationTime Int? //    minutes
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  isAvailable     Boolean   @default(true) @map("is_available")
+  isFeatured      Boolean   @default(false) @map("is_featured")
+  preparationTime Int?      @map("preparation_time") // minutes
+  /// Soft delete — see Category. Order history must survive a menu change.
+  deletedAt       DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   category   Category    @relation(fields: [categoryId], references: [id])
   modifiers  Modifier[]
   orderItems OrderItem[]
+
+  @@index([categoryId])
+  /// The menu screen's actual query: everything available in one category.
+  @@index([categoryId, isAvailable])
+  @@map("products")
 }
 
+/// A modifier group on a product (size, milk, extras).
+///
+/// Foodics defines each modifier once and shares it across products; we store
+/// one row per product, so `foodicsId` legitimately repeats and is NOT unique.
 model Modifier {
-  id          String   @id @default(cuid())
-  /// Foodics modifier UUID. NOT unique: Foodics defines each modifier once and
-  /// shares it across products, while we store one row per product — so the
-  /// same id legitimately repeats. Needed to build the Foodics order payload.
-  foodicsId   String?
-  productId   String
-  nameAr      String
-  nameEn      String?
-  minSelected Int      @default(0)
-  maxSelected Int      @default(1)
-  isRequired  Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String  @id @default(cuid())
+  foodicsId String? @map("foodics_id")
+  productId String  @map("product_id")
 
-  product Product          @relation(fields: [productId], references: [id])
+  nameAr      String  @map("name_ar")
+  nameEn      String? @map("name_en")
+  minSelected Int     @default(0) @map("min_selected")
+  maxSelected Int     @default(1) @map("max_selected")
+  isRequired  Boolean @default(false) @map("is_required")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  product Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
   options ModifierOption[]
+
+  @@index([productId])
+  @@map("modifiers")
 }
 
 model ModifierOption {
-  id          String   @id @default(cuid())
-  /// Foodics modifier-option UUID — what `POST /orders` needs as
-  /// `options[].modifier_option_id`. Not unique, for the same reason as Modifier.
-  foodicsId   String?
-  modifierId  String
-  nameAr      String
-  nameEn      String?
-  price       Int      @default(0) // halalas
-  isAvailable Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id String @id @default(cuid())
 
-  modifier Modifier @relation(fields: [modifierId], references: [id])
+  /// What POST /orders needs as options[].modifier_option_id. Not unique, for
+  /// the same reason as Modifier.
+  foodicsId  String? @map("foodics_id")
+  modifierId String  @map("modifier_id")
+
+  nameAr      String  @map("name_ar")
+  nameEn      String? @map("name_en")
+  /// halalas. CHECK (price >= 0).
+  price       Int     @default(0)
+  isAvailable Boolean @default(true) @map("is_available")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  modifier Modifier @relation(fields: [modifierId], references: [id], onDelete: Cascade)
+
+  @@index([modifierId])
+  @@map("modifier_options")
 }
 
+// ── Orders ───────────────────────────────────────────────────────────────────
+
 model Order {
-  id            String    @id @default(cuid())
-  customerId    String?
-  branchId      String?
-  type          String //  "PICKUP" | "DELIVERY" | "DINE_IN"
-  status        String    @default("PENDING") // PENDING|ACCEPTED|PREPARING|READY|EN_ROUTE|COMPLETED|CANCELLED
-  subtotal      Int //     halalas
-  vat           Int
-  deliveryFee   Int       @default(0)
-  discount      Int       @default(0)
-  total         Int
-  customerNotes String?
-  scheduledAt   DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id String @id @default(cuid())
+
+  customerId String? @map("customer_id")
+  branchId   String? @map("branch_id")
+  addressId  String? @map("address_id")
+
+  /// Foodics order UUID, set once the POS accepts the ticket.
+  foodicsOrderId String? @unique @map("foodics_order_id")
+
+  type   OrderType
+  status OrderStatus @default(PENDING)
+
+  /// All halalas. VAT is INCLUSIVE — menu prices already contain it, so `total`
+  /// is what the customer pays and `vat` is the portion inside it. Computing
+  /// total = subtotal + vat overcharges on every order.
+  subtotal    Int
+  vat         Int
+  deliveryFee Int @default(0) @map("delivery_fee")
+  discount    Int @default(0)
+  total       Int
+
+  customerNotes String?   @map("customer_notes")
+  scheduledAt   DateTime? @map("scheduled_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   customer Customer?   @relation(fields: [customerId], references: [id])
   branch   Branch?     @relation(fields: [branchId], references: [id])
+  address  Address?    @relation(fields: [addressId], references: [id])
   items    OrderItem[]
+
+  @@index([customerId])
+  @@index([branchId])
+  @@index([addressId])
+  /// The orders screen: this customer's orders, newest first.
+  @@index([customerId, createdAt(sort: Desc)])
+  @@index([status])
+  @@map("orders")
 }
 
 model OrderItem {
-  id          String   @id @default(cuid())
-  orderId     String
-  productId   String
-  productName String
-  quantity    Int
-  unitPrice   Int //     halalas
-  totalPrice  Int //     halalas
-  notes       String?
-  createdAt   DateTime @default(now())
+  id        String @id @default(cuid())
+  orderId   String @map("order_id")
+  productId String @map("product_id")
 
-  order   Order             @relation(fields: [orderId], references: [id])
+  /// Snapshotted rather than read through the relation: the invoice must keep
+  /// saying what was bought even after the product is renamed or withdrawn.
+  productName String  @map("product_name")
+  quantity    Int
+  unitPrice   Int     @map("unit_price") // halalas
+  totalPrice  Int     @map("total_price")
+  notes       String?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  order   Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product Product           @relation(fields: [productId], references: [id])
   options OrderItemOption[]
+
+  @@index([orderId])
+  @@index([productId])
+  @@map("order_items")
 }
 
+/// A modifier option chosen on an order line.
+///
+/// Deliberately holds NO foreign key to ModifierOption: menu sync rebuilds those
+/// rows wholesale, and history must survive it. Name, price and Foodics id are
+/// copied at order time for the same reason.
+model OrderItemOption {
+  id               String  @id @default(cuid())
+  orderItemId      String  @map("order_item_id")
+  modifierOptionId String? @map("modifier_option_id")
+  foodicsOptionId  String? @map("foodics_option_id")
+
+  nameAr String @map("name_ar")
+  price  Int    @default(0) // halalas, at time of order
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  orderItem OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+
+  @@index([orderItemId])
+  @@map("order_item_options")
+}
+
+// ── Wallet, loyalty, gift cards ──────────────────────────────────────────────
+
 model WalletTransaction {
-  id           String   @id @default(cuid())
-  customerId   String
-  type         String //  "CREDIT" | "DEBIT"
-  source       String //  "TOP_UP" | "ORDER_PAYMENT" | "GIFT_CARD" | "REFUND" | "ADMIN"
-  amount       Int //     halalas (always positive; `type` says credit/debit)
-  balanceAfter Int //     halalas
+  id         String @id @default(cuid())
+  customerId String @map("customer_id")
+
+  type   WalletTxType
+  source WalletTxSource
+
+  /// Always positive; `type` says whether it adds or subtracts. halalas.
+  amount Int
+  /// Running balance after this row. The ledger is the source of truth and the
+  /// current balance is the newest row's value, never a mutable column.
+  balanceAfter Int     @map("balance_after")
   note         String?
-  createdAt    DateTime @default(now())
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   customer Customer @relation(fields: [customerId], references: [id])
+
+  @@index([customerId])
+  /// Balance lookup and history are both "this customer, newest first".
+  @@index([customerId, createdAt(sort: Desc)])
+  @@map("wallet_transactions")
 }
 
 model GiftCard {
-  id                   String    @id @default(cuid())
-  senderCustomerId     String?
-  recipientPhone       String
-  recipientName        String?
-  amount               Int //      halalas
-  code                 String    @unique
-  status               String    @default("ACTIVE") // ACTIVE|REDEEMED|EXPIRED|CANCELLED
-  message              String?
-  redeemedByCustomerId String?
-  redeemedAt           DateTime?
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
+  id String @id @default(cuid())
 
-  senderCustomer     Customer? @relation("GiftSender", fields: [senderCustomerId], references: [id])
-  redeemedByCustomer Customer? @relation("GiftRedeemer", fields: [redeemedByCustomerId], references: [id])
+  senderCustomerId     String? @map("sender_customer_id")
+  redeemedByCustomerId String? @map("redeemed_by_customer_id")
+
+  recipientPhone String  @map("recipient_phone")
+  recipientName  String? @map("recipient_name")
+  /// halalas. CHECK (amount > 0).
+  amount         Int
+  /// Treated as cash: anyone holding the code can spend it. Never put it in a
+  /// URL or a log.
+  code    String         @unique
+  status  GiftCardStatus @default(ACTIVE)
+  message String?
+
+  redeemedAt DateTime? @map("redeemed_at") @db.Timestamptz(6)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  sender     Customer? @relation("GiftSender", fields: [senderCustomerId], references: [id])
+  redeemedBy Customer? @relation("GiftRedeemer", fields: [redeemedByCustomerId], references: [id])
+
+  @@index([senderCustomerId])
+  @@index([redeemedByCustomerId])
+  @@index([recipientPhone])
+  @@map("gift_cards")
 }
 
+/// Path-A loyalty: OUR system counts cups. Foodics' built-in loyalty is
+/// amount-based and cannot count them, so the counter lives here and the reward
+/// is issued as a Foodics coupon.
 model LoyaltyCounter {
-  id         String   @id @default(cuid())
-  customerId String   @unique
-  cupCount   Int      @default(0)
-  goal       Int      @default(6)
-  updatedAt  DateTime @updatedAt
+  id         String @id @default(cuid())
+  customerId String @unique @map("customer_id")
 
-  customer Customer @relation(fields: [customerId], references: [id])
+  cupCount Int @default(0) @map("cup_count")
+  goal     Int @default(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@map("loyalty_counters")
 }
 
 model LoyaltyReward {
-  id         String    @id @default(cuid())
-  customerId String
-  code       String    @unique
-  type       String //   e.g. "FREE_COFFEE"
-  status     String    @default("ACTIVE") // ACTIVE|REDEEMED|EXPIRED
-  issuedAt   DateTime  @default(now())
-  redeemedAt DateTime?
+  id         String @id @default(cuid())
+  customerId String @map("customer_id")
 
-  customer Customer @relation(fields: [customerId], references: [id])
+  code   String @unique
+  status String @default("ISSUED") // ISSUED | REDEEMED | EXPIRED — CHECK constraint
+
+  issuedAt   DateTime  @default(now()) @map("issued_at") @db.Timestamptz(6)
+  redeemedAt DateTime? @map("redeemed_at") @db.Timestamptz(6)
+  expiresAt  DateTime? @map("expires_at") @db.Timestamptz(6)
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@map("loyalty_rewards")
 }
 
 model Notification {
-  id         String   @id @default(cuid())
-  customerId String?
-  title      String
-  body       String
-  type       String //  "orderAccepted" | "orderReady" | "pointsEarned" | "giftReceived" | "birthdayOffer"
-  isRead     Boolean  @default(false)
-  createdAt  DateTime @default(now())
+  id         String  @id @default(cuid())
+  customerId String? @map("customer_id")
 
-  customer Customer? @relation(fields: [customerId], references: [id])
+  title  String
+  body   String
+  kind   String  // order | loyalty | gift | offer | system — CHECK constraint
+  isRead Boolean @default(false) @map("is_read")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  customer Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  /// The notifications screen: this customer's, newest first.
+  @@index([customerId, createdAt(sort: Desc)])
+  @@map("notifications")
 }
 
-/// A pending OTP login challenge.
+// ── Integration plumbing ─────────────────────────────────────────────────────
+
+/// Raw log of every Foodics webhook.
 ///
-/// Only the sha256 of the code is stored — a database leak must not hand anyone
-/// a working login code. `attempts` caps brute force on a 4-digit code (10,000
-/// possibilities is trivial to exhaust without it), and `consumedAt` makes each
-/// code strictly single-use.
-model OtpChallenge {
-  id         String    @id @default(cuid())
-  phone      String
-  codeHash   String
-  expiresAt  DateTime
-  attempts   Int       @default(0)
-  consumedAt DateTime?
-  createdAt  DateTime  @default(now())
-
-  @@index([phone, expiresAt])
-}
-
-/// A modifier option chosen on an order line (size, milk, extra shot…).
-///
-/// Stored as a SNAPSHOT, not a live reference: `nameAr`, `price` and
-/// `foodicsOptionId` are copied at order time. Menu prices and names change in
-/// the Foodics console, and a past invoice must keep saying what the customer
-/// actually bought and paid. The link back to ModifierOption is intentionally
-/// loose (a plain id, no foreign key) so a re-sync that rebuilds modifier rows
-/// can never orphan or rewrite history.
-model OrderItemOption {
-  id               String   @id @default(cuid())
-  orderItemId      String
-  modifierOptionId String?
-  foodicsOptionId  String?
-  nameAr           String
-  price            Int      @default(0) // halalas, at time of order
-  createdAt        DateTime @default(now())
-
-  orderItem OrderItem @relation(fields: [orderItemId], references: [id])
-
-  @@index([orderItemId])
-}
-
-/// Raw log of every Foodics webhook we receive.
-///
-/// Exists for three reasons, all of them learned from Foodics' own delivery
-/// rules: events are retried 3 times then DROPPED forever, so we need a record
-/// of what arrived; retries mean the same event can arrive twice, so we need
-/// idempotency; and when processing has a bug we need to replay rather than
-/// lose the day's orders.
-///
-/// `dedupeKey` is what makes a repeat a no-op — Foodics sends no event id, so we
-/// derive one from the event name plus the entity it concerns.
+/// Foodics retries an event 3 times then drops it forever, and sends no event id
+/// of its own — so we keep the raw payload (to replay after a bug) and derive a
+/// dedupe key (so a retry is a no-op).
 model WebhookEvent {
-  id          String    @id @default(cuid())
-  source      String    @default("foodics")
-  event       String
-  dedupeKey   String    @unique
-  payload     String //  raw JSON, kept verbatim for replay
-  receivedAt  DateTime  @default(now())
-  processedAt DateTime?
+  id     String @id @default(cuid())
+  source String @default("foodics")
+  event  String
+
+  dedupeKey String @unique @map("dedupe_key")
+  payload   String
+
+  receivedAt  DateTime  @default(now()) @map("received_at") @db.Timestamptz(6)
+  processedAt DateTime? @map("processed_at") @db.Timestamptz(6)
   error       String?
 
   @@index([event, receivedAt])
+  /// Finds unprocessed events for replay.
+  @@index([processedAt])
+  @@map("webhook_events")
 }

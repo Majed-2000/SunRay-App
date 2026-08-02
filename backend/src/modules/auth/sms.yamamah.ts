@@ -73,13 +73,35 @@ export async function sendSms(toLocalPhone: string, message: string): Promise<Sm
     });
     const body = await res.text();
 
-    // Never log the message body — it contains the OTP — nor the credentials.
-    // The recipient is logged in masked form so delivery can still be traced.
-    const masked = toInternational(toLocalPhone).replace(/^(\d{5})\d+(\d{2})$/, '$1****$2');
-    if (!res.ok) logger.warn(`SMS send failed for ${masked}: HTTP ${res.status}`);
-    else logger.info(`SMS sent to ${masked}`);
+    // 🔴 Yamamah answers HTTP 200 even when it refuses the message. The real
+    // outcome is `Status` inside the body:
+    //
+    //   Status 0/1  → accepted
+    //   Status 10   → Invalid UserName and Password
+    //   Status 20   → Invalid TagName Format
+    //
+    // Trusting res.ok alone would report every failure as a success, hand the
+    // customer a code that was never sent, and leave them staring at an OTP
+    // screen. Both statuses above were reproduced against the live API.
+    let apiStatus: number | undefined;
+    let apiMessage: string | undefined;
+    try {
+      const parsed = JSON.parse(body) as { Status?: number; StatusDescription?: string };
+      apiStatus = parsed.Status;
+      apiMessage = parsed.StatusDescription;
+    } catch {
+      // Not JSON — treat as a failure rather than assume success.
+    }
 
-    return { ok: res.ok, status: res.status, body: body.slice(0, 300) };
+    const accepted = res.ok && (apiStatus === 0 || apiStatus === 1);
+
+    // Never log the message body — it contains the OTP — nor the credentials.
+    // The recipient is logged masked so delivery can still be traced.
+    const masked = toInternational(toLocalPhone).replace(/^(\d{5})\d+(\d{2})$/, '$1****$2');
+    if (accepted) logger.info(`SMS sent to ${masked}`);
+    else logger.warn(`SMS refused for ${masked}: HTTP ${res.status} · ${apiStatus ?? '?'} ${apiMessage ?? ''}`);
+
+    return { ok: accepted, status: res.status, body: body.slice(0, 300) };
   } catch (err) {
     logger.warn(`SMS transport error: ${(err as Error).message}`);
     return { ok: false, status: 0, body: (err as Error).message };

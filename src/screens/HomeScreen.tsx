@@ -5,7 +5,6 @@ import { router } from 'expo-router';
 import { colors, radius, shadows, spacing } from '@/theme';
 import {
   BranchPickerSheet,
-  Card,
   FloatingCartBar,
   GiftCardPreview,
   IconTile,
@@ -21,6 +20,7 @@ import { giftDesigns, offers } from '@/data';
 import { CONFIG } from '@/constants/config';
 import { strings } from '@/i18n';
 import { useResponsive } from '@/hooks/useResponsive';
+import { greetingFor } from '@/utils/greeting';
 import {
   useAuthStore,
   useBranchStore,
@@ -45,6 +45,11 @@ export function HomeScreen() {
   const featured = useMemo(() => catalogProducts.filter((p) => p.isFeatured), [catalogProducts]);
   const t = strings();
 
+  // Recomputed per mount rather than per render: the band it lands in changes
+  // maybe four times a day, and a customer who has the app open across the
+  // boundary does not need the headline shifting under them mid-scroll.
+  const greeting = useMemo(() => greetingFor(), []);
+
   const startOrder = (type: 'pickup' | 'delivery') => {
     setOrderType(type);
     router.push('/(tabs)/menu');
@@ -67,13 +72,15 @@ export function HomeScreen() {
           >
             <Pressable
               onPress={() => setPickerOpen(true)}
-              style={[
+              accessibilityRole="button"
+              accessibilityLabel={`الفرع: ${branch.nameAr}، ${branch.isOpen ? 'مفتوح' : 'مغلق'}. اضغط للتغيير`}
+              style={({ pressed }) => [
                 shadows.sm,
                 {
                   flexDirection: 'row',
                   alignItems: 'center',
                   gap: 9,
-                  backgroundColor: colors.card,
+                  backgroundColor: pressed ? colors.chip : colors.card,
                   borderRadius: radius.md,
                   paddingVertical: 8,
                   paddingHorizontal: 12,
@@ -99,13 +106,21 @@ export function HomeScreen() {
 
             <Pressable
               onPress={() => router.push('/notifications')}
-              style={[
+              accessibilityRole="button"
+              // The dot is decorative; the count is the thing worth announcing.
+              accessibilityLabel={
+                unreadCount > 0 ? `الإشعارات، ${unreadCount} غير مقروء` : 'الإشعارات'
+              }
+              // Drawn at 38 to sit level with the branch pill; slop takes the
+              // actual target past 44.
+              hitSlop={6}
+              style={({ pressed }) => [
                 shadows.sm,
                 {
                   width: 38,
                   height: 38,
                   borderRadius: radius.full,
-                  backgroundColor: colors.card,
+                  backgroundColor: pressed ? colors.chip : colors.card,
                   alignItems: 'center',
                   justifyContent: 'center',
                 },
@@ -133,10 +148,10 @@ export function HomeScreen() {
           {/* Greeting */}
           <View style={{ paddingHorizontal: spacing['2xl'], marginBottom: spacing.lg }}>
             <Txt size={12} weight="bold" latin tracking={1.5} color={colors.textFaint}>
-              GOOD MORNING ☀
+              {greeting.eyebrow}
             </Txt>
             <Txt size={25} weight="black" color={colors.ink} style={{ marginTop: 2 }}>
-              صباح الإشراق، {user?.name ?? 'ضيف'}
+              {greeting.ar}، {user?.name ?? 'ضيف'}
             </Txt>
           </View>
 
@@ -211,12 +226,28 @@ export function HomeScreen() {
             ))}
           </ScrollView>
 
-          <Pressable onPress={() => router.push('/gift')} style={{ alignItems: 'center', marginTop: spacing.lg }}>
-            <Card padding={14} radiusKey="md" style={{ marginHorizontal: spacing.lg }}>
-              <Txt size={14} weight="extraBold" color={colors.terracotta}>
-                تصفّح كل بطاقات الإهداء ←
-              </Txt>
-            </Card>
+          {/* A link, drawn as a link. This was a Card inside a centring
+              Pressable with its own horizontal margin, so it floated at a width
+              that matched nothing else on the screen — a fifth card shape on a
+              page already made of cards, carrying one line of text. */}
+          <Pressable
+            onPress={() => router.push('/gift')}
+            accessibilityRole="button"
+            hitSlop={{ top: 8, bottom: 8 }}
+            style={({ pressed }) => ({
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+              paddingVertical: spacing.lg,
+              marginTop: spacing.xs,
+              opacity: pressed ? 0.55 : 1,
+            })}
+          >
+            <Txt size={14} weight="extraBold" color={colors.terracotta}>
+              تصفّح كل بطاقات الإهداء
+            </Txt>
+            <Ionicons name="arrow-back" size={15} color={colors.terracotta} />
           </Pressable>
         </ScrollView>
       </ScreenContainer>

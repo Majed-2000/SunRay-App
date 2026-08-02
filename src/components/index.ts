@@ -14,6 +14,7 @@ export { OrderStatusBadge } from './OrderStatusBadge';
 export { EmptyState } from './EmptyState';
 export { ErrorState } from './ErrorState';
 export { Spinner } from './Spinner';
+export { MenuSkeleton, ProductRowSkeleton } from './Skeleton';
 export { ProductImage } from './ProductImage';
 export { ProductCard, ProductRow } from './ProductCard';
 export { LoyaltyCard } from './LoyaltyCard';

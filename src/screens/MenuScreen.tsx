@@ -7,12 +7,12 @@ import {
   EmptyState,
   ErrorState,
   FloatingCartBar,
+  MenuSkeleton,
   ProductCard,
   ProductRow,
   ResponsiveGrid,
   ScreenContainer,
   SegmentedTabs,
-  Spinner,
   Txt,
 } from '@/components';
 import { PRODUCT_ROW_HEIGHT } from '@/components/ProductCard';
@@ -151,7 +151,12 @@ export function MenuScreen() {
           Tablets keep the grid: far fewer, larger cards, and no hang observed.
         */}
         {loading ? (
-          <Spinner label="نحضّر القائمة لك…" />
+          // Rows in the shape they will take, not a spinner over a blank
+          // screen. The catalog comes from Foodics over the network, and the
+          // wait is long enough that "empty plus spinner" reads as broken.
+          <View style={{ paddingHorizontal: spacing.lg }}>
+            <MenuSkeleton />
+          </View>
         ) : error ? (
           <ErrorState onRetry={reload} />
         ) : list.length === 0 ? (

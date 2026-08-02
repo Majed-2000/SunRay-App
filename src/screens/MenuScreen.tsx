@@ -108,10 +108,15 @@ export function MenuScreen() {
             had drifted from it — same look, but `onPress` sat on the text, so
             only the glyphs themselves responded. Sharing the component fixes
             the touch target and keeps the two controls in step from now on. */}
+        {/* All three types, matching the cart. Offering only two meant picking
+            "تناول داخل الفرع" there and coming back left this control with
+            nothing highlighted, which reads as broken rather than as a mode the
+            menu does not show. */}
         <SegmentedTabs
           tabs={[
             { key: 'pickup', label: '☕ استلام' },
             { key: 'delivery', label: '🛵 توصيل' },
+            { key: 'dineIn', label: '🍽️ داخلي' },
           ]}
           value={orderType}
           onChange={setOrderType}

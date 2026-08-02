@@ -8,6 +8,7 @@
  * `useOrderStore.place()`. These functions are the future backend contract.
  */
 import { request } from './api';
+import { toSar } from './dto';
 import { toFoodicsOrderType } from './foodics';
 import type { CartItem, CheckoutPayload, CheckoutTotals } from './foodics.types';
 import type { CartLine, Order, OrderType, PaymentMethod } from '@/types';
@@ -72,14 +73,23 @@ export async function getOrder(id: string): Promise<Order> {
 export interface PastOrderItem {
   name: string;
   quantity: number;
-  totalPrice: number; // halalas
+  /**
+   * SAR, not halalas.
+   *
+   * The backend speaks halalas everywhere; this app's screens format riyals
+   * directly (`formatRiyal` multiplies by 100 only to round, never to convert).
+   * The two conventions meet here, and getting it wrong showed a 24.00 SAR cake
+   * as "2400 ﷼" in the orders screen. Converted once, at the boundary.
+   */
+  totalPrice: number;
 }
 
 export interface PastOrder {
   reference: number;
   foodicsOrderId: string;
   businessDate: string | null;
-  totalPrice: number; // halalas
+  /** SAR — see PastOrderItem.totalPrice. */
+  totalPrice: number;
   status: number; // Foodics order status (4 = Closed)
   type: number; // Foodics order type (2 = Pick Up, 3 = Delivery)
   items: PastOrderItem[];
@@ -104,5 +114,15 @@ export interface PastOrdersResult {
  * should treat that as "no history yet", not as an error worth showing.
  */
 export async function fetchPastOrders(): Promise<PastOrdersResult> {
-  return request<PastOrdersResult>('/api/orders/history');
+  const res = await request<PastOrdersResult>('/api/orders/history');
+
+  // halalas → SAR, once, here, using the shared converter in dto.ts.
+  return {
+    ...res,
+    orders: (res.orders ?? []).map((o) => ({
+      ...o,
+      totalPrice: toSar(o.totalPrice),
+      items: o.items.map((i) => ({ ...i, totalPrice: toSar(i.totalPrice) })),
+    })),
+  };
 }

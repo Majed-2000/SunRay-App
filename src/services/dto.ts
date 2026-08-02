@@ -19,7 +19,13 @@ import type {
 } from '@/types';
 import { FoodicsOrderStatus, FoodicsDeliveryStatus } from '@/types';
 
-const toSar = (halalas: number) => halalas / 100;
+/**
+ * halalas → SAR. The single conversion point between the backend, which keeps
+ * money as integers so it is never a float, and the screens, which format
+ * riyals. Exported because every mapper must use this one — a second copy is
+ * how a 24.00 SAR order rendered as "2400 ﷼".
+ */
+export const toSar = (halalas: number) => halalas / 100;
 
 // ── Backend shapes (what the API actually sends) ──────────────────────────────
 export interface BranchDTO {

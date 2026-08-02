@@ -1,7 +1,7 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { FlatList, ScrollView, View, type ListRenderItemInfo } from 'react-native';
 import { router } from 'expo-router';
-import { colors, radius, spacing } from '@/theme';
+import { colors, spacing } from '@/theme';
 import {
   CategoryPill,
   EmptyState,
@@ -11,6 +11,7 @@ import {
   ProductRow,
   ResponsiveGrid,
   ScreenContainer,
+  SegmentedTabs,
   Spinner,
   Txt,
 } from '@/components';
@@ -48,6 +49,29 @@ export function MenuScreen() {
     [products, filter],
   );
 
+  const listRef = useRef<FlatList<Product>>(null);
+  const pillsRef = useRef<ScrollView>(null);
+
+  /**
+   * Change category, then jump the list back to the top.
+   *
+   * This used to be `key={filter}` on the FlatList, which is the expensive way
+   * to get the same scroll reset: React tears the whole list down and builds a
+   * new one, discarding every mounted row and its layout. On "الكل" — 111
+   * products — that remount is a visible stall on every single tap of the
+   * category strip, which is exactly where it is least affordable.
+   *
+   * Keeping the list mounted and moving the offset costs nothing: `data` is a
+   * different array, the rows re-render, and the scroll position is set without
+   * a layout pass. The pill strip resets alongside it so the selected category
+   * is not left scrolled off the edge.
+   */
+  const selectFilter = useCallback((next: Filter) => {
+    setFilter(next);
+    listRef.current?.scrollToOffset({ offset: 0, animated: false });
+    pillsRef.current?.scrollTo({ x: 0, animated: true });
+  }, []);
+
   const openProduct = useCallback((id: string) => router.push(`/product/${id}`), []);
 
   const renderRow = useCallback(
@@ -80,58 +104,34 @@ export function MenuScreen() {
           </Txt>
         </View>
 
-        {/* mode toggle */}
-        <View
-          style={{
-            flexDirection: 'row',
-            backgroundColor: '#e3d6bf',
-            borderRadius: radius.md,
-            padding: 4,
-            marginHorizontal: spacing.lg,
-            marginTop: spacing.sm,
-            marginBottom: spacing.lg,
-          }}
-        >
-          {(['pickup', 'delivery'] as const).map((m) => {
-            const active = orderType === m;
-            return (
-              <View
-                key={m}
-                style={{
-                  flex: 1,
-                  backgroundColor: active ? colors.card : 'transparent',
-                  borderRadius: radius.sm + 1,
-                }}
-              >
-                <Txt
-                  size={13}
-                  weight="extraBold"
-                  center
-                  color={active ? colors.ink : colors.textMuted}
-                  onPress={() => setOrderType(m)}
-                  style={{ paddingVertical: 10 }}
-                >
-                  {m === 'pickup' ? '☕ استلام' : '🛵 توصيل'}
-                </Txt>
-              </View>
-            );
-          })}
-        </View>
+        {/* Pickup vs delivery. This was a hand-rolled copy of SegmentedTabs that
+            had drifted from it — same look, but `onPress` sat on the text, so
+            only the glyphs themselves responded. Sharing the component fixes
+            the touch target and keeps the two controls in step from now on. */}
+        <SegmentedTabs
+          tabs={[
+            { key: 'pickup', label: '☕ استلام' },
+            { key: 'delivery', label: '🛵 توصيل' },
+          ]}
+          value={orderType}
+          onChange={setOrderType}
+        />
 
         {/* category tabs — fixed-height band so it never overlaps the grid */}
         <View style={{ height: 46, marginBottom: spacing.md }}>
           <ScrollView
+            ref={pillsRef}
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ gap: 8, paddingHorizontal: spacing.lg, alignItems: 'center' }}
           >
-            <CategoryPill label="الكل" active={filter === 'all'} onPress={() => setFilter('all')} />
+            <CategoryPill label="الكل" active={filter === 'all'} onPress={() => selectFilter('all')} />
             {categories.map((c) => (
               <CategoryPill
                 key={c.id}
                 label={`${c.emoji} ${c.nameAr}`}
                 active={filter === c.id}
-                onPress={() => setFilter(c.id)}
+                onPress={() => selectFilter(c.id)}
               />
             ))}
           </ScrollView>
@@ -166,6 +166,7 @@ export function MenuScreen() {
           </ScrollView>
         ) : (
           <FlatList
+            ref={listRef}
             data={list}
             renderItem={renderRow}
             keyExtractor={keyExtractor}
@@ -188,8 +189,6 @@ export function MenuScreen() {
             updateCellsBatchingPeriod={50}
             windowSize={7}
             removeClippedSubviews
-            // Switching category should start at the top, not mid-list.
-            key={filter}
           />
         )}
       </ScreenContainer>

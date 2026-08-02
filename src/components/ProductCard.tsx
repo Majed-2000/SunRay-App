@@ -69,7 +69,7 @@ export function ProductCard({ product, onPress, onAdd }: ProductCardProps) {
         <Txt size={15} weight="black" color={colors.ink}>
           {formatRiyal(product.price)}
         </Txt>
-        <AddButton onPress={onAdd} disabled={!product.isAvailable} />
+        <AddButton onPress={onAdd} disabled={!product.isAvailable} name={product.nameAr} />
       </View>
     </Card>
   );
@@ -81,6 +81,10 @@ function ProductRowBase({ product, onPress, onAdd }: ProductCardProps) {
   return (
     <Pressable
       onPress={sold ? undefined : onPress}
+      disabled={sold}
+      accessibilityRole="button"
+      accessibilityLabel={sold ? `${product.nameAr} — غير متوفر` : product.nameAr}
+      accessibilityState={{ disabled: sold }}
       style={({ pressed }) => [
         shadows.sm,
         {
@@ -167,7 +171,7 @@ function ProductRowBase({ product, onPress, onAdd }: ProductCardProps) {
             <Ionicons name="close" size={14} color={colors.textMuted} />
           </View>
         ) : (
-          <AddButton onPress={onAdd} gold />
+          <AddButton onPress={onAdd} gold name={product.nameAr} />
         )}
       </View>
     </Pressable>
@@ -178,14 +182,21 @@ function AddButton({
   onPress,
   disabled,
   gold,
+  name,
 }: {
   onPress?: () => void;
   disabled?: boolean;
   gold?: boolean;
+  /** Product name, so the icon-only button announces what it adds. */
+  name?: string;
 }) {
   return (
     <Pressable
       onPress={disabled ? undefined : onPress}
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityLabel={name ? `أضف ${name} إلى السلة` : 'أضف إلى السلة'}
+      accessibilityState={{ disabled: Boolean(disabled) }}
       hitSlop={8}
       style={({ pressed }) => [
         shadows.sm,

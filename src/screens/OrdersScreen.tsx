@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { FlatList, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { FlatList, RefreshControl, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { colors, radius, shadows, spacing } from '@/theme';
@@ -58,28 +58,63 @@ export function OrdersScreen() {
   // they are read-only history, cannot be tracked or reordered, and the backend
   // may decline to serve them at all (it refuses while OTP is still mock).
   const [history, setHistory] = useState<PastOrder[]>([]);
-  useEffect(() => {
+  const loadHistory = useCallback(async () => {
     if (!USE_BACKEND || isGuest) return;
-    let cancelled = false;
-    fetchPastOrders()
-      .then((r) => {
-        if (!cancelled && r.available && r.matched) setHistory(r.orders);
-      })
+    try {
+      const r = await fetchPastOrders();
+      if (r.available && r.matched) setHistory(r.orders);
+    } catch {
       // A customer with no Foodics history is the normal case, not a failure —
       // never let it surface as an error over their real orders.
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
+    }
   }, [isGuest]);
 
-  const loading = status === 'loading';
-  const error = status === 'error';
+  useEffect(() => {
+    void loadHistory();
+  }, [loadHistory]);
+
   const reload = () => {
     if (!isGuest) loadOrders();
   };
 
+  /**
+   * Pull to refresh.
+   *
+   * This screen answers "where is my order?", and the answer changes at the
+   * counter, not in the app. Without a pull gesture the only way to get a fresh
+   * status was to leave the tab and come back — so that is what people did, and
+   * it looked like the screen was stuck.
+   *
+   * `refreshing` is local rather than derived from the store's `loading`: that
+   * flag also drives the full-screen spinner, and reusing it would blank the
+   * list out from under the finger mid-pull.
+   */
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([isGuest ? undefined : loadOrders(), loadHistory()]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [isGuest, loadOrders, loadHistory]);
+
   const [tab, setTab] = useState<'active' | 'done'>('active');
+  const listRef = useRef<FlatList<Order | DoneRow>>(null);
+
+  /**
+   * Switching tabs scrolls back to the top instead of remounting the list.
+   *
+   * The first version keyed the FlatList on the tab, which tore it down and
+   * rebuilt it on every switch — that full remount is what made the screen
+   * flash and jump. Changing the data and nudging the offset keeps the same
+   * list alive, so the change reads as content swapping rather than the screen
+   * being replaced.
+   */
+  const selectTab = useCallback((next: 'active' | 'done') => {
+    setTab(next);
+    listRef.current?.scrollToOffset({ offset: 0, animated: false });
+  }, []);
   const active = useMemo(() => orders.filter((o) => isActiveOrder(o)), [orders]);
   const past = useMemo(() => orders.filter((o) => !isActiveOrder(o)), [orders]);
 
@@ -100,6 +135,19 @@ export function OrdersScreen() {
 
   const rows = tab === 'active' ? active : doneRows;
   const hasAnything = active.length + doneRows.length > 0;
+
+  /**
+   * The full-screen spinner and error state are for the *first* load only.
+   *
+   * `loadOrders` flips the store to `loading` on every call, including a
+   * pull-to-refresh — so keying the spinner off the status alone tore the list
+   * out from under the finger mid-gesture and then dropped it back. Once there
+   * is something on screen, a refresh shows its progress in the pull spinner and
+   * a failed refresh leaves the last known orders visible, which is more useful
+   * than an error page where the data used to be.
+   */
+  const loading = status === 'loading' && !hasAnything;
+  const error = status === 'error' && !hasAnything;
 
   const renderRow = useCallback(
     ({ item }: { item: Order | DoneRow }) =>
@@ -137,13 +185,11 @@ export function OrdersScreen() {
               { key: 'done', label: 'منتهي', count: doneRows.length },
             ]}
             value={tab}
-            onChange={setTab}
+            onChange={selectTab}
           />
 
           <FlatList
-            // Remounts on tab change so the list starts at the top and the two
-            // streams never share scroll position.
-            key={tab}
+            ref={listRef}
             data={rows as readonly (Order | DoneRow)[]}
             renderItem={renderRow}
             keyExtractor={(it) =>
@@ -157,23 +203,39 @@ export function OrdersScreen() {
               width: '100%',
               maxWidth: contentMaxWidth,
               alignSelf: 'center',
+              // Lets the empty state fill the remaining height and centre in it,
+              // instead of clinging to the top under the tabs.
+              flexGrow: 1,
             }}
             initialNumToRender={6}
             maxToRenderPerBatch={8}
             windowSize={7}
-            removeClippedSubviews
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor={colors.terracotta}
+                colors={[colors.terracotta]}
+                progressBackgroundColor={colors.card}
+              />
+            }
+            // NOT removeClippedSubviews. On Android it detaches off-screen rows,
+            // and with a short list that switches content it leaves blank gaps
+            // where cards should be. It buys nothing for a handful of orders.
             ListEmptyComponent={
-              tab === 'active' ? (
-                <EmptyState
-                  emoji="☕"
-                  title="لا توجد طلبات جارية"
-                  subtitle="طلباتك المكتملة في تبويب «منتهي»"
-                  actionLabel="اطلب الآن"
-                  onAction={() => router.replace('/(tabs)/menu')}
-                />
-              ) : (
-                <EmptyState emoji="🧾" title="لا توجد طلبات منتهية" subtitle="طلباتك المكتملة ستظهر هنا" />
-              )
+              <View style={{ flex: 1, justifyContent: 'center' }}>
+                {tab === 'active' ? (
+                  <EmptyState
+                    emoji="☕"
+                    title="لا توجد طلبات جارية"
+                    subtitle="طلباتك المكتملة في تبويب «منتهي»"
+                    actionLabel="اطلب الآن"
+                    onAction={() => router.replace('/(tabs)/menu')}
+                  />
+                ) : (
+                  <EmptyState emoji="🧾" title="لا توجد طلبات منتهية" subtitle="طلباتك المكتملة ستظهر هنا" />
+                )}
+              </View>
             }
           />
         </>

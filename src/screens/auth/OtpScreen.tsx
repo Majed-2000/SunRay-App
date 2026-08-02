@@ -6,6 +6,7 @@ import { colors, radius, shadows, spacing } from '@/theme';
 import { CONFIG } from '@/constants/config';
 import { Button, Header, ScreenContainer, Txt } from '@/components';
 import { useAuthStore, toast } from '@/store';
+import { USE_BACKEND } from '@/services/api';
 import { toArabicDigits, toWesternDigits } from '@/utils/numerals';
 import { formatMobileDisplay } from '@/utils/validators';
 
@@ -16,10 +17,43 @@ const SUCCESS_DELAY = 1200;
 export function OtpScreen() {
   const phone = useAuthStore((s) => s.pendingPhone);
   const verifyOtp = useAuthStore((s) => s.verifyOtp);
+  const requestOtp = useAuthStore((s) => s.requestOtp);
   const [code, setCode] = useState('');
   const [seconds, setSeconds] = useState(30);
   const [verified, setVerified] = useState(false);
   const inputRef = useRef<TextInput>(null);
+
+  /**
+   * Resend the code — for real, through the same endpoint that sent the first.
+   *
+   * This button used to reset the countdown and toast "تم إرسال الرمز مجددًا"
+   * without calling anything. Harmless while OTP was mocked and any four digits
+   * passed; a dead end now that Yamamah sends the real code. Someone whose SMS
+   * never arrived would tap it, be told it was resent, and wait for a message
+   * that was never requested.
+   *
+   * The countdown only restarts when the send is accepted. Restarting it on
+   * failure would lock them out of retrying for another 30 seconds over a
+   * request that never left the phone.
+   */
+  const [resending, setResending] = useState(false);
+  const resend = async () => {
+    if (resending || !phone) return;
+    setResending(true);
+    try {
+      const sent = await requestOtp(phone);
+      if (sent) {
+        setSeconds(30);
+        setCode('');
+        toast('تم إرسال الرمز مجددًا');
+        inputRef.current?.focus();
+      } else {
+        toast('تعذّر إرسال الرمز، حاول مرة أخرى');
+      }
+    } finally {
+      setResending(false);
+    }
+  };
 
   useEffect(() => {
     const t = setInterval(() => setSeconds((s) => (s > 0 ? s - 1 : 0)), 1000);
@@ -124,21 +158,22 @@ export function OtpScreen() {
             <Txt
               size={13}
               weight="extraBold"
-              color={colors.terracotta}
-              onPress={() => {
-                setSeconds(30);
-                toast('تم إرسال الرمز مجددًا');
-              }}
+              color={resending ? colors.textFaint : colors.terracotta}
+              onPress={resending ? undefined : resend}
             >
-              إعادة إرسال الرمز
+              {resending ? 'جارٍ الإرسال…' : 'إعادة إرسال الرمز'}
             </Txt>
           )}
         </View>
 
         <Button label="تأكيد" onPress={() => submit(code)} style={{ marginTop: spacing['2xl'] }} />
-        <Txt size={12} color={colors.textFaint} center style={{ marginTop: spacing.lg }}>
-          للتجربة: أدخل أي ٤ أرقام
-        </Txt>
+        {/* Only true while OTP is mocked. Now that Yamamah delivers real codes,
+            showing this to a customer tells them to type garbage. */}
+        {USE_BACKEND ? null : (
+          <Txt size={12} color={colors.textFaint} center style={{ marginTop: spacing.lg }}>
+            للتجربة: أدخل أي ٤ أرقام
+          </Txt>
+        )}
       </View>
     </ScreenContainer>
   );

@@ -16,6 +16,13 @@ export function CategoryPill({ label, active, onPress, goldActive }: CategoryPil
   return (
     <Pressable
       onPress={onPress}
+      accessibilityRole="tab"
+      accessibilityState={{ selected: Boolean(active) }}
+      accessibilityLabel={label}
+      // The pill draws at 38 to keep the strip compact; the slop brings the
+      // actual target to 44. This row gets tapped more than anything else in
+      // the app.
+      hitSlop={{ top: 6, bottom: 6 }}
       style={({ pressed }) => ({
         minHeight: 38,
         paddingHorizontal: spacing.lg,

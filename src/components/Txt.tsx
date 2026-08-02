@@ -52,5 +52,34 @@ export function Txt({
     letterSpacing: tracking,
     writingDirection: latin ? 'ltr' : 'rtl',
   };
-  return <Text {...rest} style={[base, style]} />;
+
+  /**
+   * Text used as a link gets treated as one.
+   *
+   * A handful of screens hang `onPress` straight off a 13px line — "تعيين
+   * كافتراضي", "حذف", "إعادة إرسال الرمز", "تخطّي". A line of 13px type is an
+   * ~18px tall target, less than half the 44px minimum, with no press feedback
+   * and nothing for a screen reader to announce. People tapped and nothing
+   * happened, which reads as a dead button rather than a near miss.
+   *
+   * Fixing it here rather than at each call site keeps the ergonomics attached
+   * to the affordance: any text that becomes tappable later gets them too.
+   * `pressRetentionOffset` matters as much as `hitSlop` — without it, drifting a
+   * couple of pixels during the tap cancels the press outright.
+   */
+  const tappable = Boolean(rest.onPress || rest.onLongPress);
+
+  return (
+    <Text
+      {...(tappable
+        ? {
+            accessibilityRole: 'button' as const,
+            hitSlop: { top: 12, bottom: 12, left: 8, right: 8 },
+            pressRetentionOffset: { top: 16, bottom: 16, left: 12, right: 12 },
+          }
+        : null)}
+      {...rest}
+      style={[base, style]}
+    />
+  );
 }

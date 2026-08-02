@@ -1,4 +1,4 @@
-import { View } from 'react-native';
+import { Alert, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { colors, radius, spacing } from '@/theme';
@@ -11,6 +11,29 @@ export function AddressesScreen() {
   const addresses = useAddressStore((s) => s.addresses);
   const setDefault = useAddressStore((s) => s.setDefault);
   const remove = useAddressStore((s) => s.remove);
+
+  /**
+   * Deleting an address is irreversible and there is no undo, so it asks first.
+   *
+   * It was a bare `onPress` on the word "حذف" — 13px of text, right beside
+   * "تعيين كافتراضي", removing the address on the first tap. A mis-tap cost the
+   * customer their saved address with nothing to say what had just happened.
+   * The address name goes in the prompt so the confirmation answers "which
+   * one?", not just "are you sure?".
+   */
+  const confirmRemove = (id: string, title: string) => {
+    Alert.alert('حذف العنوان', `سيُحذف «${title}» نهائيًا.`, [
+      { text: 'إلغاء', style: 'cancel' },
+      {
+        text: 'حذف',
+        style: 'destructive',
+        onPress: () => {
+          remove(id);
+          toast('تم حذف العنوان');
+        },
+      },
+    ]);
+  };
 
   return (
     <ScreenContainer
@@ -51,15 +74,7 @@ export function AddressesScreen() {
                     تعيين كافتراضي
                   </Txt>
                 ) : null}
-                <Txt
-                  size={13}
-                  weight="bold"
-                  color={colors.danger}
-                  onPress={() => {
-                    remove(a.id);
-                    toast('تم حذف العنوان');
-                  }}
-                >
+                <Txt size={13} weight="bold" color={colors.danger} onPress={() => confirmRemove(a.id, a.titleAr)}>
                   حذف
                 </Txt>
               </View>

@@ -89,16 +89,30 @@ export function Button({
     </>
   );
 
+  const inert = Boolean(disabled || loading);
+
   return (
     <Pressable
-      onPress={disabled || loading ? undefined : onPress}
+      onPress={inert ? undefined : onPress}
+      // Also `disabled`, not just a missing handler. Without it the button still
+      // ripples and scales under the finger while doing nothing — it reads as
+      // broken rather than unavailable — and assistive tech announces it as
+      // actionable.
+      disabled={inert}
+      accessibilityRole="button"
+      accessibilityState={{ disabled: inert, busy: Boolean(loading) }}
+      accessibilityLabel={trailing ? `${label}، ${trailing}` : label}
       style={({ pressed }) => [
         variant === 'primary' ? shadows.md : undefined,
         container,
-        pressed && !disabled ? { transform: [{ scale: 0.98 }] } : null,
+        pressed && !inert ? { transform: [{ scale: 0.98 }] } : null,
         style,
       ]}
-      android_ripple={{ color: 'rgba(255,255,255,0.12)' }}
+      // A white ripple is invisible on the light variants — outline, ghost and
+      // gold all sit on cream. Tint the ripple against the surface it lands on.
+      android_ripple={
+        inert ? null : { color: variant === 'primary' ? 'rgba(255,255,255,0.14)' : 'rgba(42,32,24,0.10)' }
+      }
     >
       {isGold ? (
         <LinearGradient

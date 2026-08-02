@@ -61,6 +61,7 @@ export function CartScreen() {
   const totals = useCartTotals();
   const t = strings();
   const isDelivery = orderType === 'delivery';
+  const needsAddress = isDelivery && !selectedAddress;
 
   if (lines.length === 0) {
     return (
@@ -165,7 +166,16 @@ export function CartScreen() {
                     <Txt size={14} weight="black" color={colors.terracotta}>
                       {formatRiyal(line.unitPrice * line.qty)}
                     </Txt>
-                    <Pressable onPress={() => removeLine(line.id)} hitSlop={6}>
+                    {/* Sits inches from the quantity stepper, so it gets a
+                        generous target of its own — a slip here empties the
+                        line instead of decrementing it. */}
+                    <Pressable
+                      onPress={() => removeLine(line.id)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`حذف ${line.nameAr}`}
+                      hitSlop={{ top: 14, bottom: 14, left: 10, right: 10 }}
+                      style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}
+                    >
                       <Txt size={12} weight="bold" color={colors.danger}>
                         حذف
                       </Txt>
@@ -255,7 +265,18 @@ export function CartScreen() {
         }}
       >
         <View style={{ width: '100%', maxWidth: contentMaxWidth, alignSelf: 'center' }}>
-          <Button label="متابعة الدفع" trailing={formatRiyal(totals.total)} onPress={() => router.push('/checkout')} />
+          {/* A delivery order with no address is not something checkout catches
+              — it forwards `addressId: undefined` and places the order anyway,
+              leaving the branch with nowhere to send it. Blocked here, where
+              the address is one tap away, rather than after payment. */}
+          {/* Not disabled — a dead button leaves people tapping and guessing.
+              It stays live and carries them to the one thing that is missing. */}
+          <Button
+            label={needsAddress ? 'اختر عنوان التوصيل' : 'متابعة الدفع'}
+            trailing={needsAddress ? undefined : formatRiyal(totals.total)}
+            iconLeft={needsAddress ? <Ionicons name="location" size={18} color={colors.white} /> : undefined}
+            onPress={() => (needsAddress ? setAddressOpen(true) : router.push('/checkout'))}
+          />
         </View>
       </View>
 
@@ -358,7 +379,18 @@ function FulfillRow({
   return (
     <Pressable
       onPress={onPress}
-      style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: spacing.lg }}
+      accessibilityRole="button"
+      accessibilityLabel={`${label}: ${value}`}
+      // These rows open a sheet, and the sheet takes a moment to animate in.
+      // Without a pressed state the row looked inert for that moment, so people
+      // tapped it twice.
+      style={({ pressed }) => ({
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        padding: spacing.lg,
+        backgroundColor: pressed ? colors.chip : colors.transparent,
+      })}
     >
       <Ionicons name={icon} size={20} color={colors.terracotta} />
       <View style={{ flex: 1 }}>

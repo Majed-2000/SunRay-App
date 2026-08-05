@@ -12,9 +12,9 @@ export interface OfferCardProps {
 }
 
 const VARIANT = {
-  dark: { eyebrow: colors.goldBright, title: colors.white, sub: '#b8b2a8' },
-  terracotta: { eyebrow: '#ffd9a8', title: colors.white, sub: '#f3dcc8' },
-  gold: { eyebrow: colors.inkDeep, title: colors.inkDeep, sub: '#5a3f12' },
+  dark: { eyebrow: colors.goldBright, title: colors.white, sub: colors.textOnDarkMuted },
+  olive: { eyebrow: colors.goldBright, title: colors.white, sub: colors.textOnDarkMuted },
+  gold: { eyebrow: colors.inkDeep, title: colors.inkDeep, sub: colors.goldDeep },
 };
 
 export function OfferCard({ offer, onPress, width, style }: OfferCardProps) {
@@ -49,7 +49,7 @@ export function OfferCard({ offer, onPress, width, style }: OfferCardProps) {
         <View style={[base, { backgroundColor: colors.ink }]}>{inner}</View>
       ) : (
         <LinearGradient
-          colors={offer.variant === 'gold' ? gradients.gold : gradients.terracottaDeep}
+          colors={offer.variant === 'gold' ? gradients.gold : gradients.olive}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={base}

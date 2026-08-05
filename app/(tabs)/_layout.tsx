@@ -44,7 +44,7 @@ export default function TabsLayout() {
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.ink,
-        tabBarInactiveTintColor: '#b8a888',
+        tabBarInactiveTintColor: colors.textMuted,
         tabBarStyle: {
           backgroundColor: colors.card,
           borderTopColor: colors.border,
@@ -73,7 +73,7 @@ export default function TabsLayout() {
           // open the tab to find out whether anything was still running.
           tabBarBadge: activeOrders > 0 ? activeOrders : undefined,
           tabBarBadgeStyle: {
-            backgroundColor: colors.terracotta,
+            backgroundColor: colors.goldDeep,
             color: colors.white,
             fontFamily: fonts.bold,
             fontSize: 10,

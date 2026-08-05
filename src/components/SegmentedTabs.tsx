@@ -32,7 +32,7 @@ export function SegmentedTabs<T extends string>({ tabs, value, onChange }: Segme
     <View
       style={{
         flexDirection: 'row',
-        backgroundColor: '#e3d6bf',
+        backgroundColor: colors.border,
         borderRadius: radius.md,
         padding: 4,
         marginHorizontal: spacing.lg,

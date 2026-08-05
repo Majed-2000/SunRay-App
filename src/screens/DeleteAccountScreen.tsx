@@ -61,11 +61,11 @@ export function DeleteAccountScreen() {
         {balance > 0 ? (
           <Card
             radiusKey="lg"
-            style={{ marginTop: spacing.xl, borderWidth: 1, borderColor: colors.terracotta }}
+            style={{ marginTop: spacing.xl, borderWidth: 1, borderColor: colors.goldDeep }}
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              <Ionicons name="wallet-outline" size={20} color={colors.terracotta} />
-              <Txt size={15} weight="black" color={colors.terracotta} style={{ flex: 1 }}>
+              <Ionicons name="wallet-outline" size={20} color={colors.goldDeep} />
+              <Txt size={15} weight="black" color={colors.goldDeep} style={{ flex: 1 }}>
                 لديك رصيد {formatRiyal(balance)}
               </Txt>
             </View>
@@ -117,7 +117,7 @@ export function DeleteAccountScreen() {
           loading={busy}
           style={{
             marginTop: spacing.lg,
-            backgroundColor: canDelete ? colors.terracotta : colors.border,
+            backgroundColor: canDelete ? colors.goldDeep : colors.border,
           }}
         />
 

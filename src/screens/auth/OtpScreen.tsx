@@ -158,7 +158,7 @@ export function OtpScreen() {
             <Txt
               size={13}
               weight="extraBold"
-              color={resending ? colors.textFaint : colors.terracotta}
+              color={resending ? colors.textFaint : colors.goldDeep}
               onPress={resending ? undefined : resend}
             >
               {resending ? 'جارٍ الإرسال…' : 'إعادة إرسال الرمز'}

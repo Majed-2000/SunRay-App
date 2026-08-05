@@ -72,7 +72,7 @@ export function AccountScreen() {
             </Txt>
           </View>
           <View style={{ backgroundColor: colors.chip, borderRadius: radius.sm, paddingHorizontal: 12, paddingVertical: 8, alignItems: 'center' }}>
-            <Txt size={15} weight="black" color={colors.terracotta}>
+            <Txt size={15} weight="black" color={colors.goldDeep}>
               {toArabicDigits(points)}
             </Txt>
             <Txt size={9} color={colors.textFaint}>

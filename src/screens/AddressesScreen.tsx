@@ -48,7 +48,7 @@ export function AddressesScreen() {
             <Card key={a.id} radiusKey="lg">
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                 <View style={{ width: 42, height: 42, borderRadius: radius.sm, backgroundColor: colors.chip, alignItems: 'center', justifyContent: 'center' }}>
-                  <Ionicons name={LABEL_ICON[a.label]} size={20} color={colors.terracotta} />
+                  <Ionicons name={LABEL_ICON[a.label]} size={20} color={colors.goldDeep} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -57,7 +57,9 @@ export function AddressesScreen() {
                     </Txt>
                     {a.isDefault ? (
                       <View style={{ backgroundColor: colors.chipGold, borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 2 }}>
-                        <Txt size={10} weight="extraBold" color={colors.terracotta}>
+                        {/* Charcoal, not gold: 10px Dark Gold on a gold chip
+                            is 4.31:1, under AA. */}
+                        <Txt size={10} weight="extraBold" color={colors.ink}>
                           الافتراضي
                         </Txt>
                       </View>
@@ -70,7 +72,7 @@ export function AddressesScreen() {
               </View>
               <View style={{ flexDirection: 'row', gap: 16, marginTop: spacing.md, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.borderSoft }}>
                 {!a.isDefault ? (
-                  <Txt size={13} weight="bold" color={colors.terracotta} onPress={() => setDefault(a.id)}>
+                  <Txt size={13} weight="bold" color={colors.goldDeep} onPress={() => setDefault(a.id)}>
                     تعيين كافتراضي
                   </Txt>
                 ) : null}

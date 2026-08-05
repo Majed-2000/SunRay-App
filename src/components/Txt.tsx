@@ -25,32 +25,43 @@ export interface TxtProps extends TextProps {
   size?: number;
   weight?: Weight;
   color?: string;
-  /** Use Plus Jakarta Sans (for Latin labels / eyebrows). */
+  /** Use Poppins (for Latin labels / eyebrows). */
   latin?: boolean;
+  /**
+   * Render in Biome W01 Black — the wordmark face.
+   *
+   * For the words "SUN RAY" and nothing else. The brand guidelines forbid
+   * setting the wordmark in any other typeface, and equally forbid using this
+   * one as general display type.
+   */
+  wordmark?: boolean;
   center?: boolean;
   /** Letter spacing, useful for Latin eyebrow labels. */
   tracking?: number;
 }
 
-/** Brand text primitive — applies Tajawal (or Jakarta) and sane defaults. */
+/** Brand text primitive — applies Baloo Bhaijaan 2 (or Poppins) and sane defaults. */
 export function Txt({
   size = 15,
   weight = 'regular',
   color = colors.textPrimary,
   latin = false,
+  wordmark = false,
   center,
   tracking,
   style,
   ...rest
 }: TxtProps) {
-  const fontFamily = fonts[latin ? LATIN_FONT[weight] : WEIGHT_FONT[weight]];
+  const fontFamily = wordmark
+    ? fonts.wordmark
+    : fonts[latin ? LATIN_FONT[weight] : WEIGHT_FONT[weight]];
   const base: TextStyle = {
     fontFamily,
     fontSize: size,
     color,
     textAlign: center ? 'center' : undefined,
     letterSpacing: tracking,
-    writingDirection: latin ? 'ltr' : 'rtl',
+    writingDirection: latin || wordmark ? 'ltr' : 'rtl',
   };
 
   /**

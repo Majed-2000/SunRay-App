@@ -163,7 +163,7 @@ export function CartScreen() {
                     </Txt>
                   ) : null}
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 6 }}>
-                    <Txt size={14} weight="black" color={colors.terracotta}>
+                    <Txt size={14} weight="black" color={colors.goldDeep}>
                       {formatRiyal(line.unitPrice * line.qty)}
                     </Txt>
                     {/* Sits inches from the quantity stepper, so it gets a
@@ -306,7 +306,7 @@ export function CartScreen() {
                 },
               ]}
             >
-              <Ionicons name="location" size={18} color={colors.terracotta} />
+              <Ionicons name="location" size={18} color={colors.goldDeep} />
               <View style={{ flex: 1 }}>
                 <Txt size={14} weight="extraBold" color={colors.ink}>
                   {a.titleAr}
@@ -392,7 +392,7 @@ function FulfillRow({
         backgroundColor: pressed ? colors.chip : colors.transparent,
       })}
     >
-      <Ionicons name={icon} size={20} color={colors.terracotta} />
+      <Ionicons name={icon} size={20} color={colors.goldDeep} />
       <View style={{ flex: 1 }}>
         <Txt size={11} color={colors.textFaint}>
           {label}

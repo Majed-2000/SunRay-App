@@ -46,7 +46,7 @@ export function TrackSteps({ steps, currentIndex }: TrackStepsProps) {
               ) : null}
             </View>
             <View style={{ paddingTop: 1, paddingBottom: isLast ? 0 : 12 }}>
-              <Txt size={15} weight="extraBold" color={active ? colors.ink : '#a99878'}>
+              <Txt size={15} weight="extraBold" color={active ? colors.ink : colors.textMuted}>
                 {step.label}
               </Txt>
               <Txt size={11} latin color={colors.textFaint}>

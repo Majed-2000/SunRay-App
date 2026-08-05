@@ -71,7 +71,7 @@ export function WalletTopupScreen() {
           <Txt size={14} color={colors.textSecondary}>
             الرصيد بعد الشحن
           </Txt>
-          <Txt size={16} weight="black" color={colors.terracotta}>
+          <Txt size={16} weight="black" color={colors.goldDeep}>
             {toArabicDigits(balance + (finalAmount || 0))} ﷼
           </Txt>
         </Card>

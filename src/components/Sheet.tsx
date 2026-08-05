@@ -45,7 +45,7 @@ export function Sheet({ visible, onClose, title, children, closeLabel = 'إغل�
         }}
       >
         <View style={{ alignItems: 'center', paddingTop: 12, paddingBottom: 4 }}>
-          <View style={{ width: 40, height: 4, borderRadius: 4, backgroundColor: '#ddd3bc' }} />
+          <View style={{ width: 40, height: 4, borderRadius: 4, backgroundColor: colors.border }} />
         </View>
         {title ? (
           <View

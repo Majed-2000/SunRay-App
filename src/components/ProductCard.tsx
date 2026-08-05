@@ -133,7 +133,7 @@ function ProductRowBase({ product, onPress, onAdd }: ProductCardProps) {
           {sold ? (
             <View
               style={{
-                backgroundColor: colors.terracotta,
+                backgroundColor: colors.goldDeep,
                 borderRadius: radius.pill,
                 paddingHorizontal: 7,
                 paddingVertical: 3,
@@ -163,7 +163,7 @@ function ProductRowBase({ product, onPress, onAdd }: ProductCardProps) {
               width: 30,
               height: 30,
               borderRadius: radius.full,
-              backgroundColor: '#e8e0d4',
+              backgroundColor: colors.borderSoft,
               alignItems: 'center',
               justifyContent: 'center',
             }}

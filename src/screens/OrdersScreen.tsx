@@ -214,8 +214,8 @@ export function OrdersScreen() {
               <RefreshControl
                 refreshing={refreshing}
                 onRefresh={onRefresh}
-                tintColor={colors.terracotta}
-                colors={[colors.terracotta]}
+                tintColor={colors.goldDeep}
+                colors={[colors.goldDeep]}
                 progressBackgroundColor={colors.card}
               />
             }
@@ -260,7 +260,7 @@ export function OrdersScreen() {
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <View style={{ flex: 1 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Ionicons name={order.type === 'delivery' ? 'bicycle' : 'storefront'} size={16} color={colors.terracotta} />
+              <Ionicons name={order.type === 'delivery' ? 'bicycle' : 'storefront'} size={16} color={colors.goldDeep} />
               <Txt size={15} weight="black" color={colors.ink}>
                 {orderRef(order.id)}
               </Txt>
@@ -296,7 +296,7 @@ export function OrdersScreen() {
             borderTopColor: colors.borderSoft,
           }}
         >
-          <Txt size={15} weight="black" color={colors.terracotta}>
+          <Txt size={15} weight="black" color={colors.goldDeep}>
             {formatRiyal(order.total)}
           </Txt>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.chip, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 6 }}>

@@ -117,7 +117,7 @@ function Row({ label, value, accent }: { label: string; value: string; accent?: 
       <Txt size={14} color={colors.textSecondary}>
         {label}
       </Txt>
-      <Txt size={14} weight="extraBold" color={accent ? colors.terracotta : colors.ink}>
+      <Txt size={14} weight="extraBold" color={accent ? colors.goldDeep : colors.ink}>
         {value}
       </Txt>
     </View>

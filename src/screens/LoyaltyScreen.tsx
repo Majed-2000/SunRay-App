@@ -63,7 +63,7 @@ export function LoyaltyScreen() {
               نقطة مشرقة
             </Txt>
           </View>
-          <View style={{ width: '100%', height: 8, borderRadius: 4, backgroundColor: '#4a3d2c', marginTop: spacing.xl, overflow: 'hidden' }}>
+          <View style={{ width: '100%', height: 8, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.18)', marginTop: spacing.xl, overflow: 'hidden' }}>
             <View style={{ width: `${pct}%`, height: '100%', backgroundColor: colors.gold, borderRadius: 4 }} />
           </View>
           <Txt size={14} weight="extraBold" color={colors.gold} style={{ marginTop: spacing.md }}>
@@ -201,7 +201,7 @@ export function LoyaltyScreen() {
 function StatCard({ value, label, accent }: { value: string; label: string; accent?: boolean }) {
   return (
     <Card radiusKey="md" style={{ flex: 1, alignItems: 'center' }}>
-      <Txt size={19} weight="black" color={accent ? colors.terracotta : colors.ink}>
+      <Txt size={19} weight="black" color={accent ? colors.goldDeep : colors.ink}>
         {value}
       </Txt>
       <Txt size={11} color={colors.textFaint} style={{ marginTop: 2 }}>

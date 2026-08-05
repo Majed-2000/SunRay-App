@@ -73,11 +73,11 @@ export function TrackScreen() {
   return (
     <ScreenContainer scroll={false} padded={false} header={<View style={{ paddingHorizontal: spacing['2xl'] }}><Header showBack title="تتبع الطلب" /></View>}>
       {/* faux map */}
-      <View style={{ height: 200, backgroundColor: '#e6dcc6', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+      <View style={{ height: 200, backgroundColor: colors.border, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
         <Ionicons name="map-outline" size={40} color="#bca97f" style={{ position: 'absolute', top: 24, left: 30, opacity: 0.5 }} />
-        <Ionicons name="home" size={24} color={colors.terracotta} style={{ position: 'absolute', top: 50, right: 50 }} />
+        <Ionicons name="home" size={24} color={colors.goldDeep} style={{ position: 'absolute', top: 50, right: 50 }} />
         <Txt size={44}>{order.type === 'delivery' ? '🛵' : '🏪'}</Txt>
-        <View style={{ position: 'absolute', bottom: 40, left: 60, width: 14, height: 14, borderRadius: 7, backgroundColor: colors.terracotta, borderWidth: 3, borderColor: colors.white }} />
+        <View style={{ position: 'absolute', bottom: 40, left: 60, width: 14, height: 14, borderRadius: 7, backgroundColor: colors.goldDeep, borderWidth: 3, borderColor: colors.white }} />
       </View>
 
       <View style={{ padding: spacing['2xl'] }}>

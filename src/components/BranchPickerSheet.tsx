@@ -33,7 +33,7 @@ export function BranchPickerSheet({ visible, onClose }: BranchPickerSheetProps) 
             width: 34,
             height: 34,
             borderRadius: radius.sm,
-            backgroundColor: '#e7f4ec',
+            backgroundColor: colors.successSoft,
             alignItems: 'center',
             justifyContent: 'center',
           }}
@@ -74,7 +74,7 @@ export function BranchPickerSheet({ visible, onClose }: BranchPickerSheetProps) 
                 gap: 13,
                 paddingHorizontal: spacing['2xl'],
                 paddingVertical: 13,
-                backgroundColor: selected ? '#fdf6e8' : 'transparent',
+                backgroundColor: selected ? colors.bgWarm : 'transparent',
               }}
             >
               <View
@@ -82,7 +82,7 @@ export function BranchPickerSheet({ visible, onClose }: BranchPickerSheetProps) 
                   width: 40,
                   height: 40,
                   borderRadius: radius.md,
-                  backgroundColor: selected ? colors.chipGoldStrong : '#f0ebe1',
+                  backgroundColor: selected ? colors.chipGoldStrong : colors.chip,
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}

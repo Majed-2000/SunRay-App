@@ -24,7 +24,7 @@ export function SectionHeader({ title, actionLabel, onAction, subtitle }: Sectio
       </Txt>
       {actionLabel ? (
         <Pressable onPress={onAction} hitSlop={8}>
-          <Txt size={13} weight="extraBold" color={colors.terracotta}>
+          <Txt size={13} weight="extraBold" color={colors.goldDeep}>
             {actionLabel} ←
           </Txt>
         </Pressable>

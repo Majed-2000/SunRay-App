@@ -135,7 +135,7 @@ function ProductDetail({ product }: { product: Product }) {
                 {product.nameEn}
               </Txt>
             </View>
-            <Txt size={22} weight="black" color={colors.terracotta}>
+            <Txt size={22} weight="black" color={colors.goldDeep}>
               {formatRiyal(product.price)}
             </Txt>
           </View>

@@ -77,7 +77,7 @@ export function OrderDetailScreen() {
     <ScreenContainer header={<Header showBack title={`الطلب ${orderRef(order.id)}`} />}>
       <View style={{ paddingTop: spacing.lg, paddingBottom: spacing['4xl'] }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: spacing.lg }}>
-          <Ionicons name={order.type === 'delivery' ? 'bicycle' : 'storefront'} size={20} color={colors.terracotta} />
+          <Ionicons name={order.type === 'delivery' ? 'bicycle' : 'storefront'} size={20} color={colors.goldDeep} />
           <Txt size={15} weight="extraBold" color={colors.ink} style={{ flex: 1 }}>
             {t.orderType[order.type]} · {branch?.nameAr ?? ''}
           </Txt>
@@ -152,7 +152,7 @@ function MetaRow({ label, value, accent }: { label: string; value: string; accen
       <Txt size={14} color={colors.textSecondary}>
         {label}
       </Txt>
-      <Txt size={14} weight="extraBold" color={accent ? colors.terracotta : colors.ink}>
+      <Txt size={14} weight="extraBold" color={accent ? colors.goldDeep : colors.ink}>
         {value}
       </Txt>
     </View>

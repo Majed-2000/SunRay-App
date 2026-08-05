@@ -57,7 +57,7 @@ export function ListRow({
           {emoji ? (
             <Txt size={18}>{emoji}</Txt>
           ) : (
-            <Ionicons name={icon!} size={18} color={danger ? colors.danger : colors.terracotta} />
+            <Ionicons name={icon!} size={18} color={danger ? colors.danger : colors.goldDeep} />
           )}
         </View>
       ) : null}

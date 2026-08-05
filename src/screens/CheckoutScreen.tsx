@@ -165,7 +165,7 @@ export function CheckoutScreen() {
           {/* summary */}
           <Card radiusKey="lg" style={{ marginBottom: spacing.lg }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              <Ionicons name={orderType === 'delivery' ? 'bicycle' : 'storefront'} size={20} color={colors.terracotta} />
+              <Ionicons name={orderType === 'delivery' ? 'bicycle' : 'storefront'} size={20} color={colors.goldDeep} />
               <View style={{ flex: 1 }}>
                 <Txt size={15} weight="extraBold" color={colors.ink}>
                   {t.orderType[orderType]}
@@ -338,7 +338,7 @@ function PerkToggle({
       onPress={disabled ? undefined : onToggle}
       style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: spacing.lg, opacity: disabled ? 0.45 : 1 }}
     >
-      <Ionicons name={icon} size={20} color={colors.terracotta} />
+      <Ionicons name={icon} size={20} color={colors.goldDeep} />
       <View style={{ flex: 1 }}>
         <Txt size={14} weight="extraBold" color={colors.ink}>
           {label}

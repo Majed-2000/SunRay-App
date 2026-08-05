@@ -31,7 +31,7 @@ export function GiftCardPreview({
         {
           borderRadius: radius['2xl'],
           overflow: 'hidden',
-          shadowColor: '#000',
+          shadowColor: colors.ink,
           shadowOpacity: 0.18,
           shadowRadius: 18,
           shadowOffset: { width: 0, height: 10 },
@@ -41,7 +41,7 @@ export function GiftCardPreview({
       ]}
     >
       <LinearGradient colors={design.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
-        <Txt size={big ? 120 : 72} style={{ position: 'absolute', top: big ? -30 : -20, right: big ? -24 : -18, opacity: 0.12, color: '#fff' }}>
+        <Txt size={big ? 120 : 72} style={{ position: 'absolute', top: big ? -30 : -20, right: big ? -24 : -18, opacity: 0.12, color: colors.white }}>
           ☀
         </Txt>
         <View style={{ padding: big ? 24 : 16, paddingBottom: big ? 12 : 8 }}>

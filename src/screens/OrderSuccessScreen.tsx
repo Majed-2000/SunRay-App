@@ -38,7 +38,7 @@ export function OrderSuccessScreen() {
         </Txt>
         <View
           style={{
-            backgroundColor: '#f3e8d0',
+            backgroundColor: colors.chipGoldStrong,
             borderRadius: 100,
             paddingHorizontal: 14,
             paddingVertical: 6,
@@ -70,7 +70,7 @@ export function OrderSuccessScreen() {
             <Txt size={14} color={colors.textSecondary}>
               ربحت من هذا الطلب
             </Txt>
-            <Txt size={16} weight="black" color={colors.terracotta}>
+            <Txt size={16} weight="black" color={colors.goldDeep}>
               +{toArabicDigits(order?.pointsEarned ?? 0)} نقطة
             </Txt>
           </View>

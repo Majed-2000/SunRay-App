@@ -83,7 +83,7 @@ function ToggleRow({
 }) {
   return (
     <Pressable onPress={onToggle} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: spacing.lg }}>
-      <Ionicons name={icon} size={20} color={colors.terracotta} />
+      <Ionicons name={icon} size={20} color={colors.goldDeep} />
       <Txt size={15} weight="bold" color={colors.ink} style={{ flex: 1 }}>
         {label}
       </Txt>

@@ -22,7 +22,7 @@ export function FaqScreen() {
                 <Txt size={15} weight="extraBold" color={colors.ink} style={{ flex: 1 }}>
                   {item.questionAr}
                 </Txt>
-                <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color={colors.terracotta} />
+                <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color={colors.goldDeep} />
               </Pressable>
               {expanded ? (
                 <View style={{ paddingHorizontal: spacing.lg, paddingBottom: spacing.lg }}>

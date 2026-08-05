@@ -5,7 +5,7 @@ export interface Offer {
   titleAr: string;
   subtitleAr: string;
   emoji: string;
-  variant: 'dark' | 'terracotta' | 'gold';
+  variant: 'dark' | 'olive' | 'gold';
   couponCode?: string;
 }
 
@@ -25,7 +25,7 @@ export const offers: Offer[] = [
     titleAr: 'مشروبك العاشر علينا مجانًا',
     subtitleAr: 'تبقّى لك زيارتان',
     emoji: '🎁',
-    variant: 'terracotta',
+    variant: 'olive',
   },
   {
     id: 'o3',

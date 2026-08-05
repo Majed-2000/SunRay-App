@@ -52,7 +52,7 @@ export function GiftListScreen() {
                 <Txt
                   size={13}
                   weight="extraBold"
-                  color={colors.terracotta}
+                  color={colors.goldDeep}
                   center
                   style={{ marginTop: 8 }}
                   onPress={() => router.push(`/gift/create?designId=${d.id}&amount=${amount}`)}
@@ -112,7 +112,7 @@ export function GiftListScreen() {
                     <Txt
                       size={13}
                       weight="extraBold"
-                      color={colors.terracotta}
+                      color={colors.goldDeep}
                       style={{ marginTop: spacing.sm }}
                       onPress={() => router.push(`/gift/${c.id}`)}
                     >

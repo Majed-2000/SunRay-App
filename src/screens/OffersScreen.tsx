@@ -33,7 +33,7 @@ export function OffersScreen() {
                     justifyContent: 'center',
                   }}
                 >
-                  <Ionicons name="pricetag" size={20} color={colors.terracotta} />
+                  <Ionicons name="pricetag" size={20} color={colors.goldDeep} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Txt size={15} weight="black" color={colors.ink} latin>
@@ -44,7 +44,7 @@ export function OffersScreen() {
                   </Txt>
                 </View>
                 <View style={{ borderWidth: 1.5, borderColor: colors.border, borderStyle: 'dashed', borderRadius: radius.pill, paddingHorizontal: 14, paddingVertical: 6 }}>
-                  <Txt size={12} weight="extraBold" color={colors.terracotta}>
+                  <Txt size={12} weight="extraBold" color={colors.goldDeep}>
                     نسخ
                   </Txt>
                 </View>

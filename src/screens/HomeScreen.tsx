@@ -87,7 +87,7 @@ export function HomeScreen() {
                 },
               ]}
             >
-              <Ionicons name="location" size={16} color={colors.terracotta} />
+              <Ionicons name="location" size={16} color={colors.goldDeep} />
               <View>
                 <Txt size={9} weight="bold" color={colors.textFaint}>
                   {branchAuto ? 'فرعك الأقرب 📡' : 'الفرع المحدد'}
@@ -244,10 +244,10 @@ export function HomeScreen() {
               opacity: pressed ? 0.55 : 1,
             })}
           >
-            <Txt size={14} weight="extraBold" color={colors.terracotta}>
+            <Txt size={14} weight="extraBold" color={colors.goldDeep}>
               تصفّح كل بطاقات الإهداء
             </Txt>
-            <Ionicons name="arrow-back" size={15} color={colors.terracotta} />
+            <Ionicons name="arrow-back" size={15} color={colors.goldDeep} />
           </Pressable>
         </ScrollView>
       </ScreenContainer>

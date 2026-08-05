@@ -15,7 +15,7 @@ export interface PriceRowProps {
 export function PriceRow({ label, amount, emphasize, positive, muted }: PriceRowProps) {
   const value = typeof amount === 'number' ? formatRiyal(amount) : amount;
   const valueColor = emphasize
-    ? colors.terracotta
+    ? colors.goldDeep
     : positive
       ? colors.success
       : colors.ink;

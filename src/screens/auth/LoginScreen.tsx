@@ -41,7 +41,7 @@ export function LoginScreen() {
   };
 
   return (
-    <LinearGradient colors={['#f6eedd', '#efe6d6']} style={{ flex: 1 }}>
+    <LinearGradient colors={gradients.screen} style={{ flex: 1 }}>
       <View style={{ position: 'absolute', top: 80, alignSelf: 'center', width: 260, height: 260, borderRadius: 130, backgroundColor: colors.gold, opacity: 0.16 }} />
 
       {/*
@@ -73,7 +73,7 @@ export function LoginScreen() {
           <Txt size={36} weight="black" color={colors.ink} latin style={{ marginTop: 14 }}>
             Sun Ray
           </Txt>
-          <Txt size={17} weight="extraBold" color={colors.terracotta}>
+          <Txt size={17} weight="extraBold" color={colors.goldDeep}>
             سن راي
           </Txt>
           <Txt size={13} weight="medium" color={colors.textMuted} style={{ marginTop: 10 }}>

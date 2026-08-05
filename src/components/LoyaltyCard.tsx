@@ -77,7 +77,7 @@ export function LoyaltyCard({ points, tierLabel, pointsToNext, goal, onPress }: 
         }}
       >
         <LinearGradient
-          colors={['#2a1c08', '#5a3f12']}
+          colors={[colors.ink, colors.inkDeep]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
           style={{ width: `${pct}%`, height: '100%', borderRadius: radius.sm }}
@@ -101,7 +101,7 @@ function PressOverlay({ onPress }: { onPress: () => void }) {
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [StyleSheet.absoluteFill, { opacity: pressed ? 0.06 : 0, backgroundColor: '#000' }]}
+      style={({ pressed }) => [StyleSheet.absoluteFill, { opacity: pressed ? 0.06 : 0, backgroundColor: colors.ink }]}
     />
   );
 }

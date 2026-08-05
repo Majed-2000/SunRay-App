@@ -68,7 +68,7 @@ export function WaitlistScreen() {
 function StatCard({ value, label, accent }: { value: string; label: string; accent?: boolean }) {
   return (
     <Card radiusKey="lg" style={{ flex: 1, alignItems: 'center', paddingVertical: spacing.xl }}>
-      <Txt size={30} weight="black" color={accent ? colors.terracotta : colors.ink}>
+      <Txt size={30} weight="black" color={accent ? colors.goldDeep : colors.ink}>
         {value}
       </Txt>
       <Txt size={12} color={colors.textFaint} style={{ marginTop: 2 }}>

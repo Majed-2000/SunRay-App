@@ -54,7 +54,7 @@ export function ReserveScreen() {
     >
       <View style={{ paddingTop: spacing.md, paddingBottom: spacing.xl }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: spacing.lg }}>
-          <Ionicons name="storefront-outline" size={18} color={colors.terracotta} />
+          <Ionicons name="storefront-outline" size={18} color={colors.goldDeep} />
           <Txt size={14} weight="extraBold" color={colors.ink}>
             {branch.nameAr}
           </Txt>

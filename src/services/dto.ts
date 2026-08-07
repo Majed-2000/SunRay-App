@@ -276,6 +276,10 @@ const BACKEND_TYPE_TO_APP: Record<BackendOrderType, OrderType> = {
 
 export const APP_TYPE_TO_BACKEND: Record<OrderType, BackendOrderType> = {
   pickup: 'PICKUP',
+  // Curbside is a pickup as far as the retired Express backend was concerned —
+  // it had no notion of it. The live store distinguishes them properly with its
+  // own `car` mode, which is what `createStoreOrder` receives.
+  car: 'PICKUP',
   delivery: 'DELIVERY',
   dineIn: 'DINE_IN',
 };

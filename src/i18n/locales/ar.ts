@@ -48,6 +48,7 @@ export const ar = {
   },
   orderType: {
     pickup: 'استلام من الفرع',
+    car: 'خدمة السيارة',
     delivery: 'توصيل',
     dineIn: 'تناول داخل الفرع',
   },

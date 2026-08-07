@@ -59,7 +59,8 @@
           }
         }
       ],
-      "./plugins/withAndroidAbiFilters"
+      "./plugins/withAndroidAbiFilters",
+      "./plugins/withAndroidDataBinding"
     ],
     "experiments": {
       "typedRoutes": true

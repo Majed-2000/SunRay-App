@@ -11,6 +11,7 @@ import {
   Header,
   PriceRow,
   ScreenContainer,
+  Spinner,
   Txt,
 } from '@/components';
 import type { PaymentMethod } from '@/types';
@@ -21,6 +22,9 @@ import { pointsEarned } from '@/utils/money';
 import { useCartTotals } from '@/hooks/useCartTotals';
 import { useResponsive } from '@/hooks/useResponsive';
 import { USE_BACKEND } from '@/services/api';
+import { createStoreOrder, describeOrderError, type CreateOrderResult } from '@/services/storeOrders';
+import { describeSettlement, waitForSettlement } from '@/services/storePay';
+import { MoyasarCardForm } from '@/components/MoyasarCardForm';
 import {
   useAuthStore,
   useBranchStore,
@@ -32,12 +36,27 @@ import {
   toast,
 } from '@/store';
 
-const METHODS: { id: PaymentMethod; label: string; sub: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+/**
+ * Payment methods offered in MOCK mode only.
+ *
+ * These were the whole of "payment" before: four rows including a card ending
+ * «•••• ٤٢٣٧» that was literal text. Nothing was ever charged. Live, the card
+ * form is Moyasar's own and the methods it supports are its business, not a
+ * list we maintain here.
+ */
+const MOCK_METHODS: { id: PaymentMethod; label: string; sub: string; icon: keyof typeof Ionicons.glyphMap }[] = [
   { id: 'wallet', label: 'محفظة سن راي', sub: 'الدفع من رصيدك', icon: 'wallet' },
-  { id: 'card', label: 'بطاقة مدى / فيزا', sub: '•••• ٤٢٣٧', icon: 'card' },
-  { id: 'applePay', label: 'Apple Pay', sub: 'دفع سريع', icon: 'logo-apple' },
+  { id: 'card', label: 'بطاقة', sub: 'وضع التجربة', icon: 'card' },
   { id: 'cash', label: 'الدفع عند الاستلام', sub: 'نقدًا أو بالبطاقة', icon: 'cash' },
 ];
+
+/** Where the customer is in the checkout. */
+type Stage =
+  | { step: 'review' }
+  /** Order exists on the server; collecting the card. */
+  | { step: 'pay'; order: CreateOrderResult }
+  /** Card charged here; waiting for the server's webhook to settle it. */
+  | { step: 'settling'; order: CreateOrderResult };
 
 export function CheckoutScreen() {
   const insets = useSafeAreaInsets();
@@ -57,6 +76,44 @@ export function CheckoutScreen() {
 
   const [method, setMethod] = useState<PaymentMethod>(walletBalance > 0 ? 'wallet' : 'card');
   const [submitting, setSubmitting] = useState(false);
+  const [stage, setStage] = useState<Stage>({ step: 'review' });
+
+  /**
+   * The card form finished on this device — now find out what actually
+   * happened.
+   *
+   * `outcome` is only what this phone saw. The order is settled by Moyasar's
+   * webhook calling the server, which is what survives the app being
+   * backgrounded or losing signal in the second after the charge. So we watch
+   * the order until the SERVER writes a terminal status.
+   *
+   * A timeout is deliberately not treated as failure: the charge may well have
+   * gone through and the webhook simply be a few seconds behind. Telling the
+   * customer their payment failed, and inviting them to pay again, is the one
+   * outcome that could take their money twice.
+   */
+  const onPaymentResult = async (outcome: 'paid' | 'failed') => {
+    if (stage.step !== 'pay') return;
+    const { order } = stage;
+
+    if (outcome === 'failed') {
+      toast('لم تكتمل عملية الدفع، تحقّق من بيانات البطاقة');
+      return;
+    }
+
+    setStage({ step: 'settling', order });
+    const result = await waitForSettlement(order.orderId);
+
+    if (result.status === 'paid' || result.status === 'timeout') {
+      clear();
+      router.replace(`/order-success?id=${order.orderId}`);
+      if (result.status === 'timeout') toast(describeSettlement('timeout'));
+      return;
+    }
+
+    toast(describeSettlement(result.status));
+    setStage({ step: 'pay', order });
+  };
 
   // In backend mode the server ignores coupon/points/wallet (discount is forced to
   // 0 this phase), so we show the server-aligned total and hide those perks — the
@@ -78,27 +135,38 @@ export function CheckoutScreen() {
       }
       if (submitting) return;
       setSubmitting(true);
-      const result = await useOrderStore.getState().submitToBackend({
-        branchId: branch.id,
-        type: orderType,
-        lines,
-      });
-      setSubmitting(false);
-      if (!result.ok) {
-        // Cart is kept in every failure case so nothing is lost.
-        if (result.reason === 'auth') {
-          // The session expired and couldn't refresh — onSessionExpired already
-          // routes to login; just explain why.
-          toast('انتهت الجلسة، يرجى تسجيل الدخول مرة أخرى لإكمال الطلب');
-        } else if (result.reason === 'network') {
-          toast('تعذّر الاتصال بالإنترنت، تأكد من الشبكة وحاول مجددًا');
-        } else {
-          toast('تعذّر إرسال الطلب، حاول مجددًا');
+      try {
+        /**
+         * The server prices the order. Everything the screen has shown so far
+         * is an estimate — `createStoreOrder` recomputes each line from
+         * `menu/products`, ignores any price we send, and signs the total.
+         * That returned figure is the only one Moyasar is ever asked for.
+         */
+        const order = await createStoreOrder({
+          items: lines.map((l) => ({ serviceId: l.productId, qty: l.qty, notes: l.notes })),
+          // Two modes exist. `orderType` may still say delivery or dine-in in
+          // mock data, and the server would silently record either as a pickup.
+          mode: orderType === 'car' ? 'car' : 'pickup',
+        });
+
+        /**
+         * A fully covered order — gift card, loyalty reward, coupon — is
+         * already done. Opening a card form for zero riyals fails at the
+         * gateway, and asking for a card on a free order is alarming.
+         */
+        if (order.free || order.totalHalalas <= 0) {
+          clear();
+          router.replace(`/order-success?id=${order.orderId}`);
+          return;
         }
-        return;
+
+        setStage({ step: 'pay', order });
+      } catch (e) {
+        // The cart is kept in every failure case so nothing is lost.
+        toast(describeOrderError(e));
+      } finally {
+        setSubmitting(false);
       }
-      clear();
-      router.replace(`/order-success?id=${result.order.id}`);
       return;
     }
 
@@ -173,12 +241,41 @@ export function CheckoutScreen() {
             </View>
           </Card>
 
-          {/* payment methods */}
+          {/* Live: Moyasar's own card form, once the server has priced the order. */}
+          {USE_BACKEND && stage.step !== 'review' ? (
+            <>
+              <Txt size={15} weight="black" color={colors.ink} style={{ marginBottom: spacing.md }}>
+                بيانات البطاقة
+              </Txt>
+              {stage.step === 'settling' ? (
+                <Card radiusKey="lg" style={{ alignItems: 'center', paddingVertical: spacing['2xl'] }}>
+                  <Spinner label="نؤكّد دفعتك…" fill={false} />
+                  {/* The wait is the SERVER confirming, not this screen being
+                      slow — say so, or a customer who sees a spinner after
+                      their card was charged will try to pay again. */}
+                  <Txt size={12} color={colors.textMuted} center style={{ marginTop: spacing.sm, lineHeight: 19 }}>
+                    لا تغلق التطبيق — نتأكّد من اكتمال العملية لدى البنك
+                  </Txt>
+                </Card>
+              ) : (
+                <MoyasarCardForm
+                  orderId={stage.order.orderId}
+                  code={stage.order.code}
+                  totalHalalas={stage.order.totalHalalas}
+                  onResult={onPaymentResult}
+                />
+              )}
+            </>
+          ) : null}
+
+          {/* payment methods — mock mode only */}
+          {USE_BACKEND ? null : (
+          <>
           <Txt size={15} weight="black" color={colors.ink} style={{ marginBottom: spacing.md }}>
             طريقة الدفع
           </Txt>
           <View style={{ gap: 10 }}>
-            {METHODS.map((m) => {
+            {MOCK_METHODS.map((m) => {
               const active = method === m.id;
               const disabled = m.id === 'wallet' && walletBalance <= 0;
               return (
@@ -229,6 +326,8 @@ export function CheckoutScreen() {
               );
             })}
           </View>
+          </>
+          )}
 
           {/* perks — hidden in backend mode (the server doesn't apply them yet) */}
           {!USE_BACKEND ? (
@@ -295,12 +394,23 @@ export function CheckoutScreen() {
         }}
       >
         <View style={{ width: '100%', maxWidth: contentMaxWidth, alignSelf: 'center' }}>
-          <Button
-            label={orderType === 'delivery' ? 'اطلب التوصيل' : 'أكمل الطلب'}
-            trailing={formatRiyal(displayTotal)}
-            onPress={place}
-            loading={submitting}
-          />
+          {/* Once the order exists on the server the card form owns the screen:
+              a second "confirm" button here would create a duplicate order for
+              a customer who tapped it again while typing their card. */}
+          {USE_BACKEND && stage.step !== 'review' ? (
+            <Txt size={12} color={colors.textMuted} center>
+              {stage.step === 'settling'
+                ? 'جارٍ التأكيد…'
+                : `طلبك رقم ${stage.order.code} · ${formatRiyal(stage.order.totalHalalas / 100)}`}
+            </Txt>
+          ) : (
+            <Button
+              label={USE_BACKEND ? 'تأكيد الطلب' : 'أكمل الطلب'}
+              trailing={formatRiyal(displayTotal)}
+              onPress={place}
+              loading={submitting}
+            />
+          )}
         </View>
       </View>
     </>

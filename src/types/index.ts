@@ -129,7 +129,16 @@ export interface Address {
  * pickup → 2 (PickUp), delivery → 3 (Delivery), dineIn → 1 (DineIn).
  * See `toFoodicsOrderType` in services/foodics.ts.
  */
-export type OrderType = 'pickup' | 'delivery' | 'dineIn';
+/**
+ * How the customer receives the order.
+ *
+ * `pickup` and `car` are the two the store actually supports — `car` is
+ * curbside, where the barista brings the order out to a plate number. The app
+ * had never modelled curbside at all, and instead offered `delivery` and
+ * `dineIn`, neither of which exists in `createStoreOrder`. Those two are kept
+ * behind `STORE_HAS_DELIVERY` rather than deleted.
+ */
+export type OrderType = 'pickup' | 'car' | 'delivery' | 'dineIn';
 
 export type PaymentMethod = 'wallet' | 'card' | 'applePay' | 'cash';
 

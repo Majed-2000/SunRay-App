@@ -1,33 +1,38 @@
 /**
- * App-wide tunable constants (mock business rules). Safe to adjust later or
- * move server-side. No secrets here.
+ * Constants that genuinely belong to the app.
+ *
+ * Everything that describes the *business* has been removed from here, because
+ * a shipped copy of a business number goes stale silently — the customer is
+ * quoted a fee the server does not charge, or shown a goal that no longer
+ * exists. What left, and where it lives now:
+ *
+ *   FREE_DRINK_AT · LOYALTY_CUP_GOAL · TIER_THRESHOLDS · POINTS_REDEEM_RATE
+ *   COFFEE_CATEGORY_IDS · POINTS_PER_RIYAL
+ *       → invented outright. The programme is one point per riyal with a
+ *         threshold the server withholds until an admin confirms it. See
+ *         `services/storeLoyalty.ts`.
+ *
+ *   GIFT_AMOUNT_PRESETS → `store/config/giftPackages`
+ *   DELIVERY_FEE · FREE_DELIVERY_THRESHOLD · VAT_RATE
+ *       → the server stamps `vatRate` and the fees onto each order and
+ *         recomputes the total from the catalog before charging. The app
+ *         displays what it is told.
+ *
+ * What remains is either a fact about Saudi Arabia or a purely local default.
  */
 export const CONFIG = {
-  // Tax & fees
-  VAT_RATE: 0.15, // KSA VAT 15% — shown as a separate cart line
-  PRICES_INCLUDE_VAT: false, // menu prices treated as pre-VAT for a clear VAT line
-  DELIVERY_FEE: 15, // flat delivery fee (﷼); 0 for pickup
-  FREE_DELIVERY_THRESHOLD: 120, // subtotal above this → free delivery
+  /**
+   * KSA VAT. Kept only to render a tax line on a cart that has not been priced
+   * by the server yet; every settled order carries its own `vatRate`, and that
+   * is what an invoice must show.
+   */
+  VAT_RATE: 0.15,
+  /** Menu prices are VAT-inclusive — the server extracts tax from the net. */
+  PRICES_INCLUDE_VAT: true,
 
-  // Loyalty
-  POINTS_PER_RIYAL: 1, // earn 1 point per 1 ﷼ spent
-  FREE_DRINK_AT: 200, // points needed for the next free drink milestone
-  TIER_THRESHOLDS: { bronze: 0, silver: 500, gold: 1500 }, // lifetime points
-  POINTS_REDEEM_RATE: 0.1, // ﷼ value per point when redeeming in cart (10 pts = 1 ﷼)
-
-  // Loyalty — Path A cup card ("buy 6 coffees, get the 7th free").
-  // Counted by OUR backend (Foodics loyalty is amount-based, not cup-based).
-  LOYALTY_CUP_GOAL: 6, // cups needed before a free coffee
-  COFFEE_CATEGORY_IDS: ['hot', 'cold', 'v60', 'matcha'] as const, // eligible categories
-
-  // Wallet
+  /** Wallet top-up chips. A local convenience, not a business rule. */
   WALLET_TOPUP_PRESETS: [50, 100, 200],
 
-  // Gift cards
-  GIFT_AMOUNT_PRESETS: [50, 100, 300],
-  GIFT_CODE_PREFIX: 'SR',
-
-  // Currency
   CURRENCY: 'SAR',
   COUNTRY_DIAL_CODE: '+966',
 } as const;

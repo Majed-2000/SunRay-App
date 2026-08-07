@@ -28,6 +28,7 @@ import {
   useCatalogStore,
   useLoyaltyStore,
   useNotificationStore,
+  useStoreSettingsStore,
 } from '@/store';
 
 export function HomeScreen() {
@@ -36,14 +37,17 @@ export function HomeScreen() {
   const user = useAuthStore((s) => s.user);
   const branch = useBranchStore((s) => s.current());
   const branchAuto = useBranchStore((s) => s.auto);
-  const points = useLoyaltyStore((s) => s.points);
-  const tier = useLoyaltyStore((s) => s.tier());
-  const pointsToNext = useLoyaltyStore((s) => s.pointsToNextDrink());
+  const points = useLoyaltyStore((s) => s.points());
+  const tierLabel = useLoyaltyStore((s) => s.tierLabel());
+  const pointsToNext = useLoyaltyStore((s) => s.pointsToNextReward());
+  const loyaltyThreshold = useLoyaltyStore((s) => s.data?.threshold ?? null);
   const setOrderType = useCartStore((s) => s.setOrderType);
   const unreadCount = useNotificationStore((s) => s.unreadCount());
   const catalogProducts = useCatalogStore((s) => s.products);
   const featured = useMemo(() => catalogProducts.filter((p) => p.isFeatured), [catalogProducts]);
   const t = strings();
+  const giftAmounts = useStoreSettingsStore((s) => s.giftAmounts());
+
 
   // Recomputed per mount rather than per render: the band it lands in changes
   // maybe four times a day, and a customer who has the app open across the
@@ -159,9 +163,9 @@ export function HomeScreen() {
           <View style={{ paddingHorizontal: spacing.lg, marginBottom: spacing.lg }}>
             <LoyaltyCard
               points={points}
-              tierLabel={t.tier[tier]}
+              tierLabel={tierLabel}
               pointsToNext={pointsToNext}
-              goal={CONFIG.FREE_DRINK_AT}
+              goal={loyaltyThreshold}
               onPress={() => router.push('/(tabs)/loyalty')}
             />
           </View>
@@ -218,7 +222,7 @@ export function HomeScreen() {
               <GiftCardPreview
                 key={d.id}
                 design={d}
-                amount={CONFIG.GIFT_AMOUNT_PRESETS[i] ?? 100}
+                amount={giftAmounts[i] ?? giftAmounts[0] ?? 0}
                 size="sm"
                 footerEnd="أهدِ ←"
                 style={{ width: 170 }}

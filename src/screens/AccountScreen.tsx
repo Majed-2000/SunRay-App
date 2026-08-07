@@ -18,7 +18,7 @@ interface RowDef {
 export function AccountScreen() {
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
-  const points = useLoyaltyStore((s) => s.points);
+  const points = useLoyaltyStore((s) => s.points());
 
   const rows: RowDef[] = [
     { icon: 'receipt-outline', label: 'طلباتي السابقة', onPress: () => router.push('/(tabs)/orders') },

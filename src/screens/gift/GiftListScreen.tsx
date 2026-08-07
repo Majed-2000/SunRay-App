@@ -16,6 +16,7 @@ import { strings } from '@/i18n';
 import { formatDateAr } from '@/utils/date';
 import { useResponsive } from '@/hooks/useResponsive';
 import { useGiftStore } from '@/store';
+import { useStoreSettingsStore } from '@/store/storeSettingsStore';
 
 const STATUS_COLOR = { active: colors.success, used: colors.textMuted, expired: colors.danger };
 
@@ -23,6 +24,8 @@ export function GiftListScreen() {
   const cards = useGiftStore((s) => s.cards);
   const { isTablet } = useResponsive();
   const t = strings();
+  const giftAmounts = useStoreSettingsStore((s) => s.giftAmounts());
+
 
   return (
     <ScreenContainer
@@ -45,7 +48,7 @@ export function GiftListScreen() {
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingHorizontal: spacing.lg }}>
           {giftDesigns.map((d, i) => {
-            const amount = CONFIG.GIFT_AMOUNT_PRESETS[i] ?? 100;
+            const amount = giftAmounts[i] ?? giftAmounts[0] ?? 0;
             return (
               <View key={d.id} style={{ width: 185 }}>
                 <GiftCardPreview design={d} amount={amount} size="sm" footerEnd="أهدِ ←" />

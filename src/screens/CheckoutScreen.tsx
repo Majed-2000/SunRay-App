@@ -46,12 +46,9 @@ export function CheckoutScreen() {
   const addressId = useCartStore((s) => s.addressId);
   const useWallet = useCartStore((s) => s.useWallet);
   const setUseWallet = useCartStore((s) => s.setUseWallet);
-  const redeemPoints = useCartStore((s) => s.redeemPoints);
-  const setRedeemPoints = useCartStore((s) => s.setRedeemPoints);
   const clear = useCartStore((s) => s.clear);
 
   const walletBalance = useWalletStore((s) => s.balance);
-  const points = useLoyaltyStore((s) => s.points);
   const branch = useBranchStore((s) => s.current());
   const isGuest = useAuthStore((s) => s.isGuest);
   const totals = useCartTotals();
@@ -122,7 +119,9 @@ export function CheckoutScreen() {
       discount: totals.discount + totals.pointsDiscount,
       total: totals.total,
       paymentMethod: method,
-      pointsEarned: pointsEarned(totals.subtotal),
+      // Estimate only, at the rate the ledger reports. The real award is made
+      // server-side when the order settles.
+      pointsEarned: pointsEarned(totals.subtotal, useLoyaltyStore.getState().data?.pointsPerSar ?? 1),
       etaMinutes: orderType === 'delivery' ? 25 : 12,
     });
 
@@ -132,19 +131,16 @@ export function CheckoutScreen() {
     if (method === 'wallet') {
       useWalletStore.getState().debit(totals.total, `طلب ${order.id}`);
     }
-    if (redeemPoints && totals.pointsSpent > 0) {
-      useLoyaltyStore.getState().spend(totals.pointsSpent);
-    }
-    useLoyaltyStore.getState().earn(order.pointsEarned);
-
-    // Path A loyalty: count eligible coffee cups (the backend does this from
-    // `customer.order.created` webhooks in production).
-    const coffeeCups = lines.reduce((n, l) => {
-      const cat = useCatalogStore.getState().productById(l.productId)?.categoryId;
-      return cat && (CONFIG.COFFEE_CATEGORY_IDS as readonly string[]).includes(cat) ? n + l.qty : n;
-    }, 0);
-    useLoyaltyStore.getState().addCups(coffeeCups);
-
+    /**
+     * Points are NOT adjusted here.
+     *
+     * This used to spend and earn against a local counter, and separately count
+     * "eligible coffee cups" for a 6-cup card that does not exist. The ledger is
+     * the server's: points are awarded when the order settles, and a reward is
+     * deducted inside `createStoreOrder`. Moving the number on this device
+     * produced a balance the ledger never agreed to, which the next refresh
+     * silently reverted — the customer watched points appear and then vanish.
+     */
     clear();
     router.replace(`/order-success?id=${order.id}`);
   };
@@ -249,15 +245,11 @@ export function CheckoutScreen() {
                   disabled={walletBalance <= 0 || method === 'wallet'}
                   onToggle={() => setUseWallet(!useWallet)}
                 />
-                <Divider marginV={0} />
-                <PerkToggle
-                  icon="star-outline"
-                  label="استبدال نقاطي"
-                  sub={`${toArabicDigits(points)} نقطة متاحة`}
-                  value={redeemPoints}
-                  disabled={points <= 0}
-                  onToggle={() => setRedeemPoints(!redeemPoints)}
-                />
+                {/* No "redeem my points" toggle: the programme has no
+                    points-to-riyals conversion. A reward is claimed by adding
+                    the rewarded product to the cart at price zero from the
+                    loyalty screen, and the deduction happens server-side as the
+                    order is written. */}
               </Card>
             </>
           ) : null}
@@ -270,9 +262,6 @@ export function CheckoutScreen() {
               <PriceRow label="رسوم التوصيل" amount={totals.deliveryFee === 0 ? 'مجانًا' : totals.deliveryFee} />
             ) : null}
             {!USE_BACKEND && totals.discount > 0 ? <PriceRow label="خصم الكوبون" amount={totals.discount} positive /> : null}
-            {!USE_BACKEND && totals.pointsDiscount > 0 ? (
-              <PriceRow label={`استبدال ${toArabicDigits(totals.pointsSpent)} نقطة`} amount={totals.pointsDiscount} positive />
-            ) : null}
             {!USE_BACKEND && totals.walletApplied > 0 ? <PriceRow label="رصيد المحفظة" amount={totals.walletApplied} positive /> : null}
             <Divider dashed />
             <PriceRow label="الإجمالي المستحق" amount={displayTotal} emphasize />

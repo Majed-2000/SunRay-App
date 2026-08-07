@@ -17,14 +17,15 @@ import { CONFIG } from '@/constants/config';
 import { toArabicDigits } from '@/utils/numerals';
 import { isValidSaudiMobile, normalizeMobile, formatMobileDisplay } from '@/utils/validators';
 import { useAuthStore, useGiftStore, useLoyaltyStore, toast } from '@/store';
+import { useStoreSettingsStore } from '@/store/storeSettingsStore';
 
 export function GiftCreateScreen() {
   const params = useLocalSearchParams<{ designId?: string; amount?: string }>();
   const user = useAuthStore((s) => s.user);
   const createGift = useGiftStore((s) => s.createGift);
-  const earn = useLoyaltyStore((s) => s.earn);
 
-  const [amount, setAmount] = useState<number>(Number(params.amount) || CONFIG.GIFT_AMOUNT_PRESETS[1]);
+  const giftAmounts = useStoreSettingsStore((s) => s.giftAmounts());
+  const [amount, setAmount] = useState<number>(Number(params.amount) || 0);
   const [designId, setDesignId] = useState<string>(params.designId ?? 'gold');
   const [custom, setCustom] = useState('');
   const [recipientName, setRecipientName] = useState('');
@@ -51,7 +52,8 @@ export function GiftCreateScreen() {
       recipientPhone: normalizeMobile(recipientPhone),
       message,
     });
-    earn(Math.round(finalAmount / 2));
+    // No local points award: the ledger is the server's, and gift purchases
+    // earn through the same settlement path as any other order.
     toast('تم إرسال الهدية ☀');
     router.replace(`/gift/${card.id}`);
   };
@@ -74,7 +76,7 @@ export function GiftCreateScreen() {
         {/* amount */}
         <Label>اختر القيمة</Label>
         <View style={{ flexDirection: 'row', gap: 10 }}>
-          {CONFIG.GIFT_AMOUNT_PRESETS.map((p) => (
+          {giftAmounts.map((p) => (
             <OptionChip
               key={p}
               label={`${toArabicDigits(p)} ﷼`}

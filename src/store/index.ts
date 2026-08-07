@@ -5,6 +5,7 @@ export { useCatalogStore } from './catalogStore';
 export { useCartStore, couponDiscount } from './cartStore';
 export { useWalletStore } from './walletStore';
 export { useLoyaltyStore } from './loyaltyStore';
+export { useStoreSettingsStore } from './storeSettingsStore';
 export { useGiftStore } from './giftStore';
 export type { CreateGiftInput } from './giftStore';
 export { useAddressStore } from './addressStore';

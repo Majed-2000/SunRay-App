@@ -5,7 +5,7 @@ import { Platform, type ColorValue } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts } from '@/theme';
 import { strings } from '@/i18n';
-import { isActiveOrder, useBranchStore, useCatalogStore, useOrderStore } from '@/store';
+import { isActiveOrder, useBranchStore, useCatalogStore, useOrderStore, useStoreSettingsStore } from '@/store';
 
 type IoniconName = keyof typeof Ionicons.glyphMap;
 
@@ -38,6 +38,12 @@ export default function TabsLayout() {
   useEffect(() => {
     useCatalogStore.getState().load();
     useBranchStore.getState().load();
+    // Live settings: open/closed, gift packages, closed sections. Subscribed
+    // rather than fetched — a customer who builds a cart before Maghrib and
+    // checks out after would otherwise be refused with nothing on screen to
+    // explain it.
+    const stopSettings = useStoreSettingsStore.getState().start();
+    return stopSettings;
   }, []);
   return (
     <Tabs

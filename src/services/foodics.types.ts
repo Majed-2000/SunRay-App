@@ -215,25 +215,6 @@ export interface GiftCard {
   createdAt: number;
 }
 
-// ───────────────────────── Loyalty (Path A — our counter) ─────────────────────────
-/** Our backend is the source of truth for cup counters (Foodics loyalty is amount-based). */
-export interface LoyaltyCounter {
-  customerPhone: string;
-  productScope: string; // e.g. "coffee"
-  cupCount: number;
-  goal: number; // e.g. 6 → 7th free
-  updatedAt: number;
-}
-
-export interface LoyaltyReward {
-  id: string;
-  /** Reward redemption code — issued as a Foodics Coupon (Path A). */
-  code: string;
-  status: 'issued' | 'redeemed' | 'expired';
-  description: string;
-  issuedAt: number;
-  redeemedAt: number | null;
-}
 
 // ───────────────────────── Coupons ─────────────────────────
 export interface Coupon {

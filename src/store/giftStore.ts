@@ -39,7 +39,9 @@ interface GiftState {
 
 function generateCode(): string {
   const block = () => Math.floor(1000 + Math.random() * 9000);
-  return `${CONFIG.GIFT_CODE_PREFIX}-${block()}-${block()}`;
+  // Mock only. A real gift card code is minted by createGiftCard on the
+  // server, which also owns its balance and redemption.
+  return `SR-${block()}-${block()}`;
 }
 
 export const useGiftStore = create<GiftState>((set, get) => ({

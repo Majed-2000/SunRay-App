@@ -21,6 +21,7 @@ import {
 } from '@/components';
 import type { OrderType } from '@/types';
 import { strings } from '@/i18n';
+import { ORDER_TYPES } from '@/constants/orderTypes';
 import { formatRiyal } from '@/utils/numerals';
 import { useCartTotals } from '@/hooks/useCartTotals';
 import { useResponsive } from '@/hooks/useResponsive';
@@ -92,7 +93,7 @@ export function CartScreen() {
           <View style={{ width: '100%', maxWidth: contentMaxWidth, alignSelf: 'center' }}>
           {/* order type */}
           <View style={{ flexDirection: 'row', gap: 8, marginBottom: spacing.lg }}>
-            {(['pickup', 'delivery', 'dineIn'] as OrderType[]).map((type) => (
+            {ORDER_TYPES.map((type) => (
               <OptionChip
                 key={type}
                 label={t.orderType[type].split(' ')[0]}

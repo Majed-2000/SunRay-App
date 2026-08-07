@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { colors, spacing } from '@/theme';
 import {
+  ArriveButton,
   Button,
   Card,
   Divider,
@@ -18,6 +19,7 @@ import {
 import { strings } from '@/i18n';
 import { toArabicDigits, formatRiyal } from '@/utils/numerals';
 import { USE_BACKEND } from '@/services/api';
+import { isCurbside } from '@/constants/orderTypes';
 import {
   flowStages,
   currentStepIndex,
@@ -77,12 +79,25 @@ export function OrderDetailScreen() {
     <ScreenContainer header={<Header showBack title={`الطلب ${orderRef(order.id)}`} />}>
       <View style={{ paddingTop: spacing.lg, paddingBottom: spacing['4xl'] }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: spacing.lg }}>
-          <Ionicons name={order.type === 'delivery' ? 'bicycle' : 'storefront'} size={20} color={colors.goldDeep} />
+          <Ionicons
+            name={isCurbside(order.type) ? 'car' : order.type === 'delivery' ? 'bicycle' : 'storefront'}
+            size={20}
+            color={colors.goldDeep}
+          />
           <Txt size={15} weight="extraBold" color={colors.ink} style={{ flex: 1 }}>
             {t.orderType[order.type]} · {branch?.nameAr ?? ''}
           </Txt>
           <OrderStatusBadge stage={orderStage(order)} />
         </View>
+
+        {/* Curbside: the whole point of the mode is this button. It sits above
+            the timeline because a customer who has just parked is not reading
+            step labels — they want to say they are here. */}
+        {isActive && isCurbside(order.type) ? (
+          <Card radiusKey="lg" style={{ marginBottom: spacing.lg }}>
+            <ArriveButton orderId={order.id} code={orderRef(order.id)} />
+          </Card>
+        ) : null}
 
         {isActive ? (
           <Card radiusKey="lg" style={{ marginBottom: spacing.lg }}>

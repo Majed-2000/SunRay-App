@@ -18,6 +18,7 @@ import {
 import { PRODUCT_ROW_HEIGHT } from '@/components/ProductCard';
 import { useResponsive } from '@/hooks/useResponsive';
 import { useCartStore, useCatalogStore } from '@/store';
+import { ORDER_TYPES, ORDER_TYPE_SHORT } from '@/constants/orderTypes';
 import type { Product } from '@/types';
 
 /** Row height plus the 12px gap between rows — the stride FlatList measures by. */
@@ -104,20 +105,14 @@ export function MenuScreen() {
           </Txt>
         </View>
 
-        {/* Pickup vs delivery. This was a hand-rolled copy of SegmentedTabs that
-            had drifted from it — same look, but `onPress` sat on the text, so
-            only the glyphs themselves responded. Sharing the component fixes
-            the touch target and keeps the two controls in step from now on. */}
-        {/* All three types, matching the cart. Offering only two meant picking
-            "تناول داخل الفرع" there and coming back left this control with
-            nothing highlighted, which reads as broken rather than as a mode the
-            menu does not show. */}
+        {/* Fulfilment. Built from ORDER_TYPES so this control, the cart and
+            checkout cannot disagree about what the store offers — they each
+            used to hardcode their own list, and all three sold delivery.
+
+            Was also a hand-rolled copy of SegmentedTabs with `onPress` on the
+            text, so only the glyphs responded to a tap. */}
         <SegmentedTabs
-          tabs={[
-            { key: 'pickup', label: '☕ استلام' },
-            { key: 'delivery', label: '🛵 توصيل' },
-            { key: 'dineIn', label: '🍽️ داخلي' },
-          ]}
+          tabs={ORDER_TYPES.map((k) => ({ key: k, label: ORDER_TYPE_SHORT[k] }))}
           value={orderType}
           onChange={setOrderType}
         />

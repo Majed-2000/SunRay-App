@@ -25,6 +25,9 @@ import { USE_BACKEND } from '@/services/api';
 import { createStoreOrder, describeOrderError, type CreateOrderResult } from '@/services/storeOrders';
 import { describeSettlement, waitForSettlement } from '@/services/storePay';
 import { MoyasarCardForm } from '@/components/MoyasarCardForm';
+import { PlateField, type PlateValue } from '@/components/PlateField';
+import { isCurbside } from '@/constants/orderTypes';
+import { validatePlate } from '@/vendor/plate_core';
 import {
   useAuthStore,
   useBranchStore,
@@ -77,6 +80,7 @@ export function CheckoutScreen() {
   const [method, setMethod] = useState<PaymentMethod>(walletBalance > 0 ? 'wallet' : 'card');
   const [submitting, setSubmitting] = useState(false);
   const [stage, setStage] = useState<Stage>({ step: 'review' });
+  const [plate, setPlate] = useState<PlateValue>({ lettersAr: '', numbers: '' });
 
   /**
    * The card form finished on this device — now find out what actually
@@ -142,11 +146,27 @@ export function CheckoutScreen() {
          * `menu/products`, ignores any price we send, and signs the total.
          * That returned figure is the only one Moyasar is ever asked for.
          */
+        const curbside = isCurbside(orderType);
+        if (curbside && !validatePlate(plate.lettersAr, plate.numbers).ok) {
+          toast('أدخل رقم لوحة سيارتك');
+          setSubmitting(false);
+          return;
+        }
+
         const order = await createStoreOrder({
           items: lines.map((l) => ({ serviceId: l.productId, qty: l.qty, notes: l.notes })),
-          // Two modes exist. `orderType` may still say delivery or dine-in in
+          // Two modes exist. `orderType` may still say delivery or dine-in from
           // mock data, and the server would silently record either as a pickup.
-          mode: orderType === 'car' ? 'car' : 'pickup',
+          mode: curbside ? 'car' : 'pickup',
+          // The plate is how the branch finds the car. Sent only for curbside:
+          // on a counter pickup it is data we have no reason to hold.
+          ...(curbside
+            ? {
+                plateLettersAr: plate.lettersAr,
+                plateNumbers: plate.numbers,
+                plateRaw: `${plate.lettersAr} ${plate.numbers}`,
+              }
+            : {}),
         });
 
         /**
@@ -240,6 +260,20 @@ export function CheckoutScreen() {
               </View>
             </View>
           </Card>
+
+          {/* Curbside needs the car before the order exists — the plate is part
+              of the order, not something added afterwards. */}
+          {isCurbside(orderType) && stage.step === 'review' ? (
+            <Card radiusKey="lg" style={{ marginBottom: spacing.lg }}>
+              <Txt size={15} weight="black" color={colors.ink} style={{ marginBottom: 4 }}>
+                سيارتك
+              </Txt>
+              <Txt size={12} color={colors.textMuted} style={{ marginBottom: spacing.md, lineHeight: 19 }}>
+                نحتاج اللوحة ليعرف الباريستا أي سيارة يخرج إليها
+              </Txt>
+              <PlateField value={plate} onChange={setPlate} />
+            </Card>
+          ) : null}
 
           {/* Live: Moyasar's own card form, once the server has priced the order. */}
           {USE_BACKEND && stage.step !== 'review' ? (

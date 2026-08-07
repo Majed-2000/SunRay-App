@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import type { CartLine, OrderType, Product, Coupon } from '@/types';
 import { buildCartLine, type ProductSelection } from '@/utils/cart';
 import { couponByCode } from '@/data';
+import { USE_BACKEND } from '@/services/api';
+import { validateCoupon, describeCouponError } from '@/services/storeOffers';
 import { useCatalogStore } from './catalogStore';
 import { toast } from './uiStore';
 
@@ -26,7 +28,7 @@ interface CartState {
   setAddress: (id: string | null) => void;
   setScheduledTime: (time: string | null) => void;
 
-  applyCoupon: (code: string) => boolean;
+  applyCoupon: (code: string) => Promise<boolean>;
   removeCoupon: () => void;
   setUseWallet: (v: boolean) => void;
   setRedeemPoints: (v: boolean) => void;
@@ -92,18 +94,47 @@ export const useCartStore = create<CartState>((set, get) => ({
   setAddress: (id) => set({ addressId: id }),
   setScheduledTime: (time) => set({ scheduledTime: time }),
 
-  applyCoupon: (code) => {
-    const coupon = couponByCode(code);
-    if (!coupon) {
-      toast('كود غير صالح');
+  /**
+   * Check a coupon code with the store.
+   *
+   * This used to match against a hand-written array in `src/data/coupons.ts` —
+   * so a code the business had retired still "worked" here, and a real code the
+   * business had just issued did not. Neither outcome is recoverable on the
+   * device; only the server knows.
+   *
+   * Even a success is provisional. `createStoreOrder` resolves the coupon again
+   * against the real cart at order time, and can still refuse it — used in the
+   * meantime, expired, or not applicable to these items. The discount shown
+   * here is a preview so the cart matches the invoice, never a promise.
+   */
+  applyCoupon: async (code) => {
+    if (!USE_BACKEND) {
+      const local = couponByCode(code);
+      if (!local) {
+        toast('كود غير صالح');
+        return false;
+      }
+      set({ coupon: local });
+      toast('تم تطبيق الكوبون 🎉');
+      return true;
+    }
+
+    const subtotalHalalas = Math.round(
+      get().lines.reduce((a, l) => a + l.unitPrice * l.qty, 0) * 100,
+    );
+    const res = await validateCoupon(code, subtotalHalalas);
+    if (!res.ok) {
+      toast(describeCouponError(res.reason));
       return false;
     }
-    const subtotal = get().lines.reduce((a, l) => a + l.unitPrice * l.qty, 0);
-    if (coupon.minSubtotal && subtotal < coupon.minSubtotal) {
-      toast('الحد الأدنى للطلب غير مكتمل');
-      return false;
-    }
-    set({ coupon });
+    set({
+      coupon: {
+        code: res.code ?? code.trim().toUpperCase(),
+        titleAr: res.kind === 'percent' ? `خصم ${res.value}٪` : `خصم ${res.value} ﷼`,
+        kind: res.kind === 'percent' ? 'percent' : 'amount',
+        value: res.value ?? 0,
+      } as Coupon,
+    });
     toast('تم تطبيق الكوبون 🎉');
     return true;
   },

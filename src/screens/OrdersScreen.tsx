@@ -13,7 +13,6 @@ import {
   Spinner,
   Txt,
 } from '@/components';
-import { fetchPastOrders, type PastOrder } from '@/services/orders';
 import type { Order } from '@/types';
 import { strings } from '@/i18n';
 import { formatRiyal, toArabicDigits } from '@/utils/numerals';
@@ -28,10 +27,8 @@ function relativeDay(createdAt: number): string {
   return `قبل ${toArabicDigits(days)} يوم`;
 }
 
-/** A row in the "منتهي" tab: either an app order or imported Foodics history. */
-type DoneRow =
-  | { kind: 'app'; at: number; order: Order }
-  | { kind: 'foodics'; at: number; past: PastOrder };
+/** A row in the «منتهي» tab. */
+type DoneRow = { kind: 'app'; at: number; order: Order };
 
 export function OrdersScreen() {
   const orders = useOrderStore((s) => s.orders);
@@ -54,25 +51,6 @@ export function OrdersScreen() {
     }
   }, [loadOrders, isGuest]);
 
-  // Orders placed at the counter before the app. Kept separate from the store:
-  // they are read-only history, cannot be tracked or reordered, and the backend
-  // may decline to serve them at all (it refuses while OTP is still mock).
-  const [history, setHistory] = useState<PastOrder[]>([]);
-  const loadHistory = useCallback(async () => {
-    if (!USE_BACKEND || isGuest) return;
-    try {
-      const r = await fetchPastOrders();
-      if (r.available && r.matched) setHistory(r.orders);
-    } catch {
-      // A customer with no Foodics history is the normal case, not a failure —
-      // never let it surface as an error over their real orders.
-    }
-  }, [isGuest]);
-
-  useEffect(() => {
-    void loadHistory();
-  }, [loadHistory]);
-
   const reload = () => {
     if (!isGuest) loadOrders();
   };
@@ -93,11 +71,11 @@ export function OrdersScreen() {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await Promise.all([isGuest ? undefined : loadOrders(), loadHistory()]);
+      await Promise.all([isGuest ? undefined : loadOrders()]);
     } finally {
       setRefreshing(false);
     }
-  }, [isGuest, loadOrders, loadHistory]);
+  }, [isGuest, loadOrders, loadOrders]);
 
   const [tab, setTab] = useState<'active' | 'done'>('active');
   const listRef = useRef<FlatList<Order | DoneRow>>(null);
@@ -123,15 +101,10 @@ export function OrdersScreen() {
    * first. Splitting them into two sections would make the customer reason
    * about where an order came from, which is our concern, not theirs.
    */
-  const doneRows = useMemo<DoneRow[]>(() => {
-    const appRows: DoneRow[] = past.map((o) => ({ kind: 'app', at: o.createdAt, order: o }));
-    const pastRows: DoneRow[] = history.map((h) => ({
-      kind: 'foodics',
-      at: h.businessDate ? new Date(h.businessDate).getTime() : 0,
-      past: h,
-    }));
-    return [...appRows, ...pastRows].sort((a, b) => b.at - a.at);
-  }, [past, history]);
+  const doneRows = useMemo<DoneRow[]>(
+    () => past.map((o) => ({ kind: 'app' as const, at: o.createdAt, order: o })).sort((a, b) => b.at - a.at),
+    [past],
+  );
 
   const rows = tab === 'active' ? active : doneRows;
   const hasAnything = active.length + doneRows.length > 0;
@@ -152,11 +125,7 @@ export function OrdersScreen() {
   const renderRow = useCallback(
     ({ item }: { item: Order | DoneRow }) =>
       'kind' in item ? (
-        item.kind === 'app' ? (
-          <OrderCard order={item.order} />
-        ) : (
-          <PastOrderCard past={item.past} />
-        )
+        <OrderCard order={item.order} />
       ) : (
         <OrderCard order={item} />
       ),
@@ -192,9 +161,7 @@ export function OrdersScreen() {
             ref={listRef}
             data={rows as readonly (Order | DoneRow)[]}
             renderItem={renderRow}
-            keyExtractor={(it) =>
-              'kind' in it ? (it.kind === 'app' ? it.order.id : `f-${it.past.foodicsOrderId}`) : it.id
-            }
+            keyExtractor={(it) => ('kind' in it ? it.order.id : it.id)}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{
               padding: spacing.lg,
@@ -306,75 +273,6 @@ export function OrdersScreen() {
             <Ionicons name="chevron-back" size={14} color={colors.ink} />
           </View>
         </View>
-      </Card>
-    );
-  }
-  /**
-   * A counter order imported from Foodics. Deliberately not pressable: there is
-   * no detail screen behind it and nothing to track. Making it look tappable and
-   * then doing nothing is worse than leaving it plainly static.
-   */
-  function PastOrderCard({ past }: { past: PastOrder }) {
-    const when = past.businessDate ? relativeDay(new Date(past.businessDate).getTime()) : '';
-    return (
-      <Card radiusKey="lg">
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <View style={{ flex: 1 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Ionicons name="storefront" size={16} color={colors.textMuted} />
-              <Txt size={15} weight="black" color={colors.ink}>
-                #{toArabicDigits(past.reference)}
-              </Txt>
-            </View>
-            <Txt size={12} color={colors.textFaint} style={{ marginTop: 3 }}>
-              {when ? `طلب من الفرع · ${when}` : 'طلب من الفرع'}
-            </Txt>
-          </View>
-          <View
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 4,
-              backgroundColor: colors.chip,
-              borderRadius: radius.pill,
-              paddingHorizontal: 10,
-              paddingVertical: 5,
-            }}
-          >
-            <Ionicons name="checkmark-circle" size={13} color={colors.textMuted} />
-            <Txt size={11} weight="extraBold" color={colors.textMuted}>
-              تم التسليم
-            </Txt>
-          </View>
-        </View>
-
-        <View style={{ marginTop: spacing.md, gap: 2 }}>
-          {past.items.slice(0, 2).map((it, i) => (
-            <Txt key={i} size={12} color={colors.textSecondary}>
-              {toArabicDigits(it.quantity)}× {it.name}
-            </Txt>
-          ))}
-          {past.items.length > 2 ? (
-            <Txt size={12} color={colors.textFaint}>
-              +{toArabicDigits(past.items.length - 2)} عناصر أخرى
-            </Txt>
-          ) : null}
-        </View>
-
-        {past.totalPrice > 0 ? (
-          <View
-            style={{
-              marginTop: spacing.md,
-              paddingTop: spacing.md,
-              borderTopWidth: 1,
-              borderTopColor: colors.borderSoft,
-            }}
-          >
-            <Txt size={15} weight="black" color={colors.textMuted}>
-              {formatRiyal(past.totalPrice)}
-            </Txt>
-          </View>
-        ) : null}
       </Card>
     );
   }

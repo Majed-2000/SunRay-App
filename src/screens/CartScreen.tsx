@@ -40,6 +40,7 @@ export function CartScreen() {
   const [addressOpen, setAddressOpen] = useState(false);
   const [timeOpen, setTimeOpen] = useState(false);
   const [coupon, setCoupon] = useState('');
+  const [applying, setApplying] = useState(false);
 
   const lines = useCartStore((s) => s.lines);
   const orderType = useCartStore((s) => s.orderType);
@@ -227,8 +228,19 @@ export function CartScreen() {
                   size="sm"
                   fullWidth={false}
                   variant="outline"
-                  onPress={() => {
-                    if (applyCoupon(coupon)) setCoupon('');
+                  loading={applying}
+                  onPress={async () => {
+                    // The check is a round trip to the store now, so it has to
+                    // be awaited — the old sync call treated the Promise itself
+                    // as truthy and cleared the field on every attempt, valid
+                    // code or not.
+                    if (applying) return;
+                    setApplying(true);
+                    try {
+                      if (await applyCoupon(coupon)) setCoupon('');
+                    } finally {
+                      setApplying(false);
+                    }
                   }}
                 />
               </View>

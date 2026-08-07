@@ -5,7 +5,7 @@ import { router } from 'expo-router';
 import { colors, radius, spacing } from '@/theme';
 import { Button, Card, Header, ScreenContainer, TextField, Txt } from '@/components';
 import { formatRiyal } from '@/utils/numerals';
-import { deleteAccount } from '@/services/auth';
+import { deleteStoreAccount } from '@/services/storeAuth';
 import { useAuthStore, useWalletStore, toast } from '@/store';
 
 /** Typed exactly to confirm. Short enough to type, specific enough to be deliberate. */
@@ -35,7 +35,7 @@ export function DeleteAccountScreen() {
     if (!canDelete) return;
     setBusy(true);
     try {
-      await deleteAccount();
+      await deleteStoreAccount();
       // Clear local state before navigating: the tokens are already revoked
       // server-side, and leaving a stale session would show a signed-in shell
       // over an account that no longer exists.

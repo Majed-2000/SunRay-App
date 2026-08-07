@@ -14,7 +14,7 @@ import {
 import { mockOrders } from '@/data';
 import { request, USE_BACKEND, ApiError } from '@/services/api';
 import { mapOrder, APP_TYPE_TO_BACKEND, type OrderDTO, type BackendOrderStatus } from '@/services/dto';
-import { toCartItem } from '@/services/orders';
+import { fetchMyOrders, type MyOrder } from '@/services/storeOrders';
 
 /**
  * A progression step = the Foodics (status, deliveryStatus) snapshot for a given
@@ -116,19 +116,6 @@ function nextBackendStatus(o: Order): BackendOrderStatus | null {
   }
 }
 
-export interface SubmitToBackendInput {
-  branchId: string;
-  type: OrderType;
-  lines: CartLine[];
-  customerNotes?: string;
-}
-
-/** Why an order submission failed, so checkout can react appropriately. */
-export type SubmitFailReason = 'auth' | 'network' | 'server';
-export type SubmitResult =
-  | { ok: true; order: Order }
-  | { ok: false; reason: SubmitFailReason };
-
 type Status = 'idle' | 'loading' | 'ready' | 'error';
 
 interface OrderState {
@@ -141,7 +128,6 @@ interface OrderState {
   getById: (id: string) => Order | undefined;
   // backend (used when USE_BACKEND)
   loadOrders: () => Promise<void>;
-  submitToBackend: (input: SubmitToBackendInput) => Promise<SubmitResult>;
   fetchOrder: (id: string) => Promise<Order | undefined>;
   advanceBackend: (id: string) => Promise<void>;
 }
@@ -149,6 +135,82 @@ interface OrderState {
 // Belt-and-braces guard so a double-tap (or remount) can't submit twice even if
 // a screen's local guard is bypassed. Module-scoped: one in-flight submit at a time.
 let submitInFlight = false;
+
+/**
+ * The store's status vocabulary → the app's numeric one.
+ *
+ * The app's tracking UI was built around Foodics' numeric codes, and the store
+ * speaks strings. Rather than rewrite every screen, the strings are mapped onto
+ * the two numbers the UI already understands.
+ *
+ * `fulfillment` wins over `status` when present: `status` describes the money
+ * (paid, refunded) while `fulfillment` describes the coffee (ready, delivered),
+ * and a customer looking at "طلباتي" is asking about the coffee.
+ */
+function mapStatus(o: MyOrder): { status: OrderStatus; deliveryStatus: DeliveryStatus | null } {
+  // Named constants, not literals. Writing the numbers by hand put 3 against
+  // "ready" — 3 is Declined — so every order waiting at the counter would have
+  // rendered as rejected. And "ready" is not a status of its own here: it is
+  // Active plus a delivery status, exactly as PICKUP_FLOW above defines it.
+  const READY = {
+    status: FoodicsOrderStatus.Active,
+    deliveryStatus: FoodicsDeliveryStatus.Ready,
+  };
+  const f = o.fulfillment ?? '';
+  if (f === 'delivered' || f === 'picked_up')
+    return { status: FoodicsOrderStatus.Closed, deliveryStatus: null };
+  if (f === 'cancelled') return { status: FoodicsOrderStatus.Void, deliveryStatus: null };
+  if (f === 'ready') return READY;
+  if (f === 'preparing') return { status: FoodicsOrderStatus.Active, deliveryStatus: null };
+
+  switch (o.status) {
+    case 'paid':
+      return { status: FoodicsOrderStatus.Active, deliveryStatus: null };
+    case 'cancelled':
+      return { status: FoodicsOrderStatus.Void, deliveryStatus: null };
+    case 'refunded':
+      return { status: FoodicsOrderStatus.Returned, deliveryStatus: null };
+    default:
+      // Includes `awaiting_payment` — still pending as far as the counter goes.
+      return { status: FoodicsOrderStatus.Pending, deliveryStatus: null };
+  }
+}
+
+/**
+ * Map a feed row onto the app's `Order`.
+ *
+ * Money arrives in halalas and every screen formats riyals, so it is converted
+ * once, here. Fields the feed genuinely does not carry (VAT breakdown, payment
+ * method, points) are left at zero rather than guessed — a fabricated VAT line
+ * on a real receipt is worse than no line.
+ */
+function mapStoreOrder(o: MyOrder): Order {
+  const { status, deliveryStatus } = mapStatus(o);
+  const total = (o.totalHalalas || 0) / 100;
+  return {
+    id: o.id,
+    foodicsOrderId: null,
+    createdAt: o.createdAt || Date.now(),
+    type: 'pickup',
+    status,
+    deliveryStatus,
+    branchId: '',
+    items: (o.items ?? []).map((i) => ({
+      nameAr: i.name,
+      optionLabel: '',
+      qty: i.qty || 1,
+      lineTotal: 0,
+    })),
+    subtotal: total,
+    vat: 0,
+    deliveryFee: 0,
+    discount: 0,
+    total,
+    paymentMethod: 'card',
+    pointsEarned: 0,
+    etaMinutes: 0,
+  };
+}
 
 /** Replace an order in the list, or prepend it if new. */
 function upsert(orders: Order[], order: Order): Order[] {
@@ -202,37 +264,25 @@ export const useOrderStore = create<OrderState>((set, get) => ({
     }
     set({ status: 'loading', error: null });
     try {
-      // The backend scopes the list to the authenticated customer (token-derived).
-      const dtos = await request<OrderDTO[]>('/api/orders');
-      set({ orders: dtos.map(mapOrder), status: 'ready', error: null });
+      /**
+       * One feed from the store, scoped to the signed-in customer's phone.
+       *
+       * This replaces two separate calls — our own `/api/orders` and the
+       * Foodics history fetch — that between them showed the same customer two
+       * partial histories. The store already merges cart orders, catering,
+       * sessions and gift cards into one list, newest first.
+       */
+      const { phone, orders } = await fetchMyOrders();
+      if (phone === null) {
+        // NOT an empty list. The server could not tie this account to a number,
+        // and rendering that as "no orders yet" is what hid the same fault for a
+        // month upstream: the customer sees a plausible screen and nobody looks.
+        set({ status: 'error', error: 'تعذّر التعرّف على رقمك' });
+        return;
+      }
+      set({ orders: orders.map(mapStoreOrder), status: 'ready', error: null });
     } catch (e) {
       set({ status: 'error', error: e instanceof Error ? e.message : 'تعذّر تحميل الطلبات' });
-    }
-  },
-
-  submitToBackend: async (input) => {
-    if (submitInFlight) return { ok: false, reason: 'server' };
-    submitInFlight = true;
-    try {
-      // customerId is NOT sent — the backend derives the owner from the access token.
-      const dto = await request<OrderDTO>('/api/orders', {
-        method: 'POST',
-        body: {
-          branchId: input.branchId,
-          type: APP_TYPE_TO_BACKEND[input.type],
-          items: input.lines.map(toCartItem), // backend ignores the extra unitPrice
-          customerNotes: input.customerNotes,
-        },
-      });
-      const order = mapOrder(dto);
-      set((s) => ({ orders: upsert(s.orders, order) }));
-      return { ok: true, order };
-    } catch (e) {
-      const status = e instanceof ApiError ? e.status : -1;
-      const reason: SubmitFailReason = status === 401 ? 'auth' : status === 0 ? 'network' : 'server';
-      return { ok: false, reason };
-    } finally {
-      submitInFlight = false;
     }
   },
 

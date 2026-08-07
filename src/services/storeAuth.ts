@@ -152,3 +152,22 @@ export function describeOtpError(reason?: string): string {
       return 'تعذّر التحقق، حاول مرة أخرى';
   }
 }
+
+/**
+ * Permanently delete the customer's account.
+ *
+ * The store owns this: it anonymises the phone (`deleted:` prefix), keeps the
+ * orders for accounting, and revokes the sessions. Doing it locally would leave
+ * the ledger and the order history pointing at a customer who believes they are
+ * gone.
+ */
+export async function deleteStoreAccount(): Promise<CallResult> {
+  try {
+    const res = await callFn<CallResult>('deleteStoreAccount');
+    if (res?.ok === false) return res;
+    await signOutStore();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, reason: firebaseErrorReason(e) };
+  }
+}

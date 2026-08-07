@@ -85,23 +85,76 @@ export async function createStoreOrder(input: CreateOrderInput): Promise<CreateO
   return callFn<CreateOrderResult>('createStoreOrder', input);
 }
 
-export interface MyOrderSummary {
-  orderId: string;
-  code: string;
-  status: string;
+/**
+ * One row in "طلباتي".
+ *
+ * `myOrders` returns a single merged feed, not just cart orders — `type`
+ * distinguishes a store order (`cart`) from catering, a session booking, a
+ * support ticket or a gift card. They all belong to the customer and all
+ * belong on one screen; splitting them would make the customer reason about
+ * which system produced what, which is our concern, not theirs.
+ */
+export interface MyOrder {
+  id: string;
+  /** RTDB path — the feed spans several collections. */
+  ref: string;
+  /** `cart` · `catering` · `session` · `ticket` · `gift` */
+  type: string;
+  code: string | null;
+  status: string | null;
+  /** Set once the branch has handed the order over. */
+  fulfillment?: string | null;
   totalHalalas: number;
   createdAt: number;
-  mode?: string;
-  publicToken?: string | null;
-  items?: { name: string; qty: number; totalHalalas?: number }[];
+  items?: { name: string; qty: number }[];
+  /**
+   * Present only while an order is still payable.
+   *
+   * Without it an unpaid order is a dead end on this screen — the customer can
+   * see what they owe and has no way to pay it.
+   */
+  payLink?: { url: string; expiresAt: number } | null;
+  /** What the customer is allowed to see of a refund: amount, date, their own
+   *  message and ticket. Never the internal reason or the staff member. */
+  refund?: {
+    amountHalalas: number;
+    at: number | null;
+    cancelled: boolean;
+    ticketCode: string | null;
+  } | null;
+  /**
+   * Auto-closed after sitting "ready" undelivered.
+   *
+   * ⚠️ Not proof of delivery — the status itself stays `ready`. It exists so
+   * the text can change from "ready and waiting" (two days later) to an
+   * invitation to get in touch.
+   */
+  autoClosed?: boolean;
+  /** Catering only. */
+  paidHalalas?: number;
+  remainderHalalas?: number;
+  eventDate?: string | null;
+  eventTime?: string | null;
 }
 
-/** The signed-in customer's orders — replaces both the mock list and the
- *  separate Foodics history call. One list, one source. */
-export async function fetchMyOrders(): Promise<MyOrderSummary[]> {
-  const res = await callFn<{ orders?: MyOrderSummary[] } | MyOrderSummary[]>('myOrders');
-  if (Array.isArray(res)) return res;
-  return res?.orders ?? [];
+export interface MyOrdersResult {
+  phone: string | null;
+  orders: MyOrder[];
+}
+
+/**
+ * The signed-in customer's orders.
+ *
+ * Replaces both the mock list and the separate Foodics history call — one
+ * list, one source, already sorted newest first by the server.
+ *
+ * `phone: null` means the server could not tie this account to a number. It
+ * used to be indistinguishable from "no orders yet", and that hid a real fault
+ * for a month; treat it as an error state, not an empty one.
+ */
+export async function fetchMyOrders(): Promise<MyOrdersResult> {
+  const res = await callFn<MyOrdersResult>('myOrders');
+  return { phone: res?.phone ?? null, orders: res?.orders ?? [] };
 }
 
 /** Cancel an unpaid order. Paid orders go through the refund path instead. */

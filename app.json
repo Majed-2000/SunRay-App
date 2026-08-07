@@ -3,7 +3,7 @@
     "name": "Sun Ray",
     "slug": "sun-ray-cafe",
     "scheme": "sunray",
-    "version": "1.2.0",
+    "version": "1.2.1",
     "orientation": "portrait",
     "icon": "./assets/sunray-logo-icon.png",
     "userInterfaceStyle": "light",
@@ -33,7 +33,7 @@
         "backgroundColor": "#efe6d6",
         "barStyle": "dark-content"
       },
-      "versionCode": 4
+      "versionCode": 5
     },
     "web": {
       "favicon": "./assets/favicon.png"

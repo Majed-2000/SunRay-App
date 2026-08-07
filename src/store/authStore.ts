@@ -3,23 +3,34 @@ import { router } from 'expo-router';
 import type { User } from '@/types';
 import { mockUser } from '@/data';
 import { setLocale, type LocaleCode } from '@/i18n';
-import { request, USE_BACKEND } from '@/services/api';
-import {
-  setAccessToken,
-  getAccessToken,
-  saveRefreshToken,
-  loadRefreshToken,
-  refreshAccessToken,
-  clearSession,
-  registerSessionHandlers,
-} from '@/services/session';
-import { mapCustomer, type CustomerDTO } from '@/services/dto';
+import { USE_BACKEND } from '@/services/api';
+import { clearSession, registerSessionHandlers } from '@/services/session';
+import * as storeAuth from '@/services/storeAuth';
+import { auth as firebaseAuth } from '@/services/firebase';
+import type { User as FbUser } from 'firebase/auth';
 
-interface VerifyResponse {
-  accessToken: string;
-  refreshToken: string;
-  expiresIn: number;
-  customer: CustomerDTO;
+/**
+ * Build the app's `User` from a Firebase account.
+ *
+ * The store keeps no profile document — a customer is a phone number, and the
+ * display name is carried on their orders (`customer_name_sync`). So the fields
+ * this app shows beyond phone (email, city, gender, birthday) simply have no
+ * source yet; they stay undefined rather than being invented. The name falls
+ * back to the phone's last digits so the avatar is never blank.
+ */
+function userFromFirebase(fb: FbUser | null, fallbackPhone: string): User {
+  // Firebase stores E.164 (+9665…); every screen in this app formats the local
+  // 5XXXXXXXX form.
+  const e164 = fb?.phoneNumber ?? '';
+  const local = e164.replace(/^\+?966/, '') || fallbackPhone || '';
+  const name = fb?.displayName?.trim() || `عميل ${local.slice(-4)}`;
+  return {
+    id: fb?.uid ?? local,
+    name,
+    phone: local,
+    avatarText: name.charAt(0) || 'ع',
+    joinedAt: fb?.metadata?.creationTime ? Date.parse(fb.metadata.creationTime) : Date.now(),
+  };
 }
 
 interface AuthState {
@@ -32,6 +43,14 @@ interface AuthState {
   pendingPhone: string; // local form during login → OTP
   /** True while we try to restore a saved session on app start (backend mode). */
   isHydrating: boolean;
+  /**
+   * Arabic text for the last sign-in refusal, or null.
+   *
+   * The OTP path fails in ways the customer must be able to tell apart —
+   * a wrong code, an expired one, and a lockout after five wrong attempts all
+   * need different next actions. A single boolean cannot carry that.
+   */
+  authError: string | null;
 
   setLocale: (locale: LocaleCode) => void;
   completeOnboarding: () => void;
@@ -59,6 +78,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   pendingPhone: '',
   // In backend mode we briefly try to restore a session before routing.
   isHydrating: USE_BACKEND,
+  authError: null,
 
   setLocale: (locale) => {
     setLocale(locale);
@@ -68,14 +88,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   setPendingPhone: (phone) => set({ pendingPhone: phone }),
 
   requestOtp: async (phone) => {
-    set({ pendingPhone: phone });
+    set({ pendingPhone: phone, authError: null });
     if (!USE_BACKEND) return true; // mock: nothing to send
-    try {
-      await request('/api/auth/login', { method: 'POST', body: { phone }, skipAuth: true });
-      return true;
-    } catch {
-      return false;
-    }
+    const res = await storeAuth.requestOtp(phone);
+    if (!res.ok) set({ authError: storeAuth.describeOtpError(res.reason) });
+    return res.ok;
   },
 
   verifyOtp: async (code) => {
@@ -85,24 +102,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ user: { ...mockUser, phone }, token: 'mock-token', isAuthenticated: true, isGuest: false });
       return true;
     }
-    try {
-      const data = await request<VerifyResponse>('/api/auth/verify', {
-        method: 'POST',
-        body: { phone, code },
-        skipAuth: true,
-      });
-      setAccessToken(data.accessToken);
-      await saveRefreshToken(data.refreshToken);
-      set({
-        user: mapCustomer(data.customer),
-        token: data.accessToken,
-        isAuthenticated: true,
-        isGuest: false,
-      });
-      return true;
-    } catch {
+    const res = await storeAuth.verifyOtp(phone, code);
+    if (!res.ok) {
+      // The reason matters here. "5 wrong attempts" destroys the code, and a
+      // customer told only "wrong code" will keep typing into a dead prompt.
+      set({ authError: storeAuth.describeOtpError(res.reason) });
       return false;
     }
+    const fbUser = firebaseAuth().currentUser;
+    set({
+      user: userFromFirebase(fbUser, phone),
+      token: fbUser?.uid ?? null,
+      isAuthenticated: true,
+      isGuest: false,
+      authError: null,
+    });
+    return true;
   },
 
   restoreSession: async () => {
@@ -110,22 +125,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ isHydrating: false });
       return;
     }
+    /**
+     * Firebase persists the session itself (AsyncStorage), so there is no token
+     * to refresh by hand — but `currentUser` is null for a moment after launch
+     * while that read completes. Routing off that null flashes the login screen
+     * at a customer who is already signed in, so we wait for the first real
+     * auth state instead of reading the property.
+     */
     try {
-      const refreshToken = await loadRefreshToken();
-      if (!refreshToken) {
+      const fbUser = await storeAuth.waitForAuthReady();
+      if (!fbUser) {
         set({ isHydrating: false });
         return;
       }
-      // Mint a fresh access token from the stored refresh token, then load the profile.
-      const ok = await refreshAccessToken();
-      if (!ok) {
-        set({ isHydrating: false });
-        return;
-      }
-      const customer = await request<CustomerDTO>('/api/auth/me');
       set({
-        user: mapCustomer(customer),
-        token: getAccessToken(),
+        user: userFromFirebase(fbUser, get().pendingPhone),
+        token: fbUser.uid,
         isAuthenticated: true,
         isGuest: false,
         isHydrating: false,
@@ -157,12 +172,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     ),
 
   logout: () => {
-    // Best-effort server revoke + clear the keychain (backend mode), then reset state.
     if (USE_BACKEND) {
-      request('/api/auth/logout', { method: 'POST' }).catch(() => {});
+      void storeAuth.signOutStore();
+      // Clears anything the previous Express-backed session left behind.
       void clearSession();
     }
-    set({ user: null, token: null, isAuthenticated: false, isGuest: false, pendingPhone: '' });
+    set({
+      user: null,
+      token: null,
+      isAuthenticated: false,
+      isGuest: false,
+      pendingPhone: '',
+      authError: null,
+    });
   },
 }));
 

@@ -48,7 +48,7 @@ export function OtpScreen() {
         toast('تم إرسال الرمز مجددًا');
         inputRef.current?.focus();
       } else {
-        toast('تعذّر إرسال الرمز، حاول مرة أخرى');
+        toast(useAuthStore.getState().authError ?? 'تعذّر إرسال الرمز، حاول مرة أخرى');
       }
     } finally {
       setResending(false);
@@ -71,10 +71,13 @@ export function OtpScreen() {
       toast('أدخل رمز التحقق كاملًا');
       return;
     }
-    // Mock mode: any 4 digits works. Backend mode: POST /api/auth/verify.
+    // Mock mode: any 4 digits works. Live: verifyStoreOtp → Firebase session.
     const okSignIn = await verifyOtp(value);
     if (!okSignIn) {
-      toast('رمز غير صحيح أو تعذّر الاتصال بالخادم');
+      // The store tells us WHY: wrong · expired · locked after five attempts.
+      // "Wrong code" on a lockout leaves the customer typing into a dead prompt.
+      toast(useAuthStore.getState().authError ?? 'تعذّر التحقق، حاول مرة أخرى');
+      setCode('');
       return;
     }
     // Show a brief "verified successfully" moment, then continue.

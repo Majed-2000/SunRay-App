@@ -31,7 +31,7 @@
 // import site rather than at this file.
 export {};
 
-declare module 'firebase/auth' {
+declare module '@firebase/auth' {
   /** The subset of AsyncStorage that Firebase Auth actually uses. */
   export interface ReactNativeAsyncStorage {
     setItem(key: string, value: string): Promise<void>;

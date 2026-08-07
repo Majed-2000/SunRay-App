@@ -23,13 +23,37 @@
  * fails with a bare "not-found" that reads like a missing function rather than
  * a misrouted call, so the region is pinned here once.
  */
-import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
+/**
+ * ⚠️ `@firebase/app` and `@firebase/auth`, NOT `firebase/app` and
+ * `firebase/auth`.
+ *
+ * The umbrella `firebase` package declares no `react-native` export condition
+ * on ANY subpath — only `node`, `browser` and `default`. Metro therefore
+ * resolves `firebase/auth` to the **browser** build, which does not contain
+ * `getReactNativePersistence` at all. The import silently becomes `undefined`,
+ * calling it throws, and the browser build then reaches for `indexedDB` on a
+ * device that has none: the app renders its splash and dies.
+ *
+ * The inner `@firebase/auth` package DOES declare `react-native`, so importing
+ * it directly gets the build meant for this platform.
+ *
+ * `database` and `functions` stay on the umbrella deliberately — neither inner
+ * package declares a react-native condition either, because both are
+ * isomorphic and the default build is the correct one on a device.
+ *
+ * 🔍 How this was missed: the built bundle was searched for the string
+ * "getReactNativePersistence" and it was there — but it was there because THIS
+ * FILE names it. Finding an identifier you wrote proves nothing about what the
+ * dependency exported. The check that actually settles it is reading the two
+ * dist files: the browser build has no such symbol, the RN build does.
+ */
+import { initializeApp, getApps, getApp, type FirebaseApp } from '@firebase/app';
 import {
   initializeAuth,
   getAuth,
   getReactNativePersistence,
   type Auth,
-} from 'firebase/auth';
+} from '@firebase/auth';
 import { getDatabase, type Database } from 'firebase/database';
 import { getFunctions, httpsCallable, type Functions } from 'firebase/functions';
 import AsyncStorage from '@react-native-async-storage/async-storage';

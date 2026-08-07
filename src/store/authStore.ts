@@ -7,7 +7,7 @@ import { USE_BACKEND } from '@/services/api';
 import { clearSession, registerSessionHandlers } from '@/services/session';
 import * as storeAuth from '@/services/storeAuth';
 import { auth as firebaseAuth } from '@/services/firebase';
-import type { User as FbUser } from 'firebase/auth';
+import type { User as FbUser } from '@firebase/auth';
 
 /**
  * Build the app's `User` from a Firebase account.

@@ -22,7 +22,7 @@
  * A customer who is locked out and told only "wrong code" will keep typing.
  * `describeOtpError` maps each reason to what actually happened.
  */
-import { signInWithCustomToken, signOut, onAuthStateChanged, type User as FbUser } from 'firebase/auth';
+import { signInWithCustomToken, signOut, onAuthStateChanged, type User as FbUser } from '@firebase/auth';
 import { auth, callFn, type CallResult } from './firebase';
 
 /** `requestStoreOtp` reply. Times are echoed so the UI can match the server. */

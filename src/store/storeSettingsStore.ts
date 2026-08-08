@@ -25,14 +25,26 @@ interface StoreSettingsState {
   /** Arabic reason when closed — prayer, Friday, maintenance. */
   closedReason: string | null;
   giftPackages: GiftPackage[];
+  /**
+   * Amounts offered for a gift card, cheapest first.
+   *
+   * Stored, not derived on read. It began as `giftAmounts: () => packages.map(…)`
+   * and screens selected it with `useStoreSettingsStore((s) => s.giftAmounts())`.
+   * Zustand compares a selector's result with `Object.is`, and `.map()` returns a
+   * new array every call — so the result never compared equal, every render
+   * scheduled another, and the app died with "Maximum update depth exceeded" the
+   * moment the home screen mounted.
+   *
+   * Computed once here when the packages change, the reference is stable and the
+   * comparison does its job.
+   */
+  giftAmounts: number[];
   closedSections: Record<string, boolean>;
   /** False until the first snapshot lands. */
   ready: boolean;
 
   /** Start listening. Returns an unsubscribe; safe to call once at app start. */
   start: () => () => void;
-  /** Amounts offered for a gift card, cheapest first. */
-  giftAmounts: () => number[];
   isSectionClosed: (section: string) => boolean;
 }
 
@@ -42,6 +54,7 @@ export const useStoreSettingsStore = create<StoreSettingsState>((set, get) => ({
   open: true,
   closedReason: null,
   giftPackages: [],
+  giftAmounts: [],
   closedSections: {},
   ready: false,
 
@@ -54,7 +67,12 @@ export const useStoreSettingsStore = create<StoreSettingsState>((set, get) => ({
       set({ open: s.open, closedReason: s.reason }),
     );
     const stopSettings = subscribeSettings((s) =>
-      set({ giftPackages: s.giftPackages, closedSections: s.closedSections, ready: true }),
+      set({
+        giftPackages: s.giftPackages,
+        giftAmounts: s.giftPackages.map((p) => p.priceSar),
+        closedSections: s.closedSections,
+        ready: true,
+      }),
     );
     return () => {
       stopOpen();
@@ -62,6 +80,5 @@ export const useStoreSettingsStore = create<StoreSettingsState>((set, get) => ({
     };
   },
 
-  giftAmounts: () => get().giftPackages.map((p) => p.priceSar),
   isSectionClosed: (section) => get().closedSections[section] === true,
 }));

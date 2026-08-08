@@ -24,7 +24,7 @@ export function GiftListScreen() {
   const cards = useGiftStore((s) => s.cards);
   const { isTablet } = useResponsive();
   const t = strings();
-  const giftAmounts = useStoreSettingsStore((s) => s.giftAmounts());
+  const giftAmounts = useStoreSettingsStore((s) => s.giftAmounts);
 
 
   return (

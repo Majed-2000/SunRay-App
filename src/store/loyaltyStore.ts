@@ -2,6 +2,10 @@ import { create } from 'zustand';
 import { fetchMyLoyalty, type LoyaltyEvent, type LoyaltyReward, type MyLoyalty } from '@/services/storeLoyalty';
 import { USE_BACKEND } from '@/services/api';
 
+/** Stable empty fallbacks — see the note on `rewards` below. */
+const NO_REWARDS: LoyaltyReward[] = [];
+const NO_EVENTS: LoyaltyEvent[] = [];
+
 /**
  * The customer's loyalty state, mirrored from the live ledger.
  *
@@ -80,7 +84,15 @@ export const useLoyaltyStore = create<LoyaltyState>((set, get) => ({
   },
 
   rewardLabel: () => get().data?.rewardLabel ?? 'مكافأة',
-  rewards: () => get().data?.rewards ?? [],
-  timeline: () => get().data?.timeline ?? [],
+  /**
+   * ⚠️ The fallbacks are shared frozen constants, not `?? []`.
+   *
+   * A fresh `[]` is a fresh identity, and Zustand compares selector results with
+   * `Object.is`. Written as `?? []`, every render while `data` is null produced
+   * a "new" value, scheduled another render, and looped — the same defect that
+   * took the app down from `giftAmounts`. One constant compares equal to itself.
+   */
+  rewards: () => get().data?.rewards ?? NO_REWARDS,
+  timeline: () => get().data?.timeline ?? NO_EVENTS,
   tierLabel: () => get().data?.tier?.label ?? null,
 }));

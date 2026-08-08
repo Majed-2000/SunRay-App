@@ -24,7 +24,7 @@ export function GiftCreateScreen() {
   const user = useAuthStore((s) => s.user);
   const createGift = useGiftStore((s) => s.createGift);
 
-  const giftAmounts = useStoreSettingsStore((s) => s.giftAmounts());
+  const giftAmounts = useStoreSettingsStore((s) => s.giftAmounts);
   const [amount, setAmount] = useState<number>(Number(params.amount) || 0);
   const [designId, setDesignId] = useState<string>(params.designId ?? 'gold');
   const [custom, setCustom] = useState('');

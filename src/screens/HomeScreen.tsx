@@ -46,7 +46,7 @@ export function HomeScreen() {
   const catalogProducts = useCatalogStore((s) => s.products);
   const featured = useMemo(() => catalogProducts.filter((p) => p.isFeatured), [catalogProducts]);
   const t = strings();
-  const giftAmounts = useStoreSettingsStore((s) => s.giftAmounts());
+  const giftAmounts = useStoreSettingsStore((s) => s.giftAmounts);
 
 
   // Recomputed per mount rather than per render: the band it lands in changes

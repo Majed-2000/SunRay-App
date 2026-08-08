@@ -30,29 +30,76 @@ import type { Category, Product } from '@/types';
 /** Brewing method, when a product prices differently per method. */
 export type BrewMethod = 'hot' | 'cold' | 'classic' | 'freddo';
 
-/** A product exactly as the store stores it. */
+/**
+ * A product exactly as the store stores it.
+ *
+ * ⚠️ Field names taken from the store client (`store-catalog.js`), not guessed.
+ * The Arabic name is `name`, NOT `nameAr` — an earlier version assumed `nameAr`
+ * and every card fell back to the RTDB key, so the menu read
+ * "Augustino_e", "cod_small", "es_col_mango". The description is `desc`.
+ */
 interface RawProduct {
   id?: string;
-  nameAr?: string;
+  /** Arabic name. The primary label. */
+  name?: string;
   nameEn?: string;
-  descAr?: string;
-  descriptionAr?: string;
+  /** Arabic description. */
+  desc?: string;
   section?: string;
   order?: number;
   active?: boolean;
   purchasable?: boolean;
   priceHalalas?: number | null;
   methodPriceHalalas?: Partial<Record<BrewMethod, number>> | null;
-  img?: string | null;
   image?: string | null;
-  emoji?: string | null;
 }
 
-interface RawCategory {
-  nameAr?: string;
-  nameEn?: string;
-  emoji?: string | null;
-  order?: number;
+/**
+ * Section key → the category the customer sees, mirroring `storeCatOf` in the
+ * store client.
+ *
+ * Categories are NOT a lookup of `menu/categories` by section: several sections
+ * collapse into one customer-facing group (hot, cold and winter drinks are all
+ * «المشروبات»), and «قهوة اليوم» is picked out by product id rather than by
+ * section at all. Reading `menu/categories` and matching on `section` — which
+ * is what this did first — produced no matching keys, so the menu showed a
+ * single «الكل» chip and no way to filter 111 products.
+ */
+const SECTION_CATEGORY: Record<string, string> = {
+  pouroverSection: 'القهوة المقطرة',
+  beans_espresso_premium: 'إسبريسو',
+  beans_espresso_classic: 'إسبريسو',
+  matchaSection: 'ماتشا',
+  healthyBreakfast: 'الفطور الصحي',
+  hotDrinks: 'المشروبات',
+  coldDrinks: 'المشروبات',
+  winterItems: 'المشروبات',
+  desserts: 'الحلويات',
+  miniMenu: 'الحلويات',
+};
+
+/** Display order of the sections, from the store client's SECTION_RANK. */
+const SECTION_RANK: Record<string, number> = {
+  pouroverSection: 1,
+  beans_espresso_premium: 2,
+  beans_espresso_classic: 3,
+  matchaSection: 4,
+  healthyBreakfast: 5,
+  hotDrinks: 7,
+  winterItems: 7,
+  coldDrinks: 8,
+  desserts: 9,
+  miniMenu: 10,
+  extras: 11,
+};
+
+const DEFAULT_CATEGORY = 'محاصيلنا & إضافات';
+
+/** Category label for a product — `storeCatOf`, ported. */
+function categoryOf(id: string, p: RawProduct): string {
+  // Coffee of the Day is identified by id, not by its section.
+  if (id === 'cod_small' || id === 'cod_large') return 'قهوة اليوم';
+  return SECTION_CATEGORY[p.section ?? ''] ?? DEFAULT_CATEGORY;
 }
 
 /**
@@ -80,14 +127,16 @@ function toProduct(id: string, p: RawProduct): Product | null {
   return {
     id,
     foodicsId: p.id ?? id,
-    nameAr: p.nameAr ?? id,
+    // `name`, not `nameAr`. Falling back to the key here is what put
+    // "es_col_mango" on a menu card.
+    nameAr: p.name ?? p.nameEn ?? id,
     nameEn: p.nameEn ?? '',
-    descriptionAr: p.descriptionAr ?? p.descAr ?? '',
+    descriptionAr: p.desc ?? '',
     descriptionEn: '',
     price: h / 100,
-    image: p.img ?? p.image ?? null,
-    emoji: p.emoji ?? '☕',
-    categoryId: p.section ?? 'other',
+    image: p.image ?? null,
+    emoji: '☕',
+    categoryId: categoryOf(id, p),
     isAvailable: true,
     isFeatured: false,
     tags: [],
@@ -114,59 +163,49 @@ export interface CatalogSnapshot {
 export function subscribeCatalog(cb: (snap: CatalogSnapshot) => void): () => void {
   const database = db();
   const productsRef = ref(database, 'menu/products');
-  const categoriesRef = ref(database, 'menu/categories');
 
-  let rawProducts: Record<string, RawProduct> = {};
-  let rawCategories: Record<string, RawCategory> = {};
-  let seenProducts = false;
+  const onProducts = (s: DataSnapshot) => {
+    const raw = (s.val() as Record<string, RawProduct>) || {};
 
-  const emit = () => {
-    // Wait for products before the first emit, or the menu flashes empty while
-    // only categories have arrived.
-    if (!seenProducts) return;
+    const entries = Object.entries(raw).filter(([, p]) => p && isPurchasable(p));
 
-    const products = Object.entries(rawProducts)
-      .filter(([, p]) => p && isPurchasable(p))
+    const products = entries
       .map(([id, p]) => toProduct(id, p))
       .filter((p): p is Product => p !== null)
+      // Section rank first, then the product's own order — the same ordering
+      // the store's own menu uses, so the app doesn't present a different one.
       .sort((a, b) => {
-        const oa = rawProducts[a.id]?.order ?? 0;
-        const ob = rawProducts[b.id]?.order ?? 0;
-        return oa - ob;
+        const pa = raw[a.id];
+        const pb = raw[b.id];
+        const ra = SECTION_RANK[pa?.section ?? ''] ?? 99;
+        const rb = SECTION_RANK[pb?.section ?? ''] ?? 99;
+        return ra - rb || (pa?.order ?? 0) - (pb?.order ?? 0);
       });
 
-    // Only sections that actually have something orderable in them. An empty
-    // category tab that shows "no items" reads as a broken filter.
-    const used = new Set(products.map((p) => p.categoryId));
-    const categories: Category[] = Object.entries(rawCategories)
-      .filter(([key]) => used.has(key))
-      .sort((a, b) => (a[1]?.order ?? 0) - (b[1]?.order ?? 0))
-      .map(([key, c]) => ({
-        id: key,
-        foodicsId: key,
-        nameAr: c?.nameAr ?? key,
-        nameEn: c?.nameEn ?? '',
-        emoji: c?.emoji ?? '',
-      }));
+    /**
+     * Categories are derived from the products present, in the order those
+     * products appear — not read from `menu/categories`.
+     *
+     * Only groups that actually contain something orderable get a chip, so a
+     * tab can never open onto "no items".
+     */
+    const seen = new Set<string>();
+    const categories: Category[] = [];
+    for (const p of products) {
+      if (seen.has(p.categoryId)) continue;
+      seen.add(p.categoryId);
+      categories.push({
+        id: p.categoryId,
+        foodicsId: p.categoryId,
+        nameAr: p.categoryId,
+        nameEn: '',
+        emoji: '',
+      });
+    }
 
     cb({ products, categories });
   };
 
-  const onProducts = (s: DataSnapshot) => {
-    rawProducts = (s.val() as Record<string, RawProduct>) || {};
-    seenProducts = true;
-    emit();
-  };
-  const onCategories = (s: DataSnapshot) => {
-    rawCategories = (s.val() as Record<string, RawCategory>) || {};
-    emit();
-  };
-
   onValue(productsRef, onProducts);
-  onValue(categoriesRef, onCategories);
-
-  return () => {
-    off(productsRef, 'value', onProducts);
-    off(categoriesRef, 'value', onCategories);
-  };
+  return () => off(productsRef, 'value', onProducts);
 }

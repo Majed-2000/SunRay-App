@@ -137,6 +137,13 @@ interface OrderState {
 let submitInFlight = false;
 
 /**
+ * How long an unpaid order stays payable. Mirrors ORDER_EXPIRY_MS in
+ * functions/store_payments.js — if the two drift, the app and the branch
+ * disagree about which orders are still open.
+ */
+const UNPAID_EXPIRY_MS = 24 * 60 * 60 * 1000;
+
+/**
  * The store's status vocabulary → the app's numeric one.
  *
  * The app's tracking UI was built around Foodics' numeric codes, and the store
@@ -170,8 +177,21 @@ function mapStatus(o: MyOrder): { status: OrderStatus; deliveryStatus: DeliveryS
       return { status: FoodicsOrderStatus.Void, deliveryStatus: null };
     case 'refunded':
       return { status: FoodicsOrderStatus.Returned, deliveryStatus: null };
+    case 'awaiting_payment':
+      /**
+       * An order that was never paid is only "active" while it can still be
+       * paid. The server draws that line at 24 hours (`ORDER_EXPIRY_MS`) and
+       * sweeps them; the app has to draw it in the same place or it disagrees
+       * with the business about what is outstanding.
+       *
+       * Treating every unpaid order as pending is what put **48** in the orders
+       * badge, the oldest 23 days old and all of them abandoned — a number that
+       * tells the customer they have a pile of live orders when they have none.
+       */
+      return Date.now() - (o.createdAt || 0) > UNPAID_EXPIRY_MS
+        ? { status: FoodicsOrderStatus.Void, deliveryStatus: null }
+        : { status: FoodicsOrderStatus.Pending, deliveryStatus: null };
     default:
-      // Includes `awaiting_payment` — still pending as far as the counter goes.
       return { status: FoodicsOrderStatus.Pending, deliveryStatus: null };
   }
 }

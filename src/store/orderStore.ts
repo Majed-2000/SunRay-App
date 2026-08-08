@@ -137,13 +137,6 @@ interface OrderState {
 let submitInFlight = false;
 
 /**
- * How long an unpaid order stays payable. Mirrors ORDER_EXPIRY_MS in
- * functions/store_payments.js — if the two drift, the app and the branch
- * disagree about which orders are still open.
- */
-const UNPAID_EXPIRY_MS = 24 * 60 * 60 * 1000;
-
-/**
  * The store's status vocabulary → the app's numeric one.
  *
  * The app's tracking UI was built around Foodics' numeric codes, and the store
@@ -164,8 +157,29 @@ function mapStatus(o: MyOrder): { status: OrderStatus; deliveryStatus: DeliveryS
     deliveryStatus: FoodicsDeliveryStatus.Ready,
   };
   const f = o.fulfillment ?? '';
-  if (f === 'delivered' || f === 'picked_up')
+
+  /**
+   * Concluded, per `isConcludedNorm` in the store's own account page — copied,
+   * not invented, so the app and the website never disagree about whether a
+   * customer still has something coming.
+   *
+   * ⚠️ `ready` is deliberately NOT concluded. A ready order has not been
+   * collected yet; the store notes (2026-08-06) that treating it as finished
+   * asks the customer to rate an experience that has not happened. An earlier
+   * version here also had the vocabulary wrong — `picked_up` instead of
+   * `picked`, and no `done` at all.
+   */
+  if (f === 'done' || f === 'delivered' || f === 'picked')
     return { status: FoodicsOrderStatus.Closed, deliveryStatus: null };
+
+  /**
+   * Auto-closed: the branch never closed it and the sweeper gave up waiting.
+   * It leaves the status at `ready` on purpose — auto-close means "we stopped
+   * waiting", never "we delivered" — but it does take the order out of the
+   * active list, and so must this.
+   */
+  if (o.autoClosed) return { status: FoodicsOrderStatus.Closed, deliveryStatus: null };
+
   if (f === 'cancelled') return { status: FoodicsOrderStatus.Void, deliveryStatus: null };
   if (f === 'ready') return READY;
   if (f === 'preparing') return { status: FoodicsOrderStatus.Active, deliveryStatus: null };
@@ -177,20 +191,11 @@ function mapStatus(o: MyOrder): { status: OrderStatus; deliveryStatus: DeliveryS
       return { status: FoodicsOrderStatus.Void, deliveryStatus: null };
     case 'refunded':
       return { status: FoodicsOrderStatus.Returned, deliveryStatus: null };
-    case 'awaiting_payment':
-      /**
-       * An order that was never paid is only "active" while it can still be
-       * paid. The server draws that line at 24 hours (`ORDER_EXPIRY_MS`) and
-       * sweeps them; the app has to draw it in the same place or it disagrees
-       * with the business about what is outstanding.
-       *
-       * Treating every unpaid order as pending is what put **48** in the orders
-       * badge, the oldest 23 days old and all of them abandoned — a number that
-       * tells the customer they have a pile of live orders when they have none.
-       */
-      return Date.now() - (o.createdAt || 0) > UNPAID_EXPIRY_MS
-        ? { status: FoodicsOrderStatus.Void, deliveryStatus: null }
-        : { status: FoodicsOrderStatus.Pending, deliveryStatus: null };
+    // The server writes `expired` itself once an unpaid order passes
+    // ORDER_EXPIRY_MS, so the app reads that rather than re-deriving it from a
+    // timestamp — one clock, not two.
+    case 'expired':
+      return { status: FoodicsOrderStatus.Void, deliveryStatus: null };
     default:
       return { status: FoodicsOrderStatus.Pending, deliveryStatus: null };
   }

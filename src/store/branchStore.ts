@@ -76,11 +76,16 @@ export const useBranchStore = create<BranchState>((set, get) => ({
   load: async () => {
     if (!USE_BACKEND || unsubscribe) return;
     unsubscribe = subscribeOpenState(({ open, reason }) => {
-      set((s) => ({
+      const s = get();
+      // Rebuild the branch objects only when the state actually changed.
+      // `.map()` unconditionally would hand every screen selecting `current()`
+      // a new object identity on each emission and re-render them for nothing.
+      if (s.branches[0]?.isOpen === open && s.closedReason === reason) return;
+      set({
         branches: s.branches.map((b) => ({ ...b, isOpen: open })),
         closedReason: reason,
         status: 'ready',
-      }));
+      });
     });
   },
 

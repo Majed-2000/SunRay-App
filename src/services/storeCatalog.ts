@@ -164,8 +164,39 @@ export function subscribeCatalog(cb: (snap: CatalogSnapshot) => void): () => voi
   const database = db();
   const productsRef = ref(database, 'menu/products');
 
+  /**
+   * Signature of everything this app actually displays.
+   *
+   * ⚠️ Why this exists. `settlePayment` decrements
+   * `menu/products/<serviceId>/stock` on every order that settles, so a listener
+   * on the whole node wakes up for every sale the business makes — from the
+   * website as well as the app. Without this guard each of those rebuilt all
+   * 111 products, re-sorted them, and replaced the array, re-rendering the menu
+   * for a field we do not even show. On a busy afternoon that is constant, and
+   * it is what made the app feel like it was hanging.
+   *
+   * Only a change the customer could see gets through.
+   */
+  const signatureOf = (raw: Record<string, RawProduct>): string => {
+    const parts: string[] = [];
+    for (const id of Object.keys(raw).sort()) {
+      const p = raw[id];
+      if (!p) continue;
+      parts.push(
+        `${id}|${p.name ?? ''}|${p.nameEn ?? ''}|${p.desc ?? ''}|${p.section ?? ''}|${p.order ?? ''}|${p.image ?? ''}|${p.priceHalalas ?? ''}|${JSON.stringify(p.methodPriceHalalas ?? null)}|${p.active !== false ? 1 : 0}|${p.purchasable === true ? 1 : 0}`,
+      );
+    }
+    return parts.join('\n');
+  };
+
+  let lastSignature: string | null = null;
+
   const onProducts = (s: DataSnapshot) => {
     const raw = (s.val() as Record<string, RawProduct>) || {};
+
+    const signature = signatureOf(raw);
+    if (signature === lastSignature) return; // stock-only change — nothing to redraw
+    lastSignature = signature;
 
     const entries = Object.entries(raw).filter(([, p]) => p && isPurchasable(p));
 

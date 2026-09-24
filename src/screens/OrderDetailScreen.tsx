@@ -98,12 +98,18 @@ export function OrderDetailScreen() {
   };
 
   const onReorder = () => {
-    const { added, missing } = reorder(order.items);
+    const { added, missing, needChoice } = reorder(order.items);
+    const notes = [
+      needChoice.length ? `اختر حار أو بارد لـ: ${needChoice.join('، ')}` : '',
+      missing.length ? `غير متوفر: ${missing.join('، ')}` : '',
+    ].filter(Boolean);
     if (added === 0) {
-      toast('أصناف هذا الطلب لم تعد في القائمة');
+      // Nothing could go in as-is; send them to the menu with the reason.
+      toast(notes.join(' — ') || 'أصناف هذا الطلب لم تعد في القائمة');
+      router.push('/(tabs)/menu');
       return;
     }
-    toast(missing.length ? `أُضيفت الأصناف المتوفرة — غير متوفر: ${missing.join('، ')}` : 'أُضيفت أصناف الطلب إلى السلة ✓');
+    toast(notes.length ? `أُضيفت بقية الأصناف — ${notes.join(' — ')}` : 'أُضيفت أصناف الطلب إلى السلة ✓');
     router.push('/cart');
   };
 

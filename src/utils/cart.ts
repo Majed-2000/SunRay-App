@@ -9,16 +9,29 @@ export interface ProductSelection {
   qty: number;
 }
 
-/** The method a selection lands on: the chosen one, else the product's first. */
+/**
+ * True when the customer has to pick a method themselves — hot vs cold — and
+ * nothing may be assumed for them. Quick-add and reorder must send such a
+ * product to its screen rather than add it.
+ */
+export function needsMethodChoice(product: Product): boolean {
+  return (product.methods?.length ?? 0) > 1 && !product.defaultMethod;
+}
+
+/**
+ * The method a selection lands on: the chosen one, else the product's
+ * default. `undefined` while a required choice is still open.
+ */
 export function resolvedMethod(product: Product, sel: Pick<ProductSelection, 'method'>) {
   const methods = product.methods ?? [];
-  return methods.find((m) => m.id === sel.method) ?? methods[0];
+  return methods.find((m) => m.id === (sel.method ?? product.defaultMethod));
 }
 
 /** Resolve unit price for a product + selection. */
 export function selectionUnitPrice(product: Product, sel: ProductSelection): number {
   // A method price is the full price, not a delta — the same way the server
-  // reads `methodPriceHalalas`.
+  // reads `methodPriceHalalas`. With the choice still open, the product's own
+  // price (its first method's) stands in for display only.
   let price = resolvedMethod(product, sel)?.price ?? product.price;
   if (sel.sizeId) {
     const size = product.sizes.find((s) => s.id === sel.sizeId);

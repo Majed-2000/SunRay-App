@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { CartLine, OrderType, Product, Coupon } from '@/types';
-import { buildCartLine, type ProductSelection } from '@/utils/cart';
+import { router } from 'expo-router';
+import { buildCartLine, needsMethodChoice, type ProductSelection } from '@/utils/cart';
 import { validateCoupon, describeCouponError } from '@/services/storeOffers';
 import { useCatalogStore } from './catalogStore';
 import { toast } from './uiStore';
@@ -35,7 +36,7 @@ interface CartState {
    * Put a past order's items back in the cart, at today's menu and prices.
    * Returns how many lines were added and the names no longer on the menu.
    */
-  reorder: (items: { nameAr: string; qty: number }[]) => { added: number; missing: string[] };
+  reorder: (items: { nameAr: string; qty: number }[]) => { added: number; missing: string[]; needChoice: string[] };
 
   count: () => number;
 }
@@ -63,6 +64,18 @@ export const useCartStore = create<CartState>((set, get) => ({
   },
 
   quickAdd: (product) => {
+    if (!product.isAvailable) {
+      toast('نفد اليوم');
+      return;
+    }
+    // The "+" on a menu card cannot ask a question, and hot vs cold is one the
+    // app must not answer for the customer — a 2-litre jug made hot for someone
+    // who wanted it cold is 59 ﷼ poured away. Open the product instead.
+    if (needsMethodChoice(product)) {
+      router.push(`/product/${product.id}`);
+      toast('اختر حار أو بارد');
+      return;
+    }
     const sel: ProductSelection = {
       sizeId: product.sizes.find((z) => z.id === 'M')?.id ?? product.sizes[0]?.id,
       // pick the first "milk" option (works for both mock and backend products)
@@ -145,17 +158,24 @@ export const useCartStore = create<CartState>((set, get) => ({
   reorder: (items) => {
     const products = useCatalogStore.getState().products;
     const missing: string[] = [];
+    // The feed does not say whether it was hot or cold, so those are not
+    // guessed: they are named back to the customer to add from the menu.
+    const needChoice: string[] = [];
     let added = 0;
     for (const it of items) {
       const product = products.find((p) => p.nameAr === it.nameAr);
-      if (!product) {
+      if (!product || !product.isAvailable) {
         missing.push(it.nameAr);
+        continue;
+      }
+      if (needsMethodChoice(product)) {
+        needChoice.push(it.nameAr);
         continue;
       }
       get().addProduct(product, { addOnIds: [], qty: Math.max(1, it.qty) });
       added += 1;
     }
-    return { added, missing };
+    return { added, missing, needChoice };
   },
 
   count: () => get().lines.reduce((a, l) => a + l.qty, 0),

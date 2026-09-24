@@ -15,7 +15,7 @@ import {
 } from '@/components';
 import type { Product } from '@/types';
 import { formatRiyal, toArabicDigits } from '@/utils/numerals';
-import { selectionUnitPrice, type ProductSelection } from '@/utils/cart';
+import { needsMethodChoice, selectionUnitPrice, type ProductSelection } from '@/utils/cart';
 import { useResponsive } from '@/hooks/useResponsive';
 import { useCartStore, useCatalogStore, toast } from '@/store';
 
@@ -73,7 +73,9 @@ function ProductDetail({ product }: { product: Product }) {
   const extras = product.addOns.filter((a) => a.group === 'extra');
 
   const methods = product.methods ?? [];
-  const [method, setMethod] = useState(methods[0]?.id);
+  // Nothing preselected for hot/cold — see `needsMethodChoice`.
+  const [method, setMethod] = useState(product.defaultMethod);
+  const choiceMissing = needsMethodChoice(product) && !method;
   const [sizeId, setSizeId] = useState(product.sizes.find((z) => z.id === 'M')?.id ?? product.sizes[0]?.id);
   const [milkId, setMilkId] = useState(milks[0]?.id);
   const [extraIds, setExtraIds] = useState<string[]>([]);
@@ -157,7 +159,7 @@ function ProductDetail({ product }: { product: Product }) {
               has to travel with the order, not just change the label */}
           {methods.length > 1 ? (
             <>
-              <SectionLabel>طريقة التحضير</SectionLabel>
+              <SectionLabel>{needsMethodChoice(product) ? 'اختر: حار أو بارد' : 'طريقة التحضير'}</SectionLabel>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                 {methods.map((m) => (
                   <OptionChip
@@ -264,10 +266,10 @@ function ProductDetail({ product }: { product: Product }) {
       >
         <View style={{ width: '100%', maxWidth: productMaxWidth, alignSelf: 'center' }}>
         <Button
-          label={product.isAvailable ? 'أضف إلى السلة' : 'غير متوفر حاليًا'}
-          trailing={product.isAvailable ? formatRiyal(unit * qty) : undefined}
+          label={!product.isAvailable ? 'نفد اليوم' : choiceMissing ? 'اختر حار أو بارد' : 'أضف إلى السلة'}
+          trailing={product.isAvailable && !choiceMissing ? formatRiyal(unit * qty) : undefined}
           onPress={onAdd}
-          disabled={!product.isAvailable}
+          disabled={!product.isAvailable || choiceMissing}
         />
         </View>
       </View>

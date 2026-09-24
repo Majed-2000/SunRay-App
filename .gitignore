@@ -50,3 +50,7 @@ yarn-error.*
 
 # Large local scratch data
 /mooninfo.json
+
+# Foodics access tokens and account credentials. Never commit: the repo is public.
+*token*.txt
+*Token*.txt

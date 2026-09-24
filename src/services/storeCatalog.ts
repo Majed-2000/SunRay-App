@@ -59,6 +59,14 @@ interface RawProduct {
   priceHalalas?: number | null;
   methodPriceHalalas?: Partial<Record<BrewMethod, number>> | null;
   image?: string | null;
+  /**
+   * Stock from the Foodics sync. Only tracked items carry it (desserts, bags
+   * of beans); 0 means none left today.
+   */
+  fxQty?: number | null;
+  /** Set when the item was marked sold out — by staff or by the Foodics sync. */
+  soldout_by?: unknown;
+  soldoutSource?: string | null;
 }
 
 /**
@@ -122,6 +130,29 @@ export function priceHalalas(p: RawProduct, method?: BrewMethod): number | null 
 }
 
 /** Orderable in the app right now. */
+/**
+ * Sold out right now. The item stays on the menu — customers should see it
+ * exists and comes back — but cannot be added. Before this the app offered
+ * items the Foodics sync had already zeroed, and the order failed at the till.
+ */
+function isSoldOut(p: RawProduct): boolean {
+  return Boolean(p.soldout_by || p.soldoutSource) || p.fxQty === 0;
+}
+
+/**
+ * The method a product opens on, when there is a natural one.
+ *
+ * Espresso is «كلاسيك» unless the customer asks for freddo — the same default
+ * Foodics has, where freddo is an optional +3 add-on. Hot vs cold has no such
+ * default: in Foodics the jugs make «نوع القهوة» mandatory with nothing
+ * preselected, and every other hot/cold drink is two separate products. So the
+ * app must not pick one either; the customer chooses.
+ */
+function defaultMethodOf(methods: ProductMethod[]): BrewMethod | undefined {
+  if (methods.length === 1) return methods[0].id;
+  return methods.some((m) => m.id === 'classic') ? 'classic' : undefined;
+}
+
 function isPurchasable(p: RawProduct): boolean {
   return p.active !== false && p.purchasable === true;
 }
@@ -159,12 +190,12 @@ function toProduct(id: string, p: RawProduct): Product | null {
     image: p.image ?? null,
     emoji: '☕',
     categoryId: categoryOf(id, p),
-    isAvailable: true,
+    isAvailable: !isSoldOut(p),
     isFeatured: false,
     tags: [],
     sizes: [],
     addOns: [],
-    ...(methods.length > 0 ? { methods } : {}),
+    ...(methods.length > 0 ? { methods, defaultMethod: defaultMethodOf(methods) } : {}),
     rating: undefined,
   } as unknown as Product;
 }
@@ -206,7 +237,7 @@ export function subscribeCatalog(cb: (snap: CatalogSnapshot) => void): () => voi
       const p = raw[id];
       if (!p) continue;
       parts.push(
-        `${id}|${p.name ?? ''}|${p.nameEn ?? ''}|${p.desc ?? ''}|${p.section ?? ''}|${p.order ?? ''}|${p.image ?? ''}|${p.priceHalalas ?? ''}|${JSON.stringify(p.methodPriceHalalas ?? null)}|${p.active !== false ? 1 : 0}|${p.purchasable === true ? 1 : 0}`,
+        `${id}|${p.name ?? ''}|${p.nameEn ?? ''}|${p.desc ?? ''}|${p.section ?? ''}|${p.order ?? ''}|${p.image ?? ''}|${p.priceHalalas ?? ''}|${JSON.stringify(p.methodPriceHalalas ?? null)}|${p.active !== false ? 1 : 0}|${p.purchasable === true ? 1 : 0}|${isSoldOut(p) ? 1 : 0}`,
       );
     }
     return parts.join('\n');

@@ -85,6 +85,11 @@ export interface Product {
   addOns: ProductAddOn[]; // app-flattened view of other Foodics modifier options
   /** Brewing methods, when the product is priced per method. Absent otherwise. */
   methods?: ProductMethod[];
+  /**
+   * The method preselected on the product screen. Absent when the customer
+   * must choose — hot vs cold has no safe default (see storeCatalog).
+   */
+  defaultMethod?: BrewMethod;
   isAvailable: boolean; // mirrors Foodics product is_active
   isFeatured: boolean;
   tags: string[];

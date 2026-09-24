@@ -104,7 +104,7 @@ function ProductRowBase({ product, onPress, onAdd }: ProductCardProps) {
         height={66}
         emojiSize={24}
         radiusKey="md"
-        showTag={false}
+       
         style={{ width: 66 }}
       >
         {sold ? (

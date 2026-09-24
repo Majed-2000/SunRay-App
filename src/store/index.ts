@@ -19,4 +19,3 @@ export {
   isActiveOrder,
   orderRef,
 } from './orderStore';
-export type { PlaceOrderInput } from './orderStore';

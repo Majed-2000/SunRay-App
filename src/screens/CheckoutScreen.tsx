@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, radius, shadows, spacing } from '@/theme';
+import { colors, spacing } from '@/theme';
 import {
   Button,
   Card,
@@ -14,14 +14,10 @@ import {
   Spinner,
   Txt,
 } from '@/components';
-import type { PaymentMethod } from '@/types';
-import { CONFIG } from '@/constants/config';
 import { strings } from '@/i18n';
 import { formatRiyal, toArabicDigits } from '@/utils/numerals';
-import { pointsEarned } from '@/utils/money';
 import { useCartTotals } from '@/hooks/useCartTotals';
 import { useResponsive } from '@/hooks/useResponsive';
-import { USE_BACKEND } from '@/services/api';
 import { createStoreOrder, describeOrderError, type CreateOrderResult } from '@/services/storeOrders';
 import { describeSettlement, waitForSettlement } from '@/services/storePay';
 import { MoyasarCardForm } from '@/components/MoyasarCardForm';
@@ -32,26 +28,10 @@ import {
   useAuthStore,
   useBranchStore,
   useCartStore,
-  useCatalogStore,
-  useLoyaltyStore,
   useOrderStore,
-  useWalletStore,
   toast,
 } from '@/store';
-
-/**
- * Payment methods offered in MOCK mode only.
- *
- * These were the whole of "payment" before: four rows including a card ending
- * «•••• ٤٢٣٧» that was literal text. Nothing was ever charged. Live, the card
- * form is Moyasar's own and the methods it supports are its business, not a
- * list we maintain here.
- */
-const MOCK_METHODS: { id: PaymentMethod; label: string; sub: string; icon: keyof typeof Ionicons.glyphMap }[] = [
-  { id: 'wallet', label: 'محفظة سن راي', sub: 'الدفع من رصيدك', icon: 'wallet' },
-  { id: 'card', label: 'بطاقة', sub: 'وضع التجربة', icon: 'card' },
-  { id: 'cash', label: 'الدفع عند الاستلام', sub: 'نقدًا أو بالبطاقة', icon: 'cash' },
-];
+import { useStoreSettingsStore } from '@/store/storeSettingsStore';
 
 /** Where the customer is in the checkout. */
 type Stage =
@@ -65,19 +45,19 @@ export function CheckoutScreen() {
   const insets = useSafeAreaInsets();
   const lines = useCartStore((s) => s.lines);
   const orderType = useCartStore((s) => s.orderType);
-  const addressId = useCartStore((s) => s.addressId);
-  const useWallet = useCartStore((s) => s.useWallet);
-  const setUseWallet = useCartStore((s) => s.setUseWallet);
   const clear = useCartStore((s) => s.clear);
+  const coupon = useCartStore((s) => s.coupon);
+  // Live from `store/config/open`. The server refuses orders while closed; this
+  // says so before the customer fills in anything, and says why.
+  const storeOpen = useStoreSettingsStore((s) => s.open);
+  const closedReason = useStoreSettingsStore((s) => s.closedReason);
 
-  const walletBalance = useWalletStore((s) => s.balance);
   const branch = useBranchStore((s) => s.current());
   const isGuest = useAuthStore((s) => s.isGuest);
   const totals = useCartTotals();
   const { contentMaxWidth } = useResponsive();
   const t = strings();
 
-  const [method, setMethod] = useState<PaymentMethod>(walletBalance > 0 ? 'wallet' : 'card');
   const [submitting, setSubmitting] = useState(false);
   const [stage, setStage] = useState<Stage>({ step: 'review' });
   const [plate, setPlate] = useState<PlateValue>({ lettersAr: '', numbers: '' });
@@ -109,6 +89,9 @@ export function CheckoutScreen() {
     const result = await waitForSettlement(order.orderId);
 
     if (result.status === 'paid' || result.status === 'timeout') {
+      // Only a confirmed settlement flips it; a timeout stays pending, since
+      // the charge may or may not have gone through.
+      if (result.status === 'paid') useOrderStore.getState().markPaid(order.orderId);
       clear();
       router.replace(`/order-success?id=${order.orderId}`);
       if (result.status === 'timeout') toast(describeSettlement('timeout'));
@@ -119,118 +102,84 @@ export function CheckoutScreen() {
     setStage({ step: 'pay', order });
   };
 
-  // In backend mode the server ignores coupon/points/wallet (discount is forced to
-  // 0 this phase), so we show the server-aligned total and hide those perks — the
-  // checkout must never display a discount it won't actually apply.
-  // VAT is inclusive, so the total is simply the lines plus delivery — see
-  // utils/money.ts. Adding totals.vat here would double-charge the tax.
-  const displayTotal = USE_BACKEND ? totals.subtotal + totals.deliveryFee : totals.total;
+  // An estimate before the coupon: the server applies the coupon and returns
+  // the figure that is charged, shown once the order exists. VAT is inclusive,
+  // so the total is simply the lines — see utils/money.ts.
+  const displayTotal = totals.subtotal + totals.deliveryFee;
 
   const place = async () => {
-    // Backend mode: send the cart to the server (it computes the totals), then
-    // go to success. Wallet/loyalty stay mock and are not touched here.
-    if (USE_BACKEND) {
-      // Ordering requires a signed-in customer (no anonymous orders). Send guests
-      // to login first; the cart is preserved so they can come back and check out.
-      if (isGuest) {
-        toast('سجّل دخولك لإتمام الطلب');
-        router.push('/(auth)/login');
-        return;
-      }
-      if (submitting) return;
-      setSubmitting(true);
-      try {
-        /**
-         * The server prices the order. Everything the screen has shown so far
-         * is an estimate — `createStoreOrder` recomputes each line from
-         * `menu/products`, ignores any price we send, and signs the total.
-         * That returned figure is the only one Moyasar is ever asked for.
-         */
-        const curbside = isCurbside(orderType);
-        if (curbside && !validatePlate(plate.lettersAr, plate.numbers).ok) {
-          toast('أدخل رقم لوحة سيارتك');
-          setSubmitting(false);
-          return;
-        }
-
-        const order = await createStoreOrder({
-          items: lines.map((l) => ({ serviceId: l.productId, qty: l.qty, notes: l.notes })),
-          // Two modes exist. `orderType` may still say delivery or dine-in from
-          // mock data, and the server would silently record either as a pickup.
-          mode: curbside ? 'car' : 'pickup',
-          // The plate is how the branch finds the car. Sent only for curbside:
-          // on a counter pickup it is data we have no reason to hold.
-          ...(curbside
-            ? {
-                plateLettersAr: plate.lettersAr,
-                plateNumbers: plate.numbers,
-                plateRaw: `${plate.lettersAr} ${plate.numbers}`,
-              }
-            : {}),
-        });
-
-        /**
-         * A fully covered order — gift card, loyalty reward, coupon — is
-         * already done. Opening a card form for zero riyals fails at the
-         * gateway, and asking for a card on a free order is alarming.
-         */
-        if (order.free || order.totalHalalas <= 0) {
-          clear();
-          router.replace(`/order-success?id=${order.orderId}`);
-          return;
-        }
-
-        setStage({ step: 'pay', order });
-      } catch (e) {
-        // The cart is kept in every failure case so nothing is lost.
-        toast(describeOrderError(e));
-      } finally {
-        setSubmitting(false);
-      }
+    // Ordering requires a signed-in customer (no anonymous orders). Send guests
+    // to login first; the cart is preserved so they can come back and check out.
+    if (isGuest) {
+      toast('سجّل دخولك لإتمام الطلب');
+      router.push('/(auth)/login');
       return;
     }
-
-    // Mock mode (unchanged): compute locally + update mock wallet/loyalty.
-    const order = useOrderStore.getState().place({
-      type: orderType,
-      branchId: branch.id,
-      addressId: addressId ?? undefined,
-      items: lines.map((l) => ({
-        nameAr: l.nameAr,
-        optionLabel: l.optionLabel,
-        qty: l.qty,
-        lineTotal: l.unitPrice * l.qty,
-      })),
-      subtotal: totals.subtotal,
-      vat: totals.vat,
-      deliveryFee: totals.deliveryFee,
-      discount: totals.discount + totals.pointsDiscount,
-      total: totals.total,
-      paymentMethod: method,
-      // Estimate only, at the rate the ledger reports. The real award is made
-      // server-side when the order settles.
-      pointsEarned: pointsEarned(totals.subtotal, useLoyaltyStore.getState().data?.pointsPerSar ?? 1),
-      etaMinutes: orderType === 'delivery' ? 25 : 12,
-    });
-
-    if (useWallet && totals.walletApplied > 0) {
-      useWalletStore.getState().debit(totals.walletApplied, `طلب ${order.id}`);
+    if (!storeOpen) {
+      toast(closedReason ?? 'المتجر مغلق حاليًا');
+      return;
     }
-    if (method === 'wallet') {
-      useWalletStore.getState().debit(totals.total, `طلب ${order.id}`);
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      /**
+       * The server prices the order. Everything the screen has shown so far
+       * is an estimate — `createStoreOrder` recomputes each line from
+       * `menu/products`, ignores any price we send, and signs the total.
+       * That returned figure is the only one Moyasar is ever asked for.
+       */
+      const curbside = isCurbside(orderType);
+      if (curbside && !validatePlate(plate.lettersAr, plate.numbers).ok) {
+        toast('أدخل رقم لوحة سيارتك');
+        setSubmitting(false);
+        return;
+      }
+
+      const order = await createStoreOrder({
+        // `temp` carries the brewing method. Without it the server priced
+        // and the barista prepared the product's default, whatever the
+        // customer had picked.
+        items: lines.map((l) => ({ serviceId: l.productId, qty: l.qty, temp: l.method, notes: l.notes })),
+        // The server resolves the coupon again against the real cart and
+        // may still refuse it; the total it returns is what gets charged.
+        ...(coupon ? { couponCode: coupon.code } : {}),
+        // Two modes exist. `orderType` may still say delivery or dine-in from
+        // mock data, and the server would silently record either as a pickup.
+        mode: curbside ? 'car' : 'pickup',
+        // The plate is how the branch finds the car. Sent only for curbside:
+        // on a counter pickup it is data we have no reason to hold.
+        ...(curbside
+          ? {
+              plateLettersAr: plate.lettersAr,
+              plateNumbers: plate.numbers,
+              plateRaw: `${plate.lettersAr} ${plate.numbers}`,
+            }
+          : {}),
+      });
+
+      // Into the list now, while the cart still holds the lines — the
+      // success screen reads it from there, and the feed lags behind.
+      useOrderStore.getState().recordPlaced(order, { type: orderType, branchId: branch.id, lines });
+
+      /**
+       * A fully covered order — gift card, loyalty reward, coupon — is
+       * already done. Opening a card form for zero riyals fails at the
+       * gateway, and asking for a card on a free order is alarming.
+       */
+      if (order.free || order.totalHalalas <= 0) {
+        clear();
+        router.replace(`/order-success?id=${order.orderId}`);
+        return;
+      }
+
+      setStage({ step: 'pay', order });
+    } catch (e) {
+      // The cart is kept in every failure case so nothing is lost.
+      toast(describeOrderError(e));
+    } finally {
+      setSubmitting(false);
     }
-    /**
-     * Points are NOT adjusted here.
-     *
-     * This used to spend and earn against a local counter, and separately count
-     * "eligible coffee cups" for a 6-cup card that does not exist. The ledger is
-     * the server's: points are awarded when the order settles, and a reward is
-     * deducted inside `createStoreOrder`. Moving the number on this device
-     * produced a balance the ledger never agreed to, which the next refresh
-     * silently reverted — the customer watched points appear and then vanish.
-     */
-    clear();
-    router.replace(`/order-success?id=${order.id}`);
+
   };
 
   return (
@@ -276,7 +225,7 @@ export function CheckoutScreen() {
           ) : null}
 
           {/* Live: Moyasar's own card form, once the server has priced the order. */}
-          {USE_BACKEND && stage.step !== 'review' ? (
+          {stage.step !== 'review' ? (
             <>
               <Txt size={15} weight="black" color={colors.ink} style={{ marginBottom: spacing.md }}>
                 بيانات البطاقة
@@ -302,91 +251,6 @@ export function CheckoutScreen() {
             </>
           ) : null}
 
-          {/* payment methods — mock mode only */}
-          {USE_BACKEND ? null : (
-          <>
-          <Txt size={15} weight="black" color={colors.ink} style={{ marginBottom: spacing.md }}>
-            طريقة الدفع
-          </Txt>
-          <View style={{ gap: 10 }}>
-            {MOCK_METHODS.map((m) => {
-              const active = method === m.id;
-              const disabled = m.id === 'wallet' && walletBalance <= 0;
-              return (
-                <Pressable
-                  key={m.id}
-                  onPress={() => !disabled && setMethod(m.id)}
-                  style={[
-                    shadows.xs,
-                    {
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      gap: 12,
-                      backgroundColor: colors.card,
-                      borderRadius: radius.md,
-                      padding: spacing.lg,
-                      borderWidth: 1.5,
-                      borderColor: active ? colors.gold : 'transparent',
-                      opacity: disabled ? 0.5 : 1,
-                    },
-                  ]}
-                >
-                  <View
-                    style={{
-                      width: 38,
-                      height: 38,
-                      borderRadius: radius.sm,
-                      backgroundColor: colors.chip,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    <Ionicons name={m.icon} size={18} color={colors.ink} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Txt size={14} weight="extraBold" color={colors.ink}>
-                      {m.label}
-                    </Txt>
-                    <Txt size={12} color={colors.textFaint}>
-                      {m.id === 'wallet' ? formatRiyal(walletBalance) : m.sub}
-                    </Txt>
-                  </View>
-                  <Ionicons
-                    name={active ? 'radio-button-on' : 'radio-button-off'}
-                    size={20}
-                    color={active ? colors.gold : colors.border}
-                  />
-                </Pressable>
-              );
-            })}
-          </View>
-          </>
-          )}
-
-          {/* perks — hidden in backend mode (the server doesn't apply them yet) */}
-          {!USE_BACKEND ? (
-            <>
-              <Txt size={15} weight="black" color={colors.ink} style={{ marginTop: spacing.xl, marginBottom: spacing.md }}>
-                خصومات ومكافآت
-              </Txt>
-              <Card radiusKey="lg" padding={0} style={{ overflow: 'hidden' }}>
-                <PerkToggle
-                  icon="wallet-outline"
-                  label="استخدام رصيد المحفظة"
-                  sub={formatRiyal(walletBalance)}
-                  value={useWallet}
-                  disabled={walletBalance <= 0 || method === 'wallet'}
-                  onToggle={() => setUseWallet(!useWallet)}
-                />
-                {/* No "redeem my points" toggle: the programme has no
-                    points-to-riyals conversion. A reward is claimed by adding
-                    the rewarded product to the cart at price zero from the
-                    loyalty screen, and the deduction happens server-side as the
-                    order is written. */}
-              </Card>
-            </>
-          ) : null}
-
           {/* totals */}
           <Card radiusKey="lg" style={{ marginTop: spacing.lg }}>
             <PriceRow label="المجموع الفرعي" amount={totals.subtotal} />
@@ -394,19 +258,18 @@ export function CheckoutScreen() {
             {orderType === 'delivery' ? (
               <PriceRow label="رسوم التوصيل" amount={totals.deliveryFee === 0 ? 'مجانًا' : totals.deliveryFee} />
             ) : null}
-            {!USE_BACKEND && totals.discount > 0 ? <PriceRow label="خصم الكوبون" amount={totals.discount} positive /> : null}
-            {!USE_BACKEND && totals.walletApplied > 0 ? <PriceRow label="رصيد المحفظة" amount={totals.walletApplied} positive /> : null}
+            {coupon ? (
+              <Txt size={12} color={colors.textMuted} style={{ marginVertical: 4 }}>
+                كوبون {coupon.code} · يُخصم من الإجمالي عند تأكيد الطلب
+              </Txt>
+            ) : null}
             <Divider dashed />
             <PriceRow label="الإجمالي المستحق" amount={displayTotal} emphasize />
           </Card>
 
           <View style={{ marginTop: spacing.lg, gap: 6 }}>
             <Txt size={11} color={colors.textFaint} center style={{ lineHeight: 18 }}>
-              ℹ️ بعد الإرسال يظهر طلبك «قيد الانتظار» حتى يقبله الفرع، ثم يتحوّل إلى
-              قيد التحضير فجاهز/في الطريق.
-            </Txt>
-            <Txt size={11} color={colors.textFaint} center style={{ lineHeight: 18 }}>
-              🔒 تجربة تجريبية — لا يتم تنفيذ أي دفع حقيقي أو إرسال طلب فعلي
+              ℹ️ بعد تأكيد الطلب والدفع يبدأ الفرع التحضير، وتتابع حالته من «طلباتي».
             </Txt>
           </View>
           </View>
@@ -431,67 +294,30 @@ export function CheckoutScreen() {
           {/* Once the order exists on the server the card form owns the screen:
               a second "confirm" button here would create a duplicate order for
               a customer who tapped it again while typing their card. */}
-          {USE_BACKEND && stage.step !== 'review' ? (
+          {stage.step !== 'review' ? (
             <Txt size={12} color={colors.textMuted} center>
               {stage.step === 'settling'
                 ? 'جارٍ التأكيد…'
                 : `طلبك رقم ${stage.order.code} · ${formatRiyal(stage.order.totalHalalas / 100)}`}
             </Txt>
           ) : (
-            <Button
-              label={USE_BACKEND ? 'تأكيد الطلب' : 'أكمل الطلب'}
-              trailing={formatRiyal(displayTotal)}
-              onPress={place}
-              loading={submitting}
-            />
+            <>
+              {!storeOpen ? (
+                <Txt size={12} weight="bold" color={colors.danger} center style={{ marginBottom: spacing.sm }}>
+                  {closedReason ?? 'المتجر مغلق حاليًا، ولا يمكن استقبال الطلبات'}
+                </Txt>
+              ) : null}
+              <Button
+                label={!storeOpen ? 'المتجر مغلق' : 'تأكيد الطلب'}
+                trailing={!storeOpen ? undefined : formatRiyal(displayTotal)}
+                onPress={place}
+                loading={submitting}
+                disabled={!storeOpen}
+              />
+            </>
           )}
         </View>
       </View>
     </>
-  );
-}
-
-function PerkToggle({
-  icon,
-  label,
-  sub,
-  value,
-  disabled,
-  onToggle,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  label: string;
-  sub: string;
-  value: boolean;
-  disabled?: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <Pressable
-      onPress={disabled ? undefined : onToggle}
-      style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: spacing.lg, opacity: disabled ? 0.45 : 1 }}
-    >
-      <Ionicons name={icon} size={20} color={colors.goldDeep} />
-      <View style={{ flex: 1 }}>
-        <Txt size={14} weight="extraBold" color={colors.ink}>
-          {label}
-        </Txt>
-        <Txt size={12} color={colors.textFaint}>
-          {sub}
-        </Txt>
-      </View>
-      <View
-        style={{
-          width: 46,
-          height: 28,
-          borderRadius: 14,
-          backgroundColor: value ? colors.gold : colors.border,
-          padding: 3,
-          alignItems: value ? 'flex-end' : 'flex-start',
-        }}
-      >
-        <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: colors.white }} />
-      </View>
-    </Pressable>
   );
 }

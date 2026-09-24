@@ -155,7 +155,14 @@ export function MenuScreen() {
         ) : error ? (
           <ErrorState onRetry={reload} />
         ) : list.length === 0 ? (
-          <EmptyState emoji="🔍" title="لا توجد أصناف" subtitle="جرّب تصنيفًا آخر" />
+          // Two different empty states. "جرّب تصنيفًا آخر" is only true when
+          // there is something else to try — with an empty catalog it reads as
+          // a broken filter rather than an empty menu.
+          products.length === 0 ? (
+            <EmptyState emoji="☕" title="القائمة فارغة" subtitle="لم تُضف أي أصناف بعد" />
+          ) : (
+            <EmptyState emoji="🔍" title="لا توجد أصناف" subtitle="جرّب تصنيفًا آخر" />
+          )
         ) : isTablet ? (
           <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: spacing.xs, paddingBottom: 140 }}>
             <View style={{ width: '100%', maxWidth: contentMaxWidth, alignSelf: 'center', paddingHorizontal: spacing.lg }}>

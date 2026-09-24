@@ -1,10 +1,8 @@
 import { create } from 'zustand';
-import { router } from 'expo-router';
 import type { User } from '@/types';
 import { mockUser } from '@/data';
 import { setLocale, type LocaleCode } from '@/i18n';
-import { USE_BACKEND } from '@/services/api';
-import { clearSession, registerSessionHandlers } from '@/services/session';
+import * as SecureStore from 'expo-secure-store';
 import * as storeAuth from '@/services/storeAuth';
 import { auth as firebaseAuth } from '@/services/firebase';
 import type { User as FbUser } from '@firebase/auth';
@@ -59,7 +57,7 @@ interface AuthState {
   requestOtp: (phone: string) => Promise<boolean>;
   /** Step 2: verify the code → sign in. Returns true on success. (Mock: any 4 digits.) */
   verifyOtp: (code: string) => Promise<boolean>;
-  /** Restore a saved session from SecureStore on app start (backend mode only). */
+  /** Wait for Firebase to restore a persisted sign-in on app start. */
   restoreSession: () => Promise<void>;
   continueAsGuest: () => void;
   updateProfile: (
@@ -67,6 +65,9 @@ interface AuthState {
   ) => void;
   logout: () => void;
 }
+
+/** Keychain key the Express-era session client stored its refresh token under. */
+const LEGACY_REFRESH_KEY = 'sunray.refreshToken';
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
@@ -76,8 +77,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   hasOnboarded: false,
   locale: 'ar',
   pendingPhone: '',
-  // In backend mode we briefly try to restore a session before routing.
-  isHydrating: USE_BACKEND,
+  // Firebase restores a persisted sign-in asynchronously; routing waits for it.
+  isHydrating: true,
   authError: null,
 
   setLocale: (locale) => {
@@ -89,19 +90,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   requestOtp: async (phone) => {
     set({ pendingPhone: phone, authError: null });
-    if (!USE_BACKEND) return true; // mock: nothing to send
     const res = await storeAuth.requestOtp(phone);
     if (!res.ok) set({ authError: storeAuth.describeOtpError(res.reason) });
     return res.ok;
   },
 
   verifyOtp: async (code) => {
-    const phone = get().pendingPhone || mockUser.phone;
-    if (!USE_BACKEND) {
-      // Mock sign-in (unchanged behavior).
-      set({ user: { ...mockUser, phone }, token: 'mock-token', isAuthenticated: true, isGuest: false });
-      return true;
-    }
+    const phone = get().pendingPhone;
     const res = await storeAuth.verifyOtp(phone, code);
     if (!res.ok) {
       // The reason matters here. "5 wrong attempts" destroys the code, and a
@@ -121,10 +116,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   restoreSession: async () => {
-    if (!USE_BACKEND) {
-      set({ isHydrating: false });
-      return;
-    }
     /**
      * Firebase persists the session itself (AsyncStorage), so there is no token
      * to refresh by hand — but `currentUser` is null for a moment after launch
@@ -172,11 +163,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     ),
 
   logout: () => {
-    if (USE_BACKEND) {
-      void storeAuth.signOutStore();
-      // Clears anything the previous Express-backed session left behind.
-      void clearSession();
-    }
+    void storeAuth.signOutStore();
+    // A refresh token for the retired Express server may still sit in the
+    // keychain from builds before 1.2.0. It is a credential; don't leave it.
+    void SecureStore.deleteItemAsync(LEGACY_REFRESH_KEY).catch(() => {});
     set({
       user: null,
       token: null,
@@ -188,12 +178,3 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 }));
 
-// Wire the "session expired" callback used by the API client. In backend mode a
-// failed token refresh clears auth state and sends the user to login (cart and
-// other local state are preserved so they can continue after re-login).
-registerSessionHandlers({
-  onExpired: () => {
-    useAuthStore.setState({ user: null, token: null, isAuthenticated: false });
-    if (USE_BACKEND) router.replace('/(auth)/login');
-  },
-});

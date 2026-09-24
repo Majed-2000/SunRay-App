@@ -1,8 +1,6 @@
 import { create } from 'zustand';
 import type { CartLine, OrderType, Product, Coupon } from '@/types';
 import { buildCartLine, type ProductSelection } from '@/utils/cart';
-import { couponByCode } from '@/data';
-import { USE_BACKEND } from '@/services/api';
 import { validateCoupon, describeCouponError } from '@/services/storeOffers';
 import { useCatalogStore } from './catalogStore';
 import { toast } from './uiStore';
@@ -32,6 +30,12 @@ interface CartState {
   removeCoupon: () => void;
   setUseWallet: (v: boolean) => void;
   setRedeemPoints: (v: boolean) => void;
+
+  /**
+   * Put a past order's items back in the cart, at today's menu and prices.
+   * Returns how many lines were added and the names no longer on the menu.
+   */
+  reorder: (items: { nameAr: string; qty: number }[]) => { added: number; missing: string[] };
 
   count: () => number;
 }
@@ -108,17 +112,6 @@ export const useCartStore = create<CartState>((set, get) => ({
    * here is a preview so the cart matches the invoice, never a promise.
    */
   applyCoupon: async (code) => {
-    if (!USE_BACKEND) {
-      const local = couponByCode(code);
-      if (!local) {
-        toast('كود غير صالح');
-        return false;
-      }
-      set({ coupon: local });
-      toast('تم تطبيق الكوبون 🎉');
-      return true;
-    }
-
     const subtotalHalalas = Math.round(
       get().lines.reduce((a, l) => a + l.unitPrice * l.qty, 0) * 100,
     );
@@ -141,6 +134,29 @@ export const useCartStore = create<CartState>((set, get) => ({
   removeCoupon: () => set({ coupon: null }),
   setUseWallet: (v) => set({ useWallet: v }),
   setRedeemPoints: (v) => set({ redeemPoints: v }),
+
+  /**
+   * Matched by name because that is all the order feed carries — no product
+   * id, no brewing method. So a reordered drink comes back with the product's
+   * first method, and anything renamed or taken off the menu is reported as
+   * missing instead of being guessed at. Prices are always today's: the server
+   * prices from the live menu, never from the old order.
+   */
+  reorder: (items) => {
+    const products = useCatalogStore.getState().products;
+    const missing: string[] = [];
+    let added = 0;
+    for (const it of items) {
+      const product = products.find((p) => p.nameAr === it.nameAr);
+      if (!product) {
+        missing.push(it.nameAr);
+        continue;
+      }
+      get().addProduct(product, { addOnIds: [], qty: Math.max(1, it.qty) });
+      added += 1;
+    }
+    return { added, missing };
+  },
 
   count: () => get().lines.reduce((a, l) => a + l.qty, 0),
 }));

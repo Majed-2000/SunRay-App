@@ -25,10 +25,17 @@
  */
 import { onValue, ref, off, type DataSnapshot } from 'firebase/database';
 import { db } from './firebase';
-import type { Category, Product } from '@/types';
+import type { BrewMethod, Category, Product, ProductMethod } from '@/types';
 
-/** Brewing method, when a product prices differently per method. */
-export type BrewMethod = 'hot' | 'cold' | 'classic' | 'freddo';
+export type { BrewMethod };
+
+/** Display order and Arabic label of each brewing method. */
+const METHOD_LABELS: [BrewMethod, string][] = [
+  ['hot', 'حار'],
+  ['cold', 'بارد'],
+  ['classic', 'كلاسيك'],
+  ['freddo', 'فريدو'],
+];
 
 /**
  * A product exactly as the store stores it.
@@ -119,8 +126,23 @@ function isPurchasable(p: RawProduct): boolean {
   return p.active !== false && p.purchasable === true;
 }
 
+/** The methods a product is priced by, in the store's order. Empty when priced once. */
+function methodsOf(p: RawProduct): ProductMethod[] {
+  const m = p.methodPriceHalalas;
+  if (!m) return [];
+  return METHOD_LABELS.filter(([id]) => m[id] != null).map(([id, labelAr]) => ({
+    id,
+    labelAr,
+    price: Number(m[id]) / 100,
+  }));
+}
+
 function toProduct(id: string, p: RawProduct): Product | null {
-  const h = priceHalalas(p);
+  const methods = methodsOf(p);
+  // A product priced only per method has no base price of its own; its first
+  // method is the price it opens with. Without this fallback such a product was
+  // dropped from the menu entirely.
+  const h = priceHalalas(p) ?? (methods[0] ? Math.round(methods[0].price * 100) : null);
   // An unpriced product cannot be put in a cart: the server would compute a
   // total the customer never agreed to. Drop it rather than show it as free.
   if (h == null) return null;
@@ -142,6 +164,7 @@ function toProduct(id: string, p: RawProduct): Product | null {
     tags: [],
     sizes: [],
     addOns: [],
+    ...(methods.length > 0 ? { methods } : {}),
     rating: undefined,
   } as unknown as Product;
 }

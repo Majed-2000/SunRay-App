@@ -16,7 +16,10 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.sunray.cafe"
+      "bundleIdentifier": "com.sunray.cafe",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.sunray.cafe",
@@ -33,7 +36,12 @@
         "backgroundColor": "#efe6d6",
         "barStyle": "dark-content"
       },
-      "versionCode": 11
+      "versionCode": 11,
+      "blockedPermissions": [
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -60,7 +68,15 @@
         }
       ],
       "./plugins/withAndroidAbiFilters",
-      "./plugins/withAndroidDataBinding"
+      "./plugins/withAndroidDataBinding",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "نستخدم موقعك فقط عند ضغطك «وصلت» في خدمة السيارة، للتأكد أنك عند الفرع.",
+          "isAndroidBackgroundLocationEnabled": false,
+          "isIosBackgroundLocationEnabled": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

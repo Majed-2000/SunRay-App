@@ -17,12 +17,13 @@
  * would drive anywhere.
  */
 import { callFn } from './firebase';
+import type { BrewMethod } from '@/types';
 
 /** Fulfilment modes the store actually accepts. */
 export type StoreOrderMode = 'pickup' | 'car';
 
 /** Brewing method — affects price, so it is chosen before the price is read. */
-export type BrewTemp = 'hot' | 'cold' | 'classic' | 'freddo';
+export type BrewTemp = BrewMethod;
 
 export interface StoreOrderItem {
   /** Key in `menu/products`. */

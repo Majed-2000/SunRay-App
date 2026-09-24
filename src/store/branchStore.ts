@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import type { Branch } from '@/types';
-import { USE_BACKEND } from '@/services/api';
 import { subscribeOpenState } from '@/services/storeConfig';
 
 /**
@@ -74,7 +73,7 @@ export const useBranchStore = create<BranchState>((set, get) => ({
   closedReason: null,
 
   load: async () => {
-    if (!USE_BACKEND || unsubscribe) return;
+    if (unsubscribe) return;
     unsubscribe = subscribeOpenState(({ open, reason }) => {
       const s = get();
       // Rebuild the branch objects only when the state actually changed.

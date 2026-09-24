@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import { fetchMyLoyalty, type LoyaltyEvent, type LoyaltyReward, type MyLoyalty } from '@/services/storeLoyalty';
-import { USE_BACKEND } from '@/services/api';
 
 /** Stable empty fallbacks — see the note on `rewards` below. */
 const NO_REWARDS: LoyaltyReward[] = [];
@@ -58,10 +57,6 @@ export const useLoyaltyStore = create<LoyaltyState>((set, get) => ({
   unlinked: false,
 
   load: async () => {
-    if (!USE_BACKEND) {
-      set({ status: 'ready', data: null, unlinked: false });
-      return;
-    }
     set({ status: 'loading' });
     const res = await fetchMyLoyalty();
     if (!res) {

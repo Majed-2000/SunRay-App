@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Image, KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
+import { Image, KeyboardAvoidingView, Linking, Platform, ScrollView, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { colors, gradients, shadows, spacing } from '@/theme';
@@ -7,6 +7,7 @@ import { LOGO } from '@/assets';
 import { Button, PhoneField, Txt } from '@/components';
 import { useAuthStore, toast } from '@/store';
 import { isValidSaudiMobile, normalizeMobile } from '@/utils/validators';
+import { PRIVACY_URL, TERMS_URL } from '@/constants/legal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export function LoginScreen() {
@@ -96,7 +97,15 @@ export function LoginScreen() {
           <Button label="المتابعة كضيف" variant="outline" onPress={onGuest} style={{ marginTop: 16 }} />
 
           <Txt size={11} color={colors.textFaint} center style={{ marginTop: 20, lineHeight: 18 }}>
-            بالمتابعة فأنت توافق على الشروط وسياسة الخصوصية
+            {/* Links, not plain text: consent to terms nobody can open is not consent. */}
+            بالمتابعة فأنت توافق على{' '}
+            <Txt size={11} weight="bold" color={colors.goldDeep} onPress={() => Linking.openURL(TERMS_URL)}>
+              الشروط
+            </Txt>
+            {' '}و{' '}
+            <Txt size={11} weight="bold" color={colors.goldDeep} onPress={() => Linking.openURL(PRIVACY_URL)}>
+              سياسة الخصوصية
+            </Txt>
           </Txt>
         </ScrollView>
       </KeyboardAvoidingView>

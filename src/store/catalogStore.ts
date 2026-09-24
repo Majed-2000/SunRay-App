@@ -1,7 +1,5 @@
 import { create } from 'zustand';
 import type { Category, Product } from '@/types';
-import { categories as mockCategories, products as mockProducts } from '@/data';
-import { USE_BACKEND } from '@/services/api';
 import { subscribeCatalog } from '@/services/storeCatalog';
 
 /**
@@ -39,16 +37,12 @@ let unsubscribe: (() => void) | null = null;
 export const useCatalogStore = create<CatalogState>((set, get) => ({
   // In mock mode we start ready with mock data (no loading flash). In backend
   // mode we start empty + loading and fetch on app start.
-  categories: USE_BACKEND ? [] : mockCategories,
-  products: USE_BACKEND ? [] : mockProducts,
-  status: USE_BACKEND ? 'loading' : 'ready',
+  categories: [],
+  products: [],
+  status: 'loading',
   error: null,
 
   load: async () => {
-    if (!USE_BACKEND) {
-      set({ categories: mockCategories, products: mockProducts, status: 'ready', error: null });
-      return;
-    }
     // Already listening — the data is live, so re-subscribing would only churn.
     if (unsubscribe) return;
     set({ status: 'loading', error: null });

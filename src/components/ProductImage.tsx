@@ -8,7 +8,6 @@ export interface ProductImageProps {
   height?: number;
   emojiSize?: number;
   radiusKey?: keyof typeof radius;
-  showTag?: boolean;
   style?: ViewStyle;
   children?: React.ReactNode; // overlay badges
 }
@@ -23,7 +22,6 @@ export function ProductImage({
   height = 120,
   emojiSize = 46,
   radiusKey = 'lg',
-  showTag = true,
   style,
   children,
 }: ProductImageProps) {
@@ -49,23 +47,6 @@ export function ProductImage({
       ) : (
         <Txt size={emojiSize}>{emoji}</Txt>
       )}
-      {showTag && !image ? (
-        <View
-          style={{
-            position: 'absolute',
-            top: 8,
-            left: 8,
-            backgroundColor: 'rgba(255,255,255,0.7)',
-            paddingHorizontal: 6,
-            paddingVertical: 2,
-            borderRadius: 6,
-          }}
-        >
-          <Txt size={8} latin color={colors.textFaint}>
-            photo
-          </Txt>
-        </View>
-      ) : null}
       {children}
     </View>
   );

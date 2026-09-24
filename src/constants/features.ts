@@ -35,3 +35,20 @@ export const STORE_HAS_DELIVERY = false;
  * ship an Android APK, so the button would be dead weight.
  */
 export const STORE_HAS_APPLE_PAY = false;
+
+/**
+ * Table reservation («حجز جلسة»).
+ *
+ * `ReserveScreen` confirms a booking with no network call at all — the customer
+ * is told «تم تأكيد حجزك» and nothing, anywhere, knows about it. Off until the
+ * store has a booking endpoint to call.
+ */
+export const STORE_HAS_RESERVATION = false;
+
+/**
+ * Walk-in waitlist («انتظار»).
+ *
+ * `WaitlistScreen` shows a position, a queue length and a wait time that are
+ * constants in the file. Off until a real queue backs it.
+ */
+export const STORE_HAS_WAITLIST = false;

@@ -5,7 +5,6 @@ import {
   type GiftPackage,
   type OpenState,
 } from '@/services/storeConfig';
-import { USE_BACKEND } from '@/services/api';
 
 /**
  * Live business settings from `store/config`.
@@ -59,10 +58,6 @@ export const useStoreSettingsStore = create<StoreSettingsState>((set, get) => ({
   ready: false,
 
   start: () => {
-    if (!USE_BACKEND) {
-      set({ ready: true });
-      return () => {};
-    }
     const stopOpen = subscribeOpenState((s: OpenState) =>
       set({ open: s.open, closedReason: s.reason }),
     );

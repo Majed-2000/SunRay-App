@@ -17,7 +17,6 @@ import type { Order } from '@/types';
 import { strings } from '@/i18n';
 import { formatRiyal, toArabicDigits } from '@/utils/numerals';
 import { useResponsive } from '@/hooks/useResponsive';
-import { USE_BACKEND } from '@/services/api';
 import { useAuthStore, useBranchStore, useOrderStore, isActiveOrder, orderStage, orderRef } from '@/store';
 
 function relativeDay(createdAt: number): string {
@@ -43,7 +42,6 @@ export function OrdersScreen() {
   // (and re-loading would wipe a just-placed mock order). The backend scopes the
   // list to the authenticated customer, so guests (who can't order) show empty.
   useEffect(() => {
-    if (!USE_BACKEND) return;
     if (isGuest) {
       useOrderStore.setState({ status: 'ready', orders: [] });
     } else {
@@ -229,7 +227,7 @@ export function OrdersScreen() {
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Ionicons name={order.type === 'delivery' ? 'bicycle' : 'storefront'} size={16} color={colors.goldDeep} />
               <Txt size={15} weight="black" color={colors.ink}>
-                {orderRef(order.id)}
+                {orderRef(order)}
               </Txt>
             </View>
             <Txt size={12} color={colors.textFaint} style={{ marginTop: 3 }}>

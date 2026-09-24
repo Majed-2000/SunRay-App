@@ -1,6 +1,7 @@
 import { View, Share } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
+import { APP_VERSION_AR } from '@/constants/appVersion';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, gradients, radius, shadows, spacing } from '@/theme';
 import { Card, ListRow, ScreenContainer, Txt } from '@/components';
@@ -99,7 +100,7 @@ export function AccountScreen() {
         </View>
 
         <Txt size={11} color={colors.textFaint} center style={{ marginTop: spacing.xl }}>
-          Sun Ray · سن راي — الإصدار ١.٠.٠
+          Sun Ray · سن راي — الإصدار {APP_VERSION_AR}
         </Txt>
       </View>
     </ScreenContainer>

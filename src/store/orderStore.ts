@@ -4,23 +4,24 @@ import {
   FoodicsDeliveryStatus,
   type CartLine,
   type Order,
-  type OrderItemSnapshot,
   type OrderType,
   type OrderStatus,
   type DeliveryStatus,
   type OrderStage,
-  type PaymentMethod,
 } from '@/types';
-import { mockOrders } from '@/data';
-import { request, USE_BACKEND, ApiError } from '@/services/api';
-import { mapOrder, APP_TYPE_TO_BACKEND, type OrderDTO, type BackendOrderStatus } from '@/services/dto';
-import { fetchMyOrders, type MyOrder } from '@/services/storeOrders';
+import { cancelOrder, fetchMyOrders, type CreateOrderResult, type MyOrder } from '@/services/storeOrders';
+import { CONFIG } from '@/constants/config';
+
+/** The VAT already inside a tax-inclusive total — extracted, never added. See utils/money.ts. */
+function inclusiveVat(total: number): number {
+  return Math.round((total - total / (1 + CONFIG.VAT_RATE)) * 100) / 100;
+}
 
 /**
  * A progression step = the Foodics (status, deliveryStatus) snapshot for a given
- * customer-facing stage. The mock advances through these to emulate the real
- * Pending → Active → Ready / En Route → Closed lifecycle the backend would push
- * via `application.order.updated` webhooks.
+ * customer-facing stage, mirroring the
+ * Pending → Active → Ready → Closed lifecycle that `mapStatus` derives from the
+ * store's status and fulfilment strings.
  */
 interface FlowStep {
   stage: OrderStage;
@@ -80,40 +81,14 @@ export function isActiveOrder(o: Order): boolean {
   return stage !== 'completed' && stage !== 'cancelled';
 }
 
-export interface PlaceOrderInput {
-  type: OrderType;
-  branchId: string;
-  addressId?: string;
-  items: OrderItemSnapshot[];
-  subtotal: number;
-  vat: number;
-  deliveryFee: number;
-  discount: number;
-  total: number;
-  paymentMethod: PaymentMethod;
-  pointsEarned: number;
-  etaMinutes: number;
-}
-
-/** Friendly order reference for display. Backend ids are long → show SR-XXXXX. */
-export function orderRef(id: string): string {
+/**
+ * Order reference for display: the store's own counter code when it issued
+ * one — the code the barista calls out — else a short form of the id.
+ */
+export function orderRef(order: Pick<Order, 'id' | 'code'>): string {
+  if (order.code) return order.code;
+  const { id } = order;
   return id.startsWith('SR-') ? id : `SR-${id.slice(-5).toUpperCase()}`;
-}
-
-/** The next backend status for the dev "advance" action, based on the current stage. */
-function nextBackendStatus(o: Order): BackendOrderStatus | null {
-  switch (orderStage(o)) {
-    case 'pending':
-      return 'ACCEPTED';
-    case 'preparing':
-      return 'READY';
-    case 'ready':
-      return o.type === 'delivery' ? 'EN_ROUTE' : 'COMPLETED';
-    case 'enRoute':
-      return 'COMPLETED';
-    default:
-      return null; // completed / cancelled
-  }
 }
 
 type Status = 'idle' | 'loading' | 'ready' | 'error';
@@ -122,19 +97,23 @@ interface OrderState {
   orders: Order[];
   status: Status;
   error: string | null;
-  // mock (unchanged)
-  place: (input: PlaceOrderInput) => Order;
-  advance: (id: string) => void;
   getById: (id: string) => Order | undefined;
-  // backend (used when USE_BACKEND)
+  // live
   loadOrders: () => Promise<void>;
   fetchOrder: (id: string) => Promise<Order | undefined>;
-  advanceBackend: (id: string) => Promise<void>;
+  /** The server confirmed settlement — stop showing the order as unpaid before the feed catches up. */
+  markPaid: (id: string) => void;
+  /** Cancel an unpaid order. Resolves false when the server refused. */
+  cancel: (id: string) => Promise<boolean>;
+  /**
+   * Put an order the server just created into the list, so the success and
+   * detail screens can show it before the feed catches up.
+   */
+  recordPlaced: (result: CreateOrderResult, input: { type: OrderType; branchId: string; lines: CartLine[] }) => Order;
 }
 
-// Belt-and-braces guard so a double-tap (or remount) can't submit twice even if
-// a screen's local guard is bypassed. Module-scoped: one in-flight submit at a time.
-let submitInFlight = false;
+/** How long a just-placed order is kept while the feed has not listed it. */
+const RECENT_PLACED_MS = 10 * 60 * 1000;
 
 /**
  * The store's status vocabulary → the app's numeric one.
@@ -205,15 +184,21 @@ function mapStatus(o: MyOrder): { status: OrderStatus; deliveryStatus: DeliveryS
  * Map a feed row onto the app's `Order`.
  *
  * Money arrives in halalas and every screen formats riyals, so it is converted
- * once, here. Fields the feed genuinely does not carry (VAT breakdown, payment
- * method, points) are left at zero rather than guessed — a fabricated VAT line
- * on a real receipt is worse than no line.
+ * once, here. Fields the feed genuinely does not carry (payment method, points,
+ * per-line prices) are left at zero and flagged so screens hide them rather
+ * than print a guess. VAT is the exception: prices are tax-inclusive, so the
+ * tax inside the total is arithmetic, not a guess.
  */
 function mapStoreOrder(o: MyOrder): Order {
   const { status, deliveryStatus } = mapStatus(o);
   const total = (o.totalHalalas || 0) / 100;
+  // A pay link past its expiry is worse than none: it opens onto an error.
+  const payUrl = o.payLink && o.payLink.expiresAt > Date.now() ? o.payLink.url : null;
   return {
     id: o.id,
+    code: o.code,
+    payUrl,
+    paymentKnown: false,
     foodicsOrderId: null,
     createdAt: o.createdAt || Date.now(),
     type: 'pickup',
@@ -227,7 +212,7 @@ function mapStoreOrder(o: MyOrder): Order {
       lineTotal: 0,
     })),
     subtotal: total,
-    vat: 0,
+    vat: inclusiveVat(total),
     deliveryFee: 0,
     discount: 0,
     total,
@@ -247,46 +232,14 @@ function upsert(orders: Order[], order: Order): Order[] {
 }
 
 export const useOrderStore = create<OrderState>((set, get) => ({
-  // Mock mode starts with seeded orders; backend mode starts empty + loading.
-  orders: USE_BACKEND ? [] : mockOrders,
-  status: USE_BACKEND ? 'loading' : 'ready',
+  // Empty until the first read of the customer's feed.
+  orders: [],
+  status: 'loading',
   error: null,
-
-  /** Mock submit — starts the order at Pending and prepends it locally. */
-  place: (input) => {
-    const first = stepsFor(input.type)[0];
-    const order: Order = {
-      id: `SR-${Math.floor(1000 + Math.random() * 9000)}`,
-      foodicsOrderId: null,
-      createdAt: Date.now(),
-      status: first.status,
-      deliveryStatus: first.deliveryStatus,
-      ...input,
-    };
-    set((s) => ({ orders: [order, ...s.orders] }));
-    return order;
-  },
-
-  advance: (id) =>
-    set((s) => ({
-      orders: s.orders.map((o) => {
-        if (o.id !== id) return o;
-        const steps = stepsFor(o.type);
-        const idx = steps.findIndex((step) => sameStep(step, o));
-        if (idx < 0 || idx >= steps.length - 1) return o;
-        const next = steps[idx + 1];
-        return { ...o, status: next.status, deliveryStatus: next.deliveryStatus };
-      }),
-    })),
 
   getById: (id) => get().orders.find((o) => o.id === id),
 
-  // ── Backend actions (only used when USE_BACKEND) ──────────────────────────
   loadOrders: async () => {
-    if (!USE_BACKEND) {
-      set({ orders: mockOrders, status: 'ready', error: null });
-      return;
-    }
     set({ status: 'loading', error: null });
     try {
       /**
@@ -305,38 +258,77 @@ export const useOrderStore = create<OrderState>((set, get) => ({
         set({ status: 'error', error: 'تعذّر التعرّف على رقمك' });
         return;
       }
-      set({ orders: orders.map(mapStoreOrder), status: 'ready', error: null });
+      const fromFeed = orders.map(mapStoreOrder);
+      // Keep an order placed moments ago that the feed does not list yet —
+      // otherwise the success screen's order vanishes on the first refresh.
+      const seen = new Set(fromFeed.map((o) => o.id));
+      const recent = get().orders.filter(
+        (o) => !seen.has(o.id) && Date.now() - o.createdAt < RECENT_PLACED_MS,
+      );
+      set({ orders: [...recent, ...fromFeed], status: 'ready', error: null });
     } catch (e) {
       set({ status: 'error', error: e instanceof Error ? e.message : 'تعذّر تحميل الطلبات' });
     }
   },
 
+  /**
+   * Refresh one order from the store.
+   *
+   * There is no single-order callable, so this re-reads the customer's feed.
+   * It used to ask the retired Express server for `/api/orders/:id` with a
+   * Firebase id — a request that could never succeed, and whose failure was
+   * swallowed, so the order on screen simply never updated.
+   */
   fetchOrder: async (id) => {
-    if (!USE_BACKEND) return get().getById(id);
-    try {
-      const dto = await request<OrderDTO>(`/api/orders/${id}`);
-      const order = mapOrder(dto);
-      set((s) => ({ orders: upsert(s.orders, order) }));
-      return order;
-    } catch {
-      return get().getById(id);
-    }
+    await get().loadOrders();
+    return get().getById(id);
   },
 
-  advanceBackend: async (id) => {
-    const current = get().getById(id);
-    if (!current) return;
-    const next = nextBackendStatus(current);
-    if (!next) return;
-    try {
-      const dto = await request<OrderDTO>(`/api/orders/${id}/status`, {
-        method: 'PATCH',
-        body: { status: next },
-      });
-      const order = mapOrder(dto);
-      set((s) => ({ orders: upsert(s.orders, order) }));
-    } catch {
-      /* ignore — UI keeps the previous status */
-    }
+  markPaid: (id) =>
+    set((s) => ({
+      orders: s.orders.map((o) =>
+        o.id === id ? { ...o, status: FoodicsOrderStatus.Active, deliveryStatus: null, payUrl: null } : o,
+      ),
+    })),
+
+  cancel: async (id) => {
+    const ok = await cancelOrder(id);
+    // Re-read either way: on failure the order may have been paid meanwhile,
+    // which is exactly why the server refused.
+    await get().loadOrders();
+    return ok;
+  },
+
+  recordPlaced: (result, input) => {
+    const total = result.totalHalalas / 100;
+    const order: Order = {
+      id: result.orderId,
+      code: result.code || null,
+      payUrl: result.payUrl ?? null,
+      foodicsOrderId: null,
+      createdAt: Date.now(),
+      type: input.type,
+      status: FoodicsOrderStatus.Pending,
+      deliveryStatus: null,
+      branchId: input.branchId,
+      items: input.lines.map((l) => ({
+        nameAr: l.nameAr,
+        optionLabel: l.optionLabel,
+        qty: l.qty,
+        lineTotal: l.unitPrice * l.qty,
+      })),
+      subtotal: total,
+      vat: inclusiveVat(total),
+      paymentKnown: false,
+      deliveryFee: 0,
+      discount: 0,
+      total,
+      paymentMethod: 'card',
+      // Unknown until the order settles; the server awards points then.
+      pointsEarned: 0,
+      etaMinutes: 0,
+    };
+    set((s) => ({ orders: upsert(s.orders, order) }));
+    return order;
   },
 }));

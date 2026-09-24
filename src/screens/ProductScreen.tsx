@@ -72,6 +72,8 @@ function ProductDetail({ product }: { product: Product }) {
   const milks = product.addOns.filter((a) => a.group === 'milk');
   const extras = product.addOns.filter((a) => a.group === 'extra');
 
+  const methods = product.methods ?? [];
+  const [method, setMethod] = useState(methods[0]?.id);
   const [sizeId, setSizeId] = useState(product.sizes.find((z) => z.id === 'M')?.id ?? product.sizes[0]?.id);
   const [milkId, setMilkId] = useState(milks[0]?.id);
   const [extraIds, setExtraIds] = useState<string[]>([]);
@@ -82,10 +84,11 @@ function ProductDetail({ product }: { product: Product }) {
     () => ({
       sizeId,
       addOnIds: [milkId, ...extraIds].filter(Boolean) as string[],
+      method,
       notes,
       qty,
     }),
-    [sizeId, milkId, extraIds, notes, qty],
+    [sizeId, milkId, extraIds, method, notes, qty],
   );
 
   const unit = selectionUnitPrice(product, selection);
@@ -106,7 +109,7 @@ function ProductDetail({ product }: { product: Product }) {
       >
         <View style={{ width: '100%', maxWidth: productMaxWidth }}>
         {/* hero */}
-        <ProductImage emoji={product.emoji} image={product.image} height={heroHeight} emojiSize={isTablet ? 110 : 80} radiusKey={isTablet ? 'xl' : 'xs'} showTag={false} style={isTablet ? { marginTop: spacing.lg } : undefined}>
+        <ProductImage emoji={product.emoji} image={product.image} height={heroHeight} emojiSize={isTablet ? 110 : 80} radiusKey={isTablet ? 'xl' : 'xs'} style={isTablet ? { marginTop: spacing.lg } : undefined}>
           <Pressable
             onPress={() => router.back()}
             style={{
@@ -136,7 +139,7 @@ function ProductDetail({ product }: { product: Product }) {
               </Txt>
             </View>
             <Txt size={22} weight="black" color={colors.goldDeep}>
-              {formatRiyal(product.price)}
+              {formatRiyal(methods.find((m) => m.id === method)?.price ?? product.price)}
             </Txt>
           </View>
 
@@ -148,6 +151,26 @@ function ProductDetail({ product }: { product: Product }) {
             <Txt size={12} weight="bold" color={colors.textFaint} style={{ marginTop: 8 }}>
               🔥 {toArabicDigits(product.calories)} سعرة · ⏱ {toArabicDigits(product.preparationTime)} دقائق
             </Txt>
+          ) : null}
+
+          {/* brewing method — priced per method by the server, so the choice
+              has to travel with the order, not just change the label */}
+          {methods.length > 1 ? (
+            <>
+              <SectionLabel>طريقة التحضير</SectionLabel>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                {methods.map((m) => (
+                  <OptionChip
+                    key={m.id}
+                    label={m.labelAr}
+                    sublabel={formatRiyal(m.price)}
+                    selected={method === m.id}
+                    onPress={() => setMethod(m.id)}
+                    block
+                  />
+                ))}
+              </View>
+            </>
           ) : null}
 
           {/* sizes */}

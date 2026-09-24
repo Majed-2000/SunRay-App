@@ -56,6 +56,19 @@ export interface ProductAddOn {
   group: 'milk' | 'extra'; // milk = single-select, extra = multi-select
 }
 
+/**
+ * Brewing method. On the live menu this is the one option that exists: a
+ * product may carry `methodPriceHalalas`, and the server prices the line by the
+ * method sent as `temp` in `createStoreOrder`.
+ */
+export type BrewMethod = 'hot' | 'cold' | 'classic' | 'freddo';
+
+export interface ProductMethod {
+  id: BrewMethod;
+  labelAr: string;
+  price: number; // full unit price for this method (﷼), not a delta
+}
+
 export interface Product {
   id: string;
   foodicsId: string; // maps to a Foodics product UUID
@@ -70,6 +83,8 @@ export interface Product {
   calories?: number;
   sizes: ProductSize[]; // app-flattened view of Foodics "size" modifier options
   addOns: ProductAddOn[]; // app-flattened view of other Foodics modifier options
+  /** Brewing methods, when the product is priced per method. Absent otherwise. */
+  methods?: ProductMethod[];
   isAvailable: boolean; // mirrors Foodics product is_active
   isFeatured: boolean;
   tags: string[];
@@ -87,6 +102,8 @@ export interface CartLine {
   optionLabel: string; // human readable "وسط · حليب لوز"
   sizeId?: string;
   addOnIds: string[];
+  /** Brewing method — sent to the server as `temp`, which prices the line by it. */
+  method?: BrewMethod;
   notes?: string;
   unitPrice: number;
   qty: number;
@@ -151,6 +168,12 @@ export interface OrderItemSnapshot {
 
 export interface Order {
   id: string; // internal reference, e.g. SR-1234
+  /** The store's short counter code (e.g. SR-0042), when the server issued one. */
+  code?: string | null;
+  /** Hosted payment page while the order is still unpaid; null once paid or expired. */
+  payUrl?: string | null;
+  /** False when the feed does not say (live orders) — hide rather than guess. */
+  paymentKnown?: boolean;
   foodicsOrderId: string | null; // Foodics order UUID — null until backend injects it
   createdAt: number; // epoch ms
   type: OrderType;

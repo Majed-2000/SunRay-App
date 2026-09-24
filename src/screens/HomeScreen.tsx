@@ -18,6 +18,8 @@ import {
 } from '@/components';
 import { giftDesigns, offers } from '@/data';
 import { CONFIG } from '@/constants/config';
+import { STORE_HAS_DELIVERY, STORE_HAS_RESERVATION, STORE_HAS_WAITLIST } from '@/constants/features';
+import type { OrderType } from '@/types';
 import { strings } from '@/i18n';
 import { useResponsive } from '@/hooks/useResponsive';
 import { greetingFor } from '@/utils/greeting';
@@ -54,7 +56,7 @@ export function HomeScreen() {
   // boundary does not need the headline shifting under them mid-scroll.
   const greeting = useMemo(() => greetingFor(), []);
 
-  const startOrder = (type: 'pickup' | 'delivery') => {
+  const startOrder = (type: OrderType) => {
     setOrderType(type);
     router.push('/(tabs)/menu');
   };
@@ -172,10 +174,22 @@ export function HomeScreen() {
 
           {/* Quick actions */}
           <View style={{ flexDirection: 'row', gap: 10, paddingHorizontal: spacing.lg, marginBottom: spacing['2xl'] }}>
+            {/* Only what the store fulfils. Delivery, reservation and the
+                waitlist each sat here while nothing behind them was real —
+                see `constants/features.ts`. */}
             <IconTile emoji="☕" label="طلب مسبق" tint="#fbe9c4" onPress={() => startOrder('pickup')} />
-            <IconTile emoji="🛵" label="توصيل" tint="#f3ddc8" onPress={() => startOrder('delivery')} />
-            <IconTile emoji="🪑" label="حجز جلسة" tint="#e3ecd9" onPress={() => router.push('/reserve')} />
-            <IconTile emoji="⏳" label="انتظار" tint="#e9e0d0" onPress={() => router.push('/waitlist')} />
+            <IconTile emoji="🚗" label="سيارتي" tint="#f3ddc8" onPress={() => startOrder('car')} />
+            {STORE_HAS_DELIVERY ? (
+              <IconTile emoji="🛵" label="توصيل" tint="#f3ddc8" onPress={() => startOrder('delivery')} />
+            ) : null}
+            {STORE_HAS_RESERVATION ? (
+              <IconTile emoji="🪑" label="حجز جلسة" tint="#e3ecd9" onPress={() => router.push('/reserve')} />
+            ) : null}
+            {STORE_HAS_WAITLIST ? (
+              <IconTile emoji="⏳" label="انتظار" tint="#e9e0d0" onPress={() => router.push('/waitlist')} />
+            ) : null}
+            <IconTile emoji="⭐" label="نقاطي" tint="#e3ecd9" onPress={() => router.push('/(tabs)/loyalty')} />
+            <IconTile emoji="🧾" label="طلباتي" tint="#e9e0d0" onPress={() => router.push('/(tabs)/orders')} />
           </View>
 
           {/* Offers strip */}
@@ -190,24 +204,29 @@ export function HomeScreen() {
             ))}
           </ScrollView>
 
-          {/* Featured */}
-          <View style={{ paddingHorizontal: spacing['2xl'] }}>
-            <SectionHeader title="المختصّة اليوم" actionLabel="عرض الكل" onAction={() => router.push('/(tabs)/menu')} />
-          </View>
-          <View style={{ paddingHorizontal: spacing.lg }}>
-            <ResponsiveGrid
-              data={featured}
-              columns={gridColumns}
-              keyExtractor={(p) => p.id}
-              renderItem={(p) => (
-                <ProductCard
-                  product={p}
-                  onPress={() => router.push(`/product/${p.id}`)}
-                  onAdd={() => useCartStore.getState().quickAdd(p)}
+          {/* Featured — hidden entirely while nothing is flagged `isFeatured`,
+              rather than a heading and a «عرض الكل» sitting above blank space. */}
+          {featured.length > 0 && (
+            <>
+              <View style={{ paddingHorizontal: spacing['2xl'] }}>
+                <SectionHeader title="المختصّة اليوم" actionLabel="عرض الكل" onAction={() => router.push('/(tabs)/menu')} />
+              </View>
+              <View style={{ paddingHorizontal: spacing.lg }}>
+                <ResponsiveGrid
+                  data={featured}
+                  columns={gridColumns}
+                  keyExtractor={(p) => p.id}
+                  renderItem={(p) => (
+                    <ProductCard
+                      product={p}
+                      onPress={() => router.push(`/product/${p.id}`)}
+                      onAdd={() => useCartStore.getState().quickAdd(p)}
+                    />
+                  )}
                 />
-              )}
-            />
-          </View>
+              </View>
+            </>
+          )}
 
           {/* Gift cards */}
           <View style={{ paddingHorizontal: spacing['2xl'], marginTop: spacing.sm }}>

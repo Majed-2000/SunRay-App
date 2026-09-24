@@ -1,8 +1,8 @@
 import { useEffect } from 'react';
-import { I18nManager } from 'react-native';
+import { I18nManager, Pressable, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { Stack } from 'expo-router';
+import { Stack, type ErrorBoundaryProps } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 // Imported per weight, not from the package root.
@@ -25,7 +25,6 @@ import { Poppins_700Bold } from '@expo-google-fonts/poppins/700Bold';
 import { colors } from '@/theme';
 import { Toast } from '@/components';
 import { useAuthStore } from '@/store';
-import { warmUpBackend } from '@/services/api';
 
 // Force RTL for the Arabic-first experience.
 if (!I18nManager.isRTL) {
@@ -60,10 +59,8 @@ export default function RootLayout() {
     }
   }, [fontsLoaded, fontError]);
 
-  // Restore a saved backend session (if any) once on app start. No-op in mock mode.
-  // Also nudge a sleeping free-tier host awake so the first login isn't a cold start.
+  // Restore a persisted Firebase sign-in once on app start.
   useEffect(() => {
-    warmUpBackend();
     useAuthStore.getState().restoreSession();
   }, []);
 
@@ -91,5 +88,33 @@ export default function RootLayout() {
         <Toast />
       </SafeAreaProvider>
     </GestureHandlerRootView>
+  );
+}
+
+/**
+ * Last line of defence for a render error anywhere in the app.
+ *
+ * Without it one bad render left a blank white screen with no way back short of
+ * killing the app. Plain `Text`, not `Txt`: this can render before the fonts
+ * have loaded, or because something in the theme itself is what threw.
+ */
+export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
+  return (
+    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, backgroundColor: colors.bg }}>
+      <Text style={{ fontSize: 44 }}>☕</Text>
+      <Text style={{ fontSize: 20, fontWeight: '700', color: colors.ink, marginTop: 12, textAlign: 'center' }}>
+        حدث خطأ غير متوقع
+      </Text>
+      <Text style={{ fontSize: 14, color: colors.textMuted, marginTop: 8, textAlign: 'center', lineHeight: 22 }}>
+        نعتذر عن ذلك. سلّتك محفوظة، جرّب مرة أخرى.
+      </Text>
+      <Pressable
+        onPress={() => retry()}
+        accessibilityRole="button"
+        style={{ marginTop: 24, backgroundColor: colors.ink, paddingHorizontal: 28, paddingVertical: 12, borderRadius: 100 }}
+      >
+        <Text style={{ color: colors.white, fontSize: 15, fontWeight: '700' }}>إعادة المحاولة</Text>
+      </Pressable>
+    </View>
   );
 }

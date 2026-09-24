@@ -1,6 +1,6 @@
 {
   "name": "reca-app",
-  "version": "1.0.0",
+  "version": "1.2.7",
   "main": "expo-router/entry",
   "dependencies": {
     "@expo-google-fonts/baloo-bhaijaan-2": "^0.4.2",

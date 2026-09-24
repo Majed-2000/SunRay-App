@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View } from 'react-native';
+import { Alert, Linking, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { colors, spacing } from '@/theme';
@@ -18,7 +18,6 @@ import {
 } from '@/components';
 import { strings } from '@/i18n';
 import { toArabicDigits, formatRiyal } from '@/utils/numerals';
-import { USE_BACKEND } from '@/services/api';
 import { isCurbside } from '@/constants/orderTypes';
 import {
   flowStages,
@@ -27,6 +26,8 @@ import {
   orderStage,
   orderRef,
   useBranchStore,
+  useCartStore,
+  toast,
   useOrderStore,
 } from '@/store';
 
@@ -41,14 +42,15 @@ export function OrderDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const order = useOrderStore((s) => s.getById(id));
   const fetchOrder = useOrderStore((s) => s.fetchOrder);
-  const advanceBackend = useOrderStore((s) => s.advanceBackend);
   const branches = useBranchStore((s) => s.branches);
   const t = strings();
-  const [loading, setLoading] = useState(USE_BACKEND && !order);
+  const [loading, setLoading] = useState(!order);
+  const [cancelling, setCancelling] = useState(false);
+  const cancel = useOrderStore((s) => s.cancel);
+  const reorder = useCartStore((s) => s.reorder);
 
-  // Backend mode: fetch the latest order (also fills it in if opened directly).
+  // Fetch the latest order (also fills it in if opened directly).
   useEffect(() => {
-    if (!USE_BACKEND) return;
     let active = true;
     fetchOrder(id).finally(() => active && setLoading(false));
     return () => {
@@ -74,9 +76,39 @@ export function OrderDetailScreen() {
   const currentIndex = currentStepIndex(order);
   const isActive = isActiveOrder(order);
   const steps = flowStages(order.type).map((s) => ({ label: t.orderStage[s], en: t.orderStageEn[s] }));
+  const showPayment = order.paymentKnown !== false;
+  // Live, «pending» means not yet paid: a paid order moves straight to Active.
+  // That is the only state the store lets a customer cancel from.
+  const unpaid = orderStage(order) === 'pending';
+
+  const confirmCancel = () => {
+    Alert.alert('إلغاء الطلب', 'سيُلغى طلبك ولن يُحضَّر. الطلب غير مدفوع، فلن يُخصم منك شيء.', [
+      { text: 'تراجع', style: 'cancel' },
+      {
+        text: 'إلغاء الطلب',
+        style: 'destructive',
+        onPress: async () => {
+          setCancelling(true);
+          const ok = await cancel(order.id);
+          setCancelling(false);
+          toast(ok ? 'تم إلغاء الطلب' : 'تعذّر الإلغاء — ربما تم الدفع للتو. حدّث الصفحة');
+        },
+      },
+    ]);
+  };
+
+  const onReorder = () => {
+    const { added, missing } = reorder(order.items);
+    if (added === 0) {
+      toast('أصناف هذا الطلب لم تعد في القائمة');
+      return;
+    }
+    toast(missing.length ? `أُضيفت الأصناف المتوفرة — غير متوفر: ${missing.join('، ')}` : 'أُضيفت أصناف الطلب إلى السلة ✓');
+    router.push('/cart');
+  };
 
   return (
-    <ScreenContainer header={<Header showBack title={`الطلب ${orderRef(order.id)}`} />}>
+    <ScreenContainer header={<Header showBack title={`الطلب ${orderRef(order)}`} />}>
       <View style={{ paddingTop: spacing.lg, paddingBottom: spacing['4xl'] }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: spacing.lg }}>
           <Ionicons
@@ -95,7 +127,7 @@ export function OrderDetailScreen() {
             step labels — they want to say they are here. */}
         {isActive && isCurbside(order.type) ? (
           <Card radiusKey="lg" style={{ marginBottom: spacing.lg }}>
-            <ArriveButton orderId={order.id} code={orderRef(order.id)} />
+            <ArriveButton orderId={order.id} code={order.code ?? null} />
           </Card>
         ) : null}
 
@@ -104,15 +136,6 @@ export function OrderDetailScreen() {
             <TrackSteps steps={steps} currentIndex={currentIndex < 0 ? 0 : currentIndex} />
             {order.type === 'delivery' ? (
               <Button label="فتح التتبع المباشر" variant="outline" style={{ marginTop: spacing.md }} onPress={() => router.push(`/track/${order.id}`)} />
-            ) : null}
-            {USE_BACKEND ? (
-              <Button
-                label="تقديم الحالة (اختبار)"
-                variant="ghost"
-                size="sm"
-                style={{ marginTop: spacing.sm }}
-                onPress={() => advanceBackend(order.id)}
-              />
             ) : null}
           </Card>
         ) : null}
@@ -134,28 +157,52 @@ export function OrderDetailScreen() {
                   </Txt>
                 ) : null}
               </View>
-              <Txt size={14} weight="bold" color={colors.ink}>
-                {formatRiyal(it.lineTotal)}
-              </Txt>
+              {/* The live feed carries no per-line price; «٠ ﷼» on every
+                  line read as a free order. Show a price only when known. */}
+              {it.lineTotal > 0 ? (
+                <Txt size={14} weight="bold" color={colors.ink}>
+                  {formatRiyal(it.lineTotal)}
+                </Txt>
+              ) : null}
             </View>
           ))}
           <Divider dashed />
-          <PriceRow label="المجموع الفرعي" amount={order.subtotal} />
-          <PriceRow label="ضريبة القيمة المضافة" amount={order.vat} />
+          {order.subtotal !== order.total ? <PriceRow label="المجموع الفرعي" amount={order.subtotal} /> : null}
+          <PriceRow label="منها ضريبة القيمة المضافة" amount={order.vat} />
           {order.deliveryFee > 0 ? <PriceRow label="رسوم التوصيل" amount={order.deliveryFee} /> : null}
           {order.discount > 0 ? <PriceRow label="الخصم" amount={order.discount} positive /> : null}
           <Divider dashed />
           <PriceRow label="الإجمالي" amount={order.total} emphasize />
         </Card>
 
-        {/* meta */}
-        <Card radiusKey="lg">
-          <MetaRow label="طريقة الدفع" value={PAYMENT_LABEL[order.paymentMethod]} />
-          <Divider marginV={spacing.sm} />
-          <MetaRow label="النقاط المكتسبة" value={`+${toArabicDigits(order.pointsEarned)} نقطة`} accent />
-        </Card>
+        {/* meta — only what is actually known. Live orders do not report
+            the payment method, and points arrive only once the order settles. */}
+        {showPayment || order.pointsEarned > 0 ? (
+          <Card radiusKey="lg">
+            {showPayment ? <MetaRow label="طريقة الدفع" value={PAYMENT_LABEL[order.paymentMethod]} /> : null}
+            {showPayment && order.pointsEarned > 0 ? <Divider marginV={spacing.sm} /> : null}
+            {order.pointsEarned > 0 ? (
+              <MetaRow label="النقاط المكتسبة" value={`+${toArabicDigits(order.pointsEarned)} نقطة`} accent />
+            ) : null}
+          </Card>
+        ) : null}
 
-        <Button label="إعادة الطلب" variant="gold" style={{ marginTop: spacing.lg }} onPress={() => router.replace('/(tabs)/menu')} />
+        {/* Unpaid: without these an unpaid order was a dead end — the customer
+            could see what they owed and had no way to pay it or drop it. */}
+        {unpaid && order.payUrl ? (
+          <Button label="ادفع الآن" variant="gold" style={{ marginTop: spacing.lg }} onPress={() => Linking.openURL(order.payUrl!)} />
+        ) : null}
+        {unpaid ? (
+          <Button
+            label="إلغاء الطلب"
+            variant="outline"
+            style={{ marginTop: spacing.md }}
+            loading={cancelling}
+            onPress={confirmCancel}
+          />
+        ) : null}
+
+        <Button label="إعادة الطلب" variant={unpaid ? 'ghost' : 'gold'} style={{ marginTop: spacing.lg }} onPress={onReorder} />
       </View>
     </ScreenContainer>
   );

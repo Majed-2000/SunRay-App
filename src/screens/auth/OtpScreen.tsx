@@ -6,7 +6,6 @@ import { colors, radius, shadows, spacing } from '@/theme';
 import { CONFIG } from '@/constants/config';
 import { Button, Header, ScreenContainer, Txt } from '@/components';
 import { useAuthStore, toast } from '@/store';
-import { USE_BACKEND } from '@/services/api';
 import { toArabicDigits, toWesternDigits } from '@/utils/numerals';
 import { formatMobileDisplay } from '@/utils/validators';
 
@@ -170,13 +169,6 @@ export function OtpScreen() {
         </View>
 
         <Button label="تأكيد" onPress={() => submit(code)} style={{ marginTop: spacing['2xl'] }} />
-        {/* Only true while OTP is mocked. Now that Yamamah delivers real codes,
-            showing this to a customer tells them to type garbage. */}
-        {USE_BACKEND ? null : (
-          <Txt size={12} color={colors.textFaint} center style={{ marginTop: spacing.lg }}>
-            للتجربة: أدخل أي ٤ أرقام
-          </Txt>
-        )}
       </View>
     </ScreenContainer>
   );

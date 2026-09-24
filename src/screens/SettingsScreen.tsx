@@ -5,7 +5,8 @@ import { router } from 'expo-router';
 import { colors, spacing } from '@/theme';
 import { Card, Header, ListRow, ScreenContainer, Txt } from '@/components';
 import { toast } from '@/store';
-import { API_BASE_URL } from '@/services/api';
+import { APP_VERSION_AR } from '@/constants/appVersion';
+import { PRIVACY_URL, TERMS_URL } from '@/constants/legal';
 
 export function SettingsScreen() {
   const [notifications, setNotifications] = useState(true);
@@ -34,14 +35,14 @@ export function SettingsScreen() {
           <ListRow
             icon="shield-checkmark-outline"
             label="سياسة الخصوصية"
-            onPress={() => Linking.openURL(`${API_BASE_URL}/privacy`)}
+            onPress={() => Linking.openURL(PRIVACY_URL)}
           />
           <ListRow
             icon="document-text-outline"
             label="الشروط والأحكام"
-            onPress={() => Linking.openURL(`${API_BASE_URL}/terms`)}
+            onPress={() => Linking.openURL(TERMS_URL)}
           />
-          <ListRow icon="information-circle-outline" label="عن التطبيق" value="١.٠.٠" onPress={() => toast('Sun Ray · سن راي')} />
+          <ListRow icon="information-circle-outline" label="عن التطبيق" value={APP_VERSION_AR} onPress={() => toast('Sun Ray · سن راي')} />
         </View>
 
         {/*

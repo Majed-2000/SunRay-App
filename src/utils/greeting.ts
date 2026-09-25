@@ -21,8 +21,8 @@ export interface Greeting {
 export function greetingFor(date: Date = new Date()): Greeting {
   const h = date.getHours();
   if (h < 5) return { eyebrow: 'STILL UP', ar: 'ليلة هادئة' };
-  if (h < 11) return { eyebrow: 'GOOD MORNING ☀', ar: 'صباح الإشراق' };
+  if (h < 11) return { eyebrow: 'GOOD MORNING', ar: 'صباح الإشراق' };
   if (h < 15) return { eyebrow: 'GOOD AFTERNOON', ar: 'نهارك مشرق' };
   if (h < 19) return { eyebrow: 'GOOD EVENING', ar: 'مساء الخير' };
-  return { eyebrow: 'GOOD EVENING 🌙', ar: 'مساؤك ورد' };
+  return { eyebrow: 'GOOD NIGHT', ar: 'مساؤك ورد' };
 }

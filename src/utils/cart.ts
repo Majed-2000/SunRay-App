@@ -73,7 +73,7 @@ export function buildCartLine(product: Product, sel: ProductSelection): CartLine
     productId: product.id,
     nameAr: product.nameAr,
     nameEn: product.nameEn,
-    emoji: product.emoji,
+    icon: product.icon,
     optionLabel: selectionLabel(product, sel),
     sizeId: sel.sizeId,
     addOnIds: sel.addOnIds,

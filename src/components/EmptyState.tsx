@@ -1,22 +1,23 @@
 import { View } from 'react-native';
 import { colors, spacing } from '@/theme';
 import { Txt } from './Txt';
+import { Icon, type IconName } from './icons/Icon';
 import { Button } from './Button';
 
 export interface EmptyStateProps {
-  emoji?: string;
+  icon?: IconName;
   title: string;
   subtitle?: string;
   actionLabel?: string;
   onAction?: () => void;
 }
 
-export function EmptyState({ emoji = '☀', title, subtitle, actionLabel, onAction }: EmptyStateProps) {
+export function EmptyState({ icon = 'sun', title, subtitle, actionLabel, onAction }: EmptyStateProps) {
   return (
     <View style={{ alignItems: 'center', paddingVertical: spacing['5xl'], paddingHorizontal: spacing['3xl'] }}>
-      <Txt size={54} style={{ opacity: 0.5 }}>
-        {emoji}
-      </Txt>
+      <View style={{ width: 88, height: 88, borderRadius: 44, backgroundColor: colors.chipGold, alignItems: 'center', justifyContent: 'center' }}>
+        <Icon name={icon} size={48} />
+      </View>
       <Txt size={17} weight="extraBold" color={colors.ink} center style={{ marginTop: spacing.md }}>
         {title}
       </Txt>

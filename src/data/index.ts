@@ -1,19 +1,10 @@
-export { categories, categoryById } from './categories';
-export {
-  products,
-  productById,
-  featuredProducts,
-  productsByCategory,
-} from './menu';
-export { branches, branchById, nearestBranch } from './branches';
-export { coupons, couponByCode } from './coupons';
-export { rewards } from './rewards';
+// What remains here is not menu or business data — that is all live from the
+// store now. Gift designs and FAQ copy are app content; the mock* exports back
+// the wallet, gift-card and address screens, which stay switched off
+// (constants/features.ts) until they are real.
 export { giftDesigns, giftDesignById } from './giftDesigns';
-export { offers } from './offers';
-export type { Offer } from './offers';
 export { faqItems } from './faq';
 export type { FaqItem } from './faq';
-export { mockNotifications } from './notifications';
 export {
   mockUser,
   mockAddresses,

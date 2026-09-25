@@ -84,7 +84,7 @@ export function OffersScreen() {
           // A failed request is not "no offers"; saying so would hide a coupon
           // the customer does have.
           <EmptyState
-            emoji="⚠️"
+            icon="alert"
             title="تعذّر تحميل عروضك"
             subtitle="تحقق من اتصالك ثم حاول مرة أخرى"
             actionLabel="إعادة المحاولة"
@@ -92,7 +92,7 @@ export function OffersScreen() {
           />
         ) : (
           <EmptyState
-            emoji="🏷️"
+            icon="tag"
             title="لا توجد عروض خاصة بك الآن"
             subtitle={isGuest ? 'سجّل دخولك لترى العروض المرتبطة برقمك' : 'تابعنا على إنستقرام @sunray.sa لأحدث العروض'}
           />

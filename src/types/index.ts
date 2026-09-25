@@ -1,3 +1,4 @@
+import type { IconName } from '@/components/icons/glyphs';
 import {
   FoodicsOrderType,
   FoodicsOrderStatus,
@@ -36,7 +37,7 @@ export interface Category {
   foodicsId: string; // maps to a Foodics category UUID
   nameAr: string;
   nameEn: string;
-  emoji: string;
+  icon: IconName;
 }
 
 export interface ProductSize {
@@ -78,7 +79,8 @@ export interface Product {
   descriptionEn: string;
   price: number; // base price (﷼)
   image: string | null; // null → placeholder
-  emoji: string; // placeholder visual
+  /** Brand icon shown when there is no photo, and beside the category. */
+  icon: IconName;
   categoryId: string; // references Category.id (mock key or backend id)
   calories?: number;
   sizes: ProductSize[]; // app-flattened view of Foodics "size" modifier options
@@ -103,7 +105,8 @@ export interface CartLine {
   productId: string;
   nameAr: string;
   nameEn: string;
-  emoji: string;
+  /** Optional: carts saved before icons replaced emoji do not have one. */
+  icon?: IconName;
   optionLabel: string; // human readable "وسط · حليب لوز"
   sizeId?: string;
   addOnIds: string[];
@@ -244,17 +247,6 @@ export interface GiftCard {
 // ───────────────────────── Loyalty ─────────────────────────
 export type LoyaltyTier = 'bronze' | 'silver' | 'gold';
 
-export type RewardKind = 'discount' | 'freeItem' | 'sizeUpgrade' | 'walletTopup';
-
-export interface Reward {
-  id: string;
-  nameAr: string;
-  nameEn: string;
-  emoji: string;
-  cost: number; // points
-  kind: RewardKind;
-  value?: number; // discount % or wallet ﷼ etc.
-}
 
 // ───────────────────────── Coupons ─────────────────────────
 export type CouponKind = 'percent' | 'fixed';

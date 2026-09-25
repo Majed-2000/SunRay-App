@@ -1,6 +1,7 @@
 import { View } from 'react-native';
 import { colors, spacing } from '@/theme';
 import { Txt } from './Txt';
+import { Icon } from './icons/Icon';
 import { Button } from './Button';
 
 export interface ErrorStateProps {
@@ -10,7 +11,7 @@ export interface ErrorStateProps {
   retryLabel?: string;
 }
 
-/** Graceful error state with a retry action (used for mock service failures). */
+/** Graceful error state with a retry action. */
 export function ErrorState({
   title = 'تعذّر تحميل البيانات',
   message = 'حدث خطأ غير متوقع. حاول مرة أخرى.',
@@ -19,9 +20,9 @@ export function ErrorState({
 }: ErrorStateProps) {
   return (
     <View style={{ alignItems: 'center', paddingVertical: spacing['5xl'], paddingHorizontal: spacing['3xl'] }}>
-      <Txt size={48} style={{ opacity: 0.6 }}>
-        ⚠️
-      </Txt>
+      <View style={{ width: 88, height: 88, borderRadius: 44, backgroundColor: colors.chipGold, alignItems: 'center', justifyContent: 'center' }}>
+        <Icon name="alert" size={48} />
+      </View>
       <Txt size={17} weight="extraBold" color={colors.ink} center style={{ marginTop: spacing.md }}>
         {title}
       </Txt>

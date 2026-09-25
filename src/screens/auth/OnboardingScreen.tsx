@@ -4,20 +4,20 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { colors, gradients, spacing } from '@/theme';
 import { LOGO } from '@/assets';
-import { Button, Txt } from '@/components';
+import { Button, Icon, Txt, type IconName } from '@/components';
 import { useAuthStore } from '@/store';
 
 interface Slide {
-  emoji: string;
+  icon: IconName;
   titleAr: string;
   bodyAr: string;
 }
 
 const SLIDES: Slide[] = [
-  { emoji: '☕', titleAr: 'اطلب قبل ما توصل', bodyAr: 'جهّز مشروبك المفضل من الطلب المسبق واستلمه فور وصولك للفرع دون انتظار.' },
+  { icon: 'cup-hot', titleAr: 'اطلب قبل ما توصل', bodyAr: 'جهّز مشروبك المفضل من الطلب المسبق واستلمه فور وصولك للفرع دون انتظار.' },
   // This slide sold delivery, which the store does not offer.
-  { emoji: '🚗', titleAr: 'خدمة السيارة', bodyAr: 'اطلب من التطبيق، وعند وصولك للفرع اضغط «وصلت» ونوصّل طلبك لسيارتك.' },
-  { emoji: '⭐', titleAr: 'كل كوب يكسبك نقاط', bodyAr: 'اجمع نقاط مشرقة مع كل طلب واستبدلها بمشروبات مجانية ومكافآت حصرية.' },
+  { icon: 'car', titleAr: 'خدمة السيارة', bodyAr: 'اطلب من التطبيق، وعند وصولك للفرع اضغط «وصلت» ونوصّل طلبك لسيارتك.' },
+  { icon: 'sun', titleAr: 'كل كوب يكسبك نقاط', bodyAr: 'اجمع نقاط مشرقة مع كل طلب واستبدلها بمشروبات مجانية ومكافآت حصرية.' },
 ];
 
 export function OnboardingScreen() {
@@ -73,7 +73,7 @@ export function OnboardingScreen() {
                   marginBottom: spacing['3xl'],
                 }}
               >
-                <Txt size={84}>{s.emoji}</Txt>
+                <Icon name={s.icon} size={96} />
               </View>
               <Txt size={26} weight="black" color={colors.ink} center>
                 {s.titleAr}

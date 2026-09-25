@@ -54,7 +54,7 @@ export function GiftCreateScreen() {
     });
     // No local points award: the ledger is the server's, and gift purchases
     // earn through the same settlement path as any other order.
-    toast('تم إرسال الهدية ☀');
+    toast('تم إرسال الهدية');
     router.replace(`/gift/${card.id}`);
   };
 

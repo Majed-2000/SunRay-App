@@ -7,6 +7,7 @@ import { colors, radius, shadows, spacing } from '@/theme';
 import {
   BranchPickerSheet,
   Button,
+  Icon,
   Card,
   Divider,
   EmptyState,
@@ -64,7 +65,7 @@ export function CartScreen() {
     return (
       <ScreenContainer header={<Header showBack title="سلّتك" />}>
         <EmptyState
-          emoji="🧺"
+          icon="bag"
           title={t.empty.cart}
           subtitle={t.empty.cartHint}
           actionLabel="تصفّح القائمة"
@@ -144,17 +145,21 @@ export function CartScreen() {
               >
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <Txt size={15} weight="extraBold" color={colors.ink}>
-                      {line.emoji} {line.nameAr}
+                    <Icon name={line.icon ?? 'cup-hot'} size={20} />
+                    <Txt size={15} weight="extraBold" color={colors.ink} style={{ flexShrink: 1 }}>
+                      {line.nameAr}
                     </Txt>
                   </View>
                   <Txt size={11} color={colors.textFaint} style={{ marginTop: 1 }}>
                     {line.optionLabel}
                   </Txt>
                   {line.notes ? (
-                    <Txt size={11} color={colors.textMuted} style={{ marginTop: 1 }}>
-                      📝 {line.notes}
-                    </Txt>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 1 }}>
+                      <Icon name="note" size={13} color={colors.textMuted} accent={null} />
+                      <Txt size={11} color={colors.textMuted} style={{ flexShrink: 1 }}>
+                        {line.notes}
+                      </Txt>
+                    </View>
                   ) : null}
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 6 }}>
                     <Txt size={14} weight="black" color={colors.goldDeep}>

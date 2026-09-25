@@ -23,7 +23,7 @@ import { Poppins_500Medium } from '@expo-google-fonts/poppins/500Medium';
 import { Poppins_600SemiBold } from '@expo-google-fonts/poppins/600SemiBold';
 import { Poppins_700Bold } from '@expo-google-fonts/poppins/700Bold';
 import { colors } from '@/theme';
-import { Toast } from '@/components';
+import { Icon, Toast } from '@/components';
 import { useAuthStore } from '@/store';
 
 // RTL is forced natively by the `expo-localization` plugin (`forcesRTL` in
@@ -106,7 +106,7 @@ export default function RootLayout() {
 export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
   return (
     <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, backgroundColor: colors.bg }}>
-      <Text style={{ fontSize: 44 }}>☕</Text>
+      <Icon name="alert" size={56} />
       <Text style={{ fontSize: 20, fontWeight: '700', color: colors.ink, marginTop: 12, textAlign: 'center' }}>
         حدث خطأ غير متوقع
       </Text>

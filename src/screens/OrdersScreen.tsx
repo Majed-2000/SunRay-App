@@ -141,7 +141,7 @@ export function OrdersScreen() {
         <ErrorState onRetry={reload} />
       ) : !hasAnything ? (
         <EmptyState
-          emoji="🧾"
+          icon="receipt"
           title={t.empty.orders}
           subtitle={t.empty.ordersHint}
           actionLabel="ابدأ الطلب"
@@ -194,14 +194,14 @@ export function OrdersScreen() {
               <View style={{ flex: 1, justifyContent: 'center' }}>
                 {tab === 'active' ? (
                   <EmptyState
-                    emoji="☕"
+                    icon="cup-hot"
                     title="لا توجد طلبات جارية"
                     subtitle="طلباتك المكتملة في تبويب «منتهي»"
                     actionLabel="اطلب الآن"
                     onAction={() => router.replace('/(tabs)/menu')}
                   />
                 ) : (
-                  <EmptyState emoji="🧾" title="لا توجد طلبات منتهية" subtitle="طلباتك المكتملة ستظهر هنا" />
+                  <EmptyState icon="receipt" title="لا توجد طلبات منتهية" subtitle="طلباتك المكتملة ستظهر هنا" />
                 )}
               </View>
             }

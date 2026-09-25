@@ -39,7 +39,7 @@ export function OrderSuccessScreen() {
         </View>
 
         <Txt size={26} weight="black" color={colors.ink} center style={{ marginTop: spacing.xl }}>
-          تم إرسال طلبك ☀
+          تم إرسال طلبك
         </Txt>
         <View
           style={{

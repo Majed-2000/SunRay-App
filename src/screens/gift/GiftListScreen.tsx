@@ -39,7 +39,7 @@ export function GiftListScreen() {
     >
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing['4xl'] }}>
         <Txt size={13} color={colors.textMuted} style={{ paddingHorizontal: spacing['2xl'], marginBottom: spacing.lg, lineHeight: 20 }}>
-          أهدِ رصيدًا لمن تحب 🎁 — يُضاف مبلغ البطاقة إلى محفظة المستلم عند استبدالها.
+          أهدِ رصيدًا لمن تحب — يُضاف مبلغ البطاقة إلى محفظة المستلم عند استبدالها.
         </Txt>
 
         {/* create new — pick an amount/design */}
@@ -73,7 +73,7 @@ export function GiftListScreen() {
             <SectionHeader title="بطاقاتي" />
           </View>
           {cards.length === 0 ? (
-            <EmptyState emoji="🎁" title={t.empty.gifts} subtitle="أنشئ بطاقتك الأولى وأهدِ لحظة مشرقة" />
+            <EmptyState icon="gift" title={t.empty.gifts} subtitle="أنشئ بطاقتك الأولى وأهدِ لحظة مشرقة" />
           ) : (
             <ResponsiveGrid
               data={cards}

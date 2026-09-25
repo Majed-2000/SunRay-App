@@ -2,10 +2,12 @@ import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, shadows, spacing } from '@/theme';
 import { Txt } from './Txt';
+import { Icon, type IconName } from './icons/Icon';
 
 export interface ListRowProps {
   icon?: keyof typeof Ionicons.glyphMap;
-  emoji?: string;
+  /** A brand icon instead of an Ionicon. */
+  brandIcon?: IconName;
   label: string;
   sublabel?: string;
   value?: string;
@@ -18,7 +20,7 @@ export interface ListRowProps {
 /** Settings / account style row: icon tile + label + chevron. */
 export function ListRow({
   icon,
-  emoji,
+  brandIcon,
   label,
   sublabel,
   value,
@@ -43,7 +45,7 @@ export function ListRow({
         },
       ]}
     >
-      {icon || emoji ? (
+      {icon || brandIcon ? (
         <View
           style={{
             width: 38,
@@ -54,8 +56,8 @@ export function ListRow({
             justifyContent: 'center',
           }}
         >
-          {emoji ? (
-            <Txt size={18}>{emoji}</Txt>
+          {brandIcon ? (
+            <Icon name={brandIcon} size={22} />
           ) : (
             <Ionicons name={icon!} size={18} color={danger ? colors.danger : colors.goldDeep} />
           )}

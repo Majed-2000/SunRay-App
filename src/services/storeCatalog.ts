@@ -26,6 +26,7 @@
 import { onValue, ref, off, type DataSnapshot } from 'firebase/database';
 import { db } from './firebase';
 import type { BrewMethod, Category, Product, ProductMethod } from '@/types';
+import type { IconName } from '@/components/icons/glyphs';
 
 export type { BrewMethod };
 
@@ -110,6 +111,32 @@ const SECTION_RANK: Record<string, number> = {
 
 const DEFAULT_CATEGORY = 'محاصيلنا & إضافات';
 
+/**
+ * The brand icon for a product, from where the store files it.
+ *
+ * Shown when a product has no photo (7 of 98 today) and beside each category.
+ * Every product used to get the same ☕ emoji, whether it was a croissant or
+ * a bottle of water.
+ */
+const SECTION_ICON: Record<string, IconName> = {
+  pouroverSection: 'pourover',
+  beans_espresso_premium: 'cup-hot',
+  beans_espresso_classic: 'cup-hot',
+  matchaSection: 'matcha',
+  healthyBreakfast: 'pastry',
+  hotDrinks: 'cup-hot',
+  winterItems: 'cup-hot',
+  coldDrinks: 'cup-iced',
+  desserts: 'dessert',
+  miniMenu: 'cookie',
+};
+
+function iconOf(id: string, p: RawProduct): IconName {
+  // The 1 L / 2 L gathering jugs sit in `extras` with the bags of beans.
+  if (/gathering|jug/i.test(id)) return 'jug';
+  return SECTION_ICON[p.section ?? ''] ?? 'beans';
+}
+
 /** Category label for a product — `storeCatOf`, ported. */
 function categoryOf(id: string, p: RawProduct): string {
   // Coffee of the Day is identified by id, not by its section.
@@ -188,7 +215,7 @@ function toProduct(id: string, p: RawProduct): Product | null {
     descriptionEn: '',
     price: h / 100,
     image: p.image ?? null,
-    emoji: '☕',
+    icon: iconOf(id, p),
     categoryId: categoryOf(id, p),
     isAvailable: !isSoldOut(p),
     isFeatured: false,
@@ -298,7 +325,8 @@ export function subscribeCatalog(
         foodicsId: p.categoryId,
         nameAr: p.categoryId,
         nameEn: '',
-        emoji: '',
+        // The group takes the icon of the first thing in it, in menu order.
+        icon: p.icon,
       });
     }
 

@@ -54,7 +54,7 @@ export function HomeScreen() {
   const flagged = useMemo(() => catalogProducts.filter((p) => p.isFeatured), [catalogProducts]);
   const coffeeOfDay = useMemo(() => catalogProducts.filter((p) => p.categoryId === 'قهوة اليوم'), [catalogProducts]);
   const featured = flagged.length > 0 ? flagged : coffeeOfDay;
-  const featuredTitle = flagged.length > 0 ? 'المختصّة اليوم' : 'قهوة اليوم ☀';
+  const featuredTitle = flagged.length > 0 ? 'المختصّة اليوم' : 'قهوة اليوم';
   const t = strings();
   const giftAmounts = useStoreSettingsStore((s) => s.giftAmounts);
 
@@ -124,7 +124,7 @@ export function HomeScreen() {
               <Ionicons name="location" size={16} color={colors.goldDeep} />
               <View>
                 <Txt size={9} weight="bold" color={colors.textFaint}>
-                  {branchAuto ? 'فرعك الأقرب 📡' : 'الفرع المحدد'}
+                  {branchAuto ? 'فرعك الأقرب' : 'الفرع المحدد'}
                 </Txt>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
                   <Txt size={13} weight="extraBold" color={colors.ink}>
@@ -206,19 +206,19 @@ export function HomeScreen() {
             {/* Only what the store fulfils. Delivery, reservation and the
                 waitlist each sat here while nothing behind them was real —
                 see `constants/features.ts`. */}
-            <IconTile emoji="☕" label="طلب مسبق" tint="#fbe9c4" onPress={() => startOrder('pickup')} />
-            <IconTile emoji="🚗" label="سيارتي" tint="#f3ddc8" onPress={() => startOrder('car')} />
+            <IconTile icon="cup-hot" label="طلب مسبق" onPress={() => startOrder('pickup')} />
+            <IconTile icon="car" label="سيارتي" onPress={() => startOrder('car')} />
             {STORE_HAS_DELIVERY ? (
-              <IconTile emoji="🛵" label="توصيل" tint="#f3ddc8" onPress={() => startOrder('delivery')} />
+              <IconTile icon="scooter" label="توصيل" onPress={() => startOrder('delivery')} />
             ) : null}
             {STORE_HAS_RESERVATION ? (
-              <IconTile emoji="🪑" label="حجز جلسة" tint="#e3ecd9" onPress={() => router.push('/reserve')} />
+              <IconTile icon="seat" label="حجز جلسة" onPress={() => router.push('/reserve')} />
             ) : null}
             {STORE_HAS_WAITLIST ? (
-              <IconTile emoji="⏳" label="انتظار" tint="#e9e0d0" onPress={() => router.push('/waitlist')} />
+              <IconTile icon="hourglass" label="انتظار" onPress={() => router.push('/waitlist')} />
             ) : null}
-            <IconTile emoji="⭐" label="نقاطي" tint="#e3ecd9" onPress={() => router.push('/(tabs)/loyalty')} />
-            <IconTile emoji="🧾" label="طلباتي" tint="#e9e0d0" onPress={() => router.push('/(tabs)/orders')} />
+            <IconTile icon="sun" label="نقاطي" onPress={() => router.push('/(tabs)/loyalty')} />
+            <IconTile icon="receipt" label="طلباتي" onPress={() => router.push('/(tabs)/orders')} />
           </View>
 
           {/* The offers strip advertised three promotions the store does not
@@ -253,7 +253,7 @@ export function HomeScreen() {
           {STORE_HAS_GIFTCARDS ? (
           <>
           <View style={{ paddingHorizontal: spacing['2xl'], marginTop: spacing.sm }}>
-            <SectionHeader title="بطاقات الإهداء 🎁" subtitle="أهدِ لحظة مشرقة" />
+            <SectionHeader title="بطاقات الإهداء" subtitle="أهدِ لحظة مشرقة" />
           </View>
           <ScrollView
             horizontal

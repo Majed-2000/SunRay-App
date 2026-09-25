@@ -7,7 +7,7 @@ const line = (unitPrice: number, qty = 1): CartLine => ({
   productId: 'p',
   nameAr: 'قهوة',
   nameEn: '',
-  emoji: '☕',
+  icon: 'cup-hot',
   optionLabel: '',
   addOnIds: [],
   unitPrice,

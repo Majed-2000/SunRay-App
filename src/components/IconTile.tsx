@@ -1,16 +1,18 @@
 import { Pressable, View } from 'react-native';
 import { colors, radius, shadows } from '@/theme';
 import { Txt } from './Txt';
+import { Icon, type IconName } from './icons/Icon';
 
 export interface IconTileProps {
-  emoji: string;
+  icon: IconName;
   label: string;
-  tint: string;
+  /** Tile background behind the icon. Brand cream-gold by default. */
+  tint?: string;
   onPress?: () => void;
 }
 
-/** Home quick-action tile (طلب مسبق / توصيل …). */
-export function IconTile({ emoji, label, tint, onPress }: IconTileProps) {
+/** Home quick-action tile (طلب مسبق / سيارتي …). */
+export function IconTile({ icon, label, tint = colors.chipGold, onPress }: IconTileProps) {
   return (
     <Pressable
       onPress={onPress}
@@ -37,7 +39,7 @@ export function IconTile({ emoji, label, tint, onPress }: IconTileProps) {
           justifyContent: 'center',
         }}
       >
-        <Txt size={19}>{emoji}</Txt>
+        <Icon name={icon} size={24} />
       </View>
       <Txt size={11} weight="extraBold" color={colors.ink} center style={{ marginTop: 8 }}>
         {label}

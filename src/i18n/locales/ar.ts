@@ -16,7 +16,7 @@ export const ar = {
     delete: 'حذف',
     close: 'إغلاق',
     seeAll: 'عرض الكل',
-    soon: 'قريبًا ☀',
+    soon: 'قريبًا',
     points: 'نقطة',
     retry: 'إعادة المحاولة',
     or: 'أو',

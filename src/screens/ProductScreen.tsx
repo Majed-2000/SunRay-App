@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, radius, spacing } from '@/theme';
 import {
   Button,
+  Icon,
   OptionChip,
   ProductImage,
   QtyStepper,
@@ -111,7 +112,7 @@ function ProductDetail({ product }: { product: Product }) {
       >
         <View style={{ width: '100%', maxWidth: productMaxWidth }}>
         {/* hero */}
-        <ProductImage emoji={product.emoji} image={product.image} height={heroHeight} emojiSize={isTablet ? 110 : 80} radiusKey={isTablet ? 'xl' : 'xs'} style={isTablet ? { marginTop: spacing.lg } : undefined}>
+        <ProductImage icon={product.icon} image={product.image} height={heroHeight} iconSize={isTablet ? 120 : 88} radiusKey={isTablet ? 'xl' : 'xs'} style={isTablet ? { marginTop: spacing.lg } : undefined}>
           <Pressable
             onPress={() => router.back()}
             style={{
@@ -150,9 +151,16 @@ function ProductDetail({ product }: { product: Product }) {
           </Txt>
 
           {product.calories ? (
-            <Txt size={12} weight="bold" color={colors.textFaint} style={{ marginTop: 8 }}>
-              🔥 {toArabicDigits(product.calories)} سعرة · ⏱ {toArabicDigits(product.preparationTime)} دقائق
-            </Txt>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 }}>
+              <Icon name="flame" size={15} color={colors.textFaint} />
+              <Txt size={12} weight="bold" color={colors.textFaint}>
+                {toArabicDigits(product.calories)} سعرة
+              </Txt>
+              <Icon name="timer" size={15} color={colors.textFaint} />
+              <Txt size={12} weight="bold" color={colors.textFaint}>
+                {toArabicDigits(product.preparationTime)} دقائق
+              </Txt>
+            </View>
           ) : null}
 
           {/* brewing method — priced per method by the server, so the choice

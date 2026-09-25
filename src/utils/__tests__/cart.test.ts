@@ -13,7 +13,7 @@ function product(over: Partial<Product>): Product {
     descriptionEn: '',
     price: 39,
     image: null,
-    emoji: '☕',
+    icon: 'cup-hot',
     categoryId: 'x',
     sizes: [],
     addOns: [],

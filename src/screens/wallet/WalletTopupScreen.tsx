@@ -30,7 +30,7 @@ export function WalletTopupScreen() {
       return;
     }
     topup(finalAmount);
-    toast('تم شحن المحفظة 🎉');
+    toast('تم شحن المحفظة');
     router.back();
   };
 
@@ -78,7 +78,7 @@ export function WalletTopupScreen() {
 
         <Button label="شحن الآن" variant="gold" style={{ marginTop: spacing.xl }} onPress={onTopup} />
         <Txt size={11} color={colors.textFaint} center style={{ marginTop: spacing.lg }}>
-          🔒 شحن تجريبي — لا يتم خصم أي مبلغ حقيقي
+          شحن تجريبي — لا يتم خصم أي مبلغ حقيقي
         </Txt>
       </View>
     </ScreenContainer>

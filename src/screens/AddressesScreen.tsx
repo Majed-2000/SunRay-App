@@ -42,7 +42,7 @@ export function AddressesScreen() {
     >
       <View style={{ paddingTop: spacing.lg, gap: 12 }}>
         {addresses.length === 0 ? (
-          <EmptyState emoji="📍" title="لا توجد عناوين" subtitle="أضف عنوانك لتسهيل التوصيل" />
+          <EmptyState icon="pin" title="لا توجد عناوين" subtitle="أضف عنوانك لتسهيل التوصيل" />
         ) : (
           addresses.map((a) => (
             <Card key={a.id} radiusKey="lg">

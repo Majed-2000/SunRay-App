@@ -28,7 +28,7 @@ export function SupportScreen() {
       <View style={{ paddingTop: spacing.lg, paddingBottom: spacing['4xl'] }}>
         <Card radiusKey="xl" backgroundColor={colors.ink} style={{ marginBottom: spacing.xl }}>
           <Txt size={20} weight="black" color={colors.white}>
-            كيف نقدر نساعدك؟ ☀
+            كيف نقدر نساعدك؟
           </Txt>
           <Txt size={13} color={colors.textOnDarkMuted} style={{ marginTop: 6, lineHeight: 21 }}>
             راسلنا وسيرد عليك فريق سن راي. عن طلب معيّن؟ اذكر رقم الطلب من «طلباتي».

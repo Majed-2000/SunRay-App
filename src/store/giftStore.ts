@@ -74,7 +74,7 @@ export const useGiftStore = create<GiftState>((set, get) => ({
     // MOCK: real redemption is backend-side (validate code → credit wallet ledger).
     useWalletStore.getState().credit(card.amount, 'استبدال بطاقة إهداء', 'giftPurchase');
     set((s) => ({ cards: s.cards.map((c) => (c.id === id ? { ...c, status: 'used' } : c)) }));
-    toast('تمت إضافة الرصيد إلى محفظتك 🎉');
+    toast('تمت إضافة الرصيد إلى محفظتك');
     return true;
   },
 

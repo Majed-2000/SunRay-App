@@ -138,7 +138,8 @@ export function MenuScreen() {
             {categories.map((c) => (
               <CategoryPill
                 key={c.id}
-                label={`${c.emoji} ${c.nameAr}`}
+                label={c.nameAr}
+                icon={c.icon}
                 active={filter === c.id}
                 onPress={() => selectFilter(c.id)}
               />
@@ -168,9 +169,9 @@ export function MenuScreen() {
           // there is something else to try — with an empty catalog it reads as
           // a broken filter rather than an empty menu.
           products.length === 0 ? (
-            <EmptyState emoji="☕" title="القائمة فارغة" subtitle="لم تُضف أي أصناف بعد" />
+            <EmptyState icon="cup-hot" title="القائمة فارغة" subtitle="لم تُضف أي أصناف بعد" />
           ) : (
-            <EmptyState emoji="🔍" title="لا توجد أصناف" subtitle="جرّب تصنيفًا آخر" />
+            <EmptyState icon="search" title="لا توجد أصناف" subtitle="جرّب تصنيفًا آخر" />
           )
         ) : isTablet ? (
           <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: spacing.xs, paddingBottom: 140 }}>

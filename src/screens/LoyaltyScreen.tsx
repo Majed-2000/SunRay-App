@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { RefreshControl, ScrollView, View } from 'react-native';
 import { colors, radius, shadows, spacing } from '@/theme';
-import { Card, EmptyState, ErrorState, ScreenContainer, Spinner, Txt } from '@/components';
+import { Card, EmptyState, ErrorState, Icon, ScreenContainer, Spinner, Txt } from '@/components';
 import { toArabicDigits } from '@/utils/numerals';
 import { useAuthStore, useLoyaltyStore } from '@/store';
 import type { LoyaltyEvent } from '@/services/storeLoyalty';
@@ -66,7 +66,7 @@ export function LoyaltyScreen() {
     return (
       <ScreenContainer padded={false} header={header}>
         <EmptyState
-          emoji="⭐"
+          icon="sun"
           title="سجّل دخولك لعرض نقاطك"
           subtitle="نقاطك مرتبطة برقم جوالك، وتنتقل معك بين الفرع والتطبيق"
         />
@@ -99,7 +99,7 @@ export function LoyaltyScreen() {
     return (
       <ScreenContainer padded={false} header={header}>
         <EmptyState
-          emoji="☕"
+          icon="cup-hot"
           title="لم نجد نقاطًا لرقمك بعد"
           subtitle="اطلب من التطبيق أو أدخل رقمك عند الكاشير، وتبدأ نقاطك بالتجمّع"
         />
@@ -172,7 +172,7 @@ export function LoyaltyScreen() {
               <Txt size={14} weight="extraBold" color={colors.gold} style={{ marginTop: spacing.md }}>
                 {pointsToNext > 0
                   ? `باقي ${toArabicDigits(pointsToNext)} نقطة لـ${data?.rewardLabel ?? 'مكافأتك'}`
-                  : `${data?.rewardLabel ?? 'مكافأتك'} جاهزة 🎉`}
+                  : `${data?.rewardLabel ?? 'مكافأتك'} جاهزة`}
               </Txt>
             </>
           ) : (
@@ -236,7 +236,7 @@ export function LoyaltyScreen() {
                       justifyContent: 'center',
                     }}
                   >
-                    <Txt size={20}>{r.affordable ? '🎁' : '🔒'}</Txt>
+                    <Icon name={r.affordable ? 'gift' : 'lock'} size={26} accent={r.affordable ? undefined : null} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Txt size={15} weight="extraBold" color={colors.ink}>

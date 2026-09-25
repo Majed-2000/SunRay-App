@@ -47,7 +47,7 @@ export function GiftDetailScreen() {
         {/* how it works */}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: spacing.lg }}>
           <Txt size={13} color={colors.textMuted} style={{ flex: 1, lineHeight: 20 }}>
-            💳 يُضاف مبلغ البطاقة ({card.amount} ﷼) إلى رصيد محفظتك عند الاستبدال، وتستخدمه في طلباتك.
+            يُضاف مبلغ البطاقة ({card.amount} ﷼) إلى رصيد محفظتك عند الاستبدال، وتستخدمه في طلباتك.
           </Txt>
         </View>
 
@@ -79,7 +79,7 @@ export function GiftDetailScreen() {
             <>
               <Divider marginV={spacing.sm} />
               <Txt size={13} color={colors.textSecondary} style={{ lineHeight: 21 }}>
-                💬 {card.message}
+                {card.message}
               </Txt>
             </>
           ) : null}
@@ -102,9 +102,9 @@ export function GiftDetailScreen() {
             </Txt>
           </View>
         )}
-        <Button label="مشاركة الكود" variant="outline" style={{ marginTop: 10 }} onPress={() => toast('تمت المشاركة ☀')} />
+        <Button label="مشاركة الكود" variant="outline" style={{ marginTop: 10 }} onPress={() => toast('تمت المشاركة')} />
         <Txt size={11} color={colors.textFaint} center style={{ marginTop: spacing.md, lineHeight: 17 }}>
-          🔒 كود البطاقة سرّي وبمثابة نقد — لا تشاركه إلا مع المستلم.
+          كود البطاقة سرّي وبمثابة نقد — لا تشاركه إلا مع المستلم.
         </Txt>
       </View>
     </ScreenContainer>

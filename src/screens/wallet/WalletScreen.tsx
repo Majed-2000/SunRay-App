@@ -65,7 +65,7 @@ export function WalletScreen() {
         </View>
 
         <Txt size={11} color={colors.textFaint} center style={{ marginTop: spacing.xl, lineHeight: 18 }}>
-          🔒 الرصيد والعمليات تجريبية — لا يوجد دفع حقيقي
+          الرصيد والعمليات تجريبية — لا يوجد دفع حقيقي
         </Txt>
       </View>
     </ScreenContainer>

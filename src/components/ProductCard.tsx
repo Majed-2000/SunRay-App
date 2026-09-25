@@ -5,6 +5,7 @@ import type { Product } from '@/types';
 import { colors, radius, shadows, spacing } from '@/theme';
 import { formatRiyal, toArabicDigits } from '@/utils/numerals';
 import { Txt } from './Txt';
+import { Icon } from './icons/Icon';
 import { Card } from './Card';
 import { ProductImage } from './ProductImage';
 
@@ -28,7 +29,7 @@ export function ProductCard({ product, onPress, onAdd }: ProductCardProps) {
       shadow="card"
       style={{ flex: 1, opacity: sold ? 0.62 : 1 }}
     >
-      <ProductImage emoji={product.emoji} image={product.image} height={120} emojiSize={46}>
+      <ProductImage icon={product.icon} image={product.image} height={120} iconSize={48}>
         {sold ? (
           <View
             style={{
@@ -83,9 +84,7 @@ export function ProductCard({ product, onPress, onAdd }: ProductCardProps) {
         </Txt>
         {product.rating ? (
           <>
-            <Txt size={11} color={colors.gold}>
-              ★
-            </Txt>
+            <Icon name="sun" size={12} />
             <Txt size={11} weight="bold" color={colors.textSecondary}>
               {toArabicDigits(product.rating.toFixed(1))}
             </Txt>
@@ -134,10 +133,10 @@ function ProductRowBase({ product, onPress, onAdd }: ProductCardProps) {
       ]}
     >
       <ProductImage
-        emoji={product.emoji}
+        icon={product.icon}
         image={product.image}
         height={66}
-        emojiSize={24}
+        iconSize={30}
         radiusKey="md"
        
         style={{ width: 66 }}

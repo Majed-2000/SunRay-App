@@ -30,7 +30,7 @@ export function NotificationsScreen() {
     <ScreenContainer header={<Header showBack title="الإشعارات" />}>
       {notifications.length === 0 ? (
         <EmptyState
-          emoji="🔔"
+          icon="bell"
           title="لا توجد إشعارات"
           subtitle="ستظهر هنا تحديثات طلباتك ونقاطك وهداياك"
         />

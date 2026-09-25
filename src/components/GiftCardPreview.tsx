@@ -5,6 +5,7 @@ import { colors, radius } from '@/theme';
 import { toArabicDigits } from '@/utils/numerals';
 import { LOGO } from '@/assets';
 import { Txt } from './Txt';
+import { Icon } from './icons/Icon';
 
 export interface GiftCardPreviewProps {
   design: GiftDesign;
@@ -41,9 +42,9 @@ export function GiftCardPreview({
       ]}
     >
       <LinearGradient colors={design.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
-        <Txt size={big ? 120 : 72} style={{ position: 'absolute', top: big ? -30 : -20, right: big ? -24 : -18, opacity: 0.12, color: colors.white }}>
-          ☀
-        </Txt>
+        <View style={{ position: 'absolute', top: big ? -30 : -20, right: big ? -24 : -18, opacity: 0.14 }}>
+          <Icon name="sun" size={big ? 150 : 96} color={colors.white} accent={colors.white} />
+        </View>
         <View style={{ padding: big ? 24 : 16, paddingBottom: big ? 12 : 8 }}>
           <Image source={LOGO} style={{ width: big ? 44 : 32, height: big ? 44 : 32 }} />
           <Txt

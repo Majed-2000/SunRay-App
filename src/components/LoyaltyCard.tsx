@@ -71,7 +71,7 @@ export function LoyaltyCard({ points, note, tierLabel, pointsToNext, goal, onPre
           }}
         >
           <Txt size={10} weight="extraBold" color={colors.white}>
-            {tierLabel ? `⭐ عضو ${tierLabel}` : '⭐ عضو'}
+            {tierLabel ? `عضو ${tierLabel}` : 'عضو'}
           </Txt>
         </View>
       </View>
@@ -112,7 +112,7 @@ export function LoyaltyCard({ points, note, tierLabel, pointsToNext, goal, onPre
           : hasGoal
           ? pointsToNext > 0
             ? `باقي ${toArabicDigits(pointsToNext)} نقطة لمكافأتك`
-            : 'مكافأتك جاهزة 🎉'
+            : 'مكافأتك جاهزة'
           : 'نقاطك تتراكم مع كل طلب'}
         {/* A note carries its own call to action (retry, sign in). */}
         {onPress && !note ? ' · اضغط للتفاصيل ←' : ''}

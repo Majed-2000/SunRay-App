@@ -57,7 +57,7 @@ export function EditProfileScreen() {
       toast('تعذّر الحفظ، تحقّق من الاتصال وحاول مرة أخرى');
       return;
     }
-    toast('تم حفظ ملفك ☀');
+    toast('تم حفظ ملفك');
     router.back();
   };
 
@@ -91,7 +91,7 @@ export function EditProfileScreen() {
               onPress={() => setMonthOpen(true)}
             />
             <Txt size={11} color={colors.textFaint} style={{ marginTop: 6 }}>
-              لمكافأة يوم ميلادك 🎂 — الشهر يكفي
+              لمكافأة يوم ميلادك — الشهر يكفي
             </Txt>
           </View>
 

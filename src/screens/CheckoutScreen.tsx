@@ -358,7 +358,7 @@ export function CheckoutScreen() {
 
           <View style={{ marginTop: spacing.lg, gap: 6 }}>
             <Txt size={11} color={colors.textFaint} center style={{ lineHeight: 18 }}>
-              ℹ️ بعد تأكيد الطلب والدفع يبدأ الفرع التحضير، وتتابع حالته من «طلباتي».
+              بعد تأكيد الطلب والدفع يبدأ الفرع التحضير، وتتابع حالته من «طلباتي».
             </Txt>
           </View>
           </View>

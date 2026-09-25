@@ -20,10 +20,10 @@ export const ORDER_TYPES: readonly OrderType[] = STORE_HAS_DELIVERY
 
 /** Short labels for tight controls (tabs, chips). */
 export const ORDER_TYPE_SHORT: Record<OrderType, string> = {
-  pickup: '☕ استلام',
-  car: '🚗 سيارتي',
-  delivery: '🛵 توصيل',
-  dineIn: '🍽️ داخلي',
+  pickup: 'استلام',
+  car: 'سيارتي',
+  delivery: 'توصيل',
+  dineIn: 'داخلي',
 };
 
 /** True for the modes that need a plate and an "I've arrived" button. */

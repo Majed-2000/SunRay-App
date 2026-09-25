@@ -146,7 +146,7 @@ export const useCartStore = create<CartState>()(
         value: res.value ?? 0,
       } as Coupon,
     });
-    toast('تم تطبيق الكوبون 🎉');
+    toast('تم تطبيق الكوبون');
     return true;
   },
   removeCoupon: () => set({ coupon: null }),

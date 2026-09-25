@@ -4,6 +4,7 @@ import * as Location from 'expo-location';
 import { colors, spacing } from '@/theme';
 import { Button } from './Button';
 import { Txt } from './Txt';
+import { Icon } from './icons/Icon';
 import { markCarArrived, describeArrivalError } from '@/services/storeCurbside';
 import { toast, useOrderStore } from '@/store';
 
@@ -102,7 +103,7 @@ export function ArriveButton({ token, code, orderId, alreadyArrived }: ArriveBut
 
   return (
     <View style={{ gap: 6 }}>
-      <Button label="وصلت 🚗" variant="gold" loading={busy} onPress={press} />
+      <Button label="وصلت" iconLeft={<Icon name="car" size={20} accent={null} />} variant="gold" loading={busy} onPress={press} />
       <Txt size={11} color={colors.textFaint} center>
         اضغط عند وصولك لموقف الفرع
       </Txt>

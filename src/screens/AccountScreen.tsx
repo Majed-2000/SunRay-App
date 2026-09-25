@@ -45,7 +45,7 @@ export function AccountScreen() {
       icon: 'share-social-outline',
       label: 'ادعُ صديقًا',
       onPress: () =>
-        Share.share({ message: 'جرّب تطبيق سن راي ☀ اطلب قهوتك من الحلقة الغربية قبل ما توصل.' }).catch(
+        Share.share({ message: 'جرّب تطبيق سن راي — اطلب قهوتك من الحلقة الغربية قبل ما توصل.' }).catch(
           () => undefined,
         ),
     },

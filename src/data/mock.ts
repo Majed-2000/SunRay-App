@@ -103,7 +103,7 @@ export const mockGiftCards: GiftCard[] = [
     senderName: 'سارة',
     recipientName: 'نوف',
     recipientPhone: '501234567',
-    message: 'صباحك مشرق ☀',
+    message: 'صباحك مشرق',
     status: 'active',
     createdAt: NOW - 10 * DAY,
     direction: 'received',

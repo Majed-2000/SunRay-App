@@ -2,6 +2,7 @@ import { Pressable, ScrollView, View } from 'react-native';
 import { colors, radius, spacing } from '@/theme';
 import { useBranchStore } from '@/store';
 import { Txt } from './Txt';
+import { Icon } from './icons/Icon';
 import { Sheet } from './Sheet';
 
 export interface BranchPickerSheetProps {
@@ -50,7 +51,7 @@ export function BranchPickerSheet({ visible, onClose }: BranchPickerSheetProps) 
                   justifyContent: 'center',
                 }}
               >
-                <Txt size={17}>☕</Txt>
+                <Icon name="store" size={22} />
               </View>
               <View style={{ flex: 1 }}>
                 <Txt size={14} weight="extraBold" color={colors.ink}>

@@ -25,6 +25,7 @@ import {
   isActiveOrder,
   orderStage,
   orderRef,
+  orderKindLabel,
   useBranchStore,
   useCartStore,
   toast,
@@ -79,6 +80,10 @@ export function OrderDetailScreen() {
   const showPayment = order.paymentKnown !== false;
   // Live, «pending» means not yet paid: a paid order moves straight to Active.
   // That is the only state the store lets a customer cancel from.
+  // Catering, session bookings, tickets and gift cards share the feed but not
+  // the coffee flow: no preparation steps, no cancel, no reorder.
+  const kindLabel = orderKindLabel(order.feedType);
+  const isStoreOrder = kindLabel === null;
   const unpaid = orderStage(order) === 'pending';
 
   const confirmCancel = () => {
@@ -123,7 +128,7 @@ export function OrderDetailScreen() {
             color={colors.goldDeep}
           />
           <Txt size={15} weight="extraBold" color={colors.ink} style={{ flex: 1 }}>
-            {t.orderType[order.type]} · {branch?.nameAr ?? ''}
+            {isStoreOrder ? `${t.orderType[order.type]}${branch ? ` · ${branch.nameAr}` : ''}` : kindLabel}
           </Txt>
           <OrderStatusBadge stage={orderStage(order)} />
         </View>
@@ -131,13 +136,13 @@ export function OrderDetailScreen() {
         {/* Curbside: the whole point of the mode is this button. It sits above
             the timeline because a customer who has just parked is not reading
             step labels — they want to say they are here. */}
-        {isActive && isCurbside(order.type) ? (
+        {isStoreOrder && isActive && isCurbside(order.type) ? (
           <Card radiusKey="lg" style={{ marginBottom: spacing.lg }}>
             <ArriveButton orderId={order.id} code={order.code ?? null} />
           </Card>
         ) : null}
 
-        {isActive ? (
+        {isStoreOrder && isActive ? (
           <Card radiusKey="lg" style={{ marginBottom: spacing.lg }}>
             <TrackSteps steps={steps} currentIndex={currentIndex < 0 ? 0 : currentIndex} />
             {order.type === 'delivery' ? (
@@ -181,6 +186,27 @@ export function OrderDetailScreen() {
           <PriceRow label="الإجمالي" amount={order.total} emphasize />
         </Card>
 
+        {/* The refund was invisible: the server reported it and the app threw
+            it away, so a refunded customer saw an ordinary paid order. */}
+        {order.refund ? (
+          <Card radiusKey="lg" style={{ marginBottom: spacing.lg, backgroundColor: colors.chip }}>
+            <Txt size={14} weight="black" color={colors.ink}>
+              {order.refund.cancelled ? 'أُلغي الطلب واسترددت المبلغ' : 'تم استرداد مبلغ'}
+            </Txt>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 }}>
+              <Txt size={13} color={colors.textMuted}>
+                {order.refund.at ? new Date(order.refund.at).toLocaleDateString('ar-SA') : 'قيد المعالجة'}
+              </Txt>
+              <Txt size={14} weight="extraBold" color={colors.success}>
+                {formatRiyal(order.refund.amount)}
+              </Txt>
+            </View>
+            <Txt size={11} color={colors.textFaint} style={{ marginTop: 6, lineHeight: 17 }}>
+              يصل المبلغ لبطاقتك خلال أيام عمل حسب البنك.
+            </Txt>
+          </Card>
+        ) : null}
+
         {/* meta — only what is actually known. Live orders do not report
             the payment method, and points arrive only once the order settles. */}
         {showPayment || order.pointsEarned > 0 ? (
@@ -198,7 +224,7 @@ export function OrderDetailScreen() {
         {unpaid && order.payUrl ? (
           <Button label="ادفع الآن" variant="gold" style={{ marginTop: spacing.lg }} onPress={() => Linking.openURL(order.payUrl!)} />
         ) : null}
-        {unpaid ? (
+        {isStoreOrder && unpaid ? (
           <Button
             label="إلغاء الطلب"
             variant="outline"
@@ -208,7 +234,9 @@ export function OrderDetailScreen() {
           />
         ) : null}
 
-        <Button label="إعادة الطلب" variant={unpaid ? 'ghost' : 'gold'} style={{ marginTop: spacing.lg }} onPress={onReorder} />
+        {isStoreOrder ? (
+          <Button label="إعادة الطلب" variant={unpaid ? 'ghost' : 'gold'} style={{ marginTop: spacing.lg }} onPress={onReorder} />
+        ) : null}
       </View>
     </ScreenContainer>
   );

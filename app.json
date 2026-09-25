@@ -62,6 +62,9 @@
         "expo-build-properties",
         {
           "android": {
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36,
+            "minSdkVersion": 24,
             "enableProguardInReleaseBuilds": true,
             "enableShrinkResourcesInReleaseBuilds": true
           }
@@ -75,6 +78,13 @@
           "locationWhenInUsePermission": "نستخدم موقعك فقط عند ضغطك «وصلت» في خدمة السيارة، للتأكد أنك عند الفرع.",
           "isAndroidBackgroundLocationEnabled": false,
           "isIosBackgroundLocationEnabled": false
+        }
+      ],
+      [
+        "expo-localization",
+        {
+          "supportsRTL": true,
+          "forcesRTL": true
         }
       ]
     ],

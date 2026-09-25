@@ -18,4 +18,5 @@ export {
   orderStage,
   isActiveOrder,
   orderRef,
+  orderKindLabel,
 } from './orderStore';

@@ -17,7 +17,7 @@ import type { Order } from '@/types';
 import { strings } from '@/i18n';
 import { formatRiyal, toArabicDigits } from '@/utils/numerals';
 import { useResponsive } from '@/hooks/useResponsive';
-import { useAuthStore, useBranchStore, useOrderStore, isActiveOrder, orderStage, orderRef } from '@/store';
+import { useAuthStore, useBranchStore, useOrderStore, isActiveOrder, orderStage, orderRef, orderKindLabel } from '@/store';
 
 function relativeDay(createdAt: number): string {
   const days = Math.floor((Date.now() - createdAt) / (24 * 60 * 60 * 1000));
@@ -231,7 +231,7 @@ export function OrdersScreen() {
               </Txt>
             </View>
             <Txt size={12} color={colors.textFaint} style={{ marginTop: 3 }}>
-              {branch?.nameAr} · {relativeDay(order.createdAt)}
+              {[orderKindLabel(order.feedType) ?? branch?.nameAr, relativeDay(order.createdAt)].filter(Boolean).join(' · ')}
             </Txt>
           </View>
           <OrderStatusBadge stage={orderStage(order)} />
@@ -240,7 +240,7 @@ export function OrdersScreen() {
         <View style={{ marginTop: spacing.md, gap: 2 }}>
           {order.items.slice(0, 2).map((it, i) => (
             <Txt key={i} size={12} color={colors.textSecondary}>
-              {toArabicDigits(it.qty)}× {it.nameAr} · {it.optionLabel}
+              {toArabicDigits(it.qty)}× {it.nameAr}{it.optionLabel ? ` · ${it.optionLabel}` : ''}
             </Txt>
           ))}
           {order.items.length > 2 ? (

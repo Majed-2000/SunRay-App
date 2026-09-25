@@ -16,6 +16,8 @@ const CHANNELS = [
   { icon: 'logo-instagram' as const, label: 'راسلنا على إنستقرام', sublabel: '@sunray.sa', url: 'https://ig.me/m/sunray.sa' },
   { icon: 'logo-tiktok' as const, label: 'تيك توك', sublabel: '@sunray.sa', url: 'https://www.tiktok.com/@sunray.sa' },
   { icon: 'logo-snapchat' as const, label: 'سناب شات', sublabel: '@sunray.sa', url: 'https://www.snapchat.com/@sunray.sa' },
+  // The contact address the privacy policy publishes.
+  { icon: 'mail-outline' as const, label: 'البريد الإلكتروني', sublabel: 'sunray.sa811@gmail.com', url: 'mailto:sunray.sa811@gmail.com' },
 ];
 
 export function SupportScreen() {

@@ -26,7 +26,12 @@ import { colors } from '@/theme';
 import { Toast } from '@/components';
 import { useAuthStore } from '@/store';
 
-// Force RTL for the Arabic-first experience.
+// RTL is forced natively by the `expo-localization` plugin (`forcesRTL` in
+// app.json), which writes React Native's RTL preference before JS loads — so
+// the very first launch after install is already right-to-left. Before that,
+// only this block existed: it takes effect on the NEXT launch, so every new
+// customer saw the app mirrored the wrong way once. Kept as a fallback for
+// Expo Go, where config plugins do not run.
 if (!I18nManager.isRTL) {
   I18nManager.allowRTL(true);
   I18nManager.forceRTL(true);

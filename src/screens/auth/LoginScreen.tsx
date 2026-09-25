@@ -20,17 +20,19 @@ export function LoginScreen() {
   const valid = isValidSaudiMobile(phone);
 
   const onLogin = async () => {
-    if (submitting) return; // guard against double-tap (real network call in backend mode)
+    if (submitting) return; // guard against double-tap
     if (!valid) {
       toast('أدخل رقم جوال صحيح');
       return;
     }
-    // In mock mode this is instant; in backend mode it calls POST /api/auth/login.
     setSubmitting(true);
     const sent = await requestOtp(normalizeMobile(phone));
     setSubmitting(false);
     if (!sent) {
-      toast('تعذّر الاتصال بالخادم، تأكد من تشغيله');
+      // The store's own reason (too many attempts, invalid number…) when it
+      // gave one. This used to say «تأكد من تشغيله» — an instruction to start
+      // a server, shown to customers.
+      toast(useAuthStore.getState().authError ?? 'تعذّر إرسال الرمز، تحقّق من الاتصال وحاول مرة أخرى');
       return;
     }
     router.push('/(auth)/otp');

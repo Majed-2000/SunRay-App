@@ -9,3 +9,5 @@ const LEGAL_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
 
 export const PRIVACY_URL = `${LEGAL_BASE_URL}/privacy`;
 export const TERMS_URL = `${LEGAL_BASE_URL}/terms`;
+/** Registered in Play Console as the account-deletion URL. */
+export const DELETE_ACCOUNT_URL = `${LEGAL_BASE_URL}/delete-account`;

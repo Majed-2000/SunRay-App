@@ -179,6 +179,14 @@ export interface Order {
   payUrl?: string | null;
   /** False when the feed does not say (live orders) — hide rather than guess. */
   paymentKnown?: boolean;
+  /**
+   * What the row is. The feed merges store orders (`cart`) with catering,
+   * session bookings, support tickets and gift cards; only `cart` is a coffee
+   * order with preparation stages, a cancel button and a reorder.
+   */
+  feedType?: string;
+  /** A refund the customer is allowed to see. */
+  refund?: { amount: number; at: number | null; cancelled: boolean } | null;
   foodicsOrderId: string | null; // Foodics order UUID — null until backend injects it
   createdAt: number; // epoch ms
   type: OrderType;

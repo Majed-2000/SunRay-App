@@ -82,6 +82,28 @@ export function isActiveOrder(o: Order): boolean {
 }
 
 /**
+ * Arabic name for a feed row that is not a store order, or null for one that
+ * is. These used to be rendered as coffee orders — a catering booking with
+ * preparation steps and a «إعادة الطلب» button.
+ */
+export function orderKindLabel(kind: string | undefined): string | null {
+  switch (kind ?? 'cart') {
+    case 'cart':
+      return null;
+    case 'catering':
+      return 'طلب تموين';
+    case 'session':
+      return 'حجز جلسة';
+    case 'ticket':
+      return 'تذكرة دعم';
+    case 'gift':
+      return 'بطاقة إهداء';
+    default:
+      return 'طلب';
+  }
+}
+
+/**
  * Order reference for display: the store's own counter code when it issued
  * one — the code the barista calls out — else a short form of the id.
  */
@@ -199,6 +221,10 @@ function mapStoreOrder(o: MyOrder): Order {
     code: o.code,
     payUrl,
     paymentKnown: false,
+    feedType: o.type || 'cart',
+    refund: o.refund
+      ? { amount: (o.refund.amountHalalas || 0) / 100, at: o.refund.at, cancelled: o.refund.cancelled }
+      : null,
     foodicsOrderId: null,
     createdAt: o.createdAt || Date.now(),
     type: 'pickup',

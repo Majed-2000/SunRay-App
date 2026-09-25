@@ -1,9 +1,11 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+import { deviceStorage, PERSIST_VERSION } from './persistStorage';
 import type { User } from '@/types';
-import { mockUser } from '@/data';
 import { setLocale, type LocaleCode } from '@/i18n';
 import * as SecureStore from 'expo-secure-store';
 import * as storeAuth from '@/services/storeAuth';
+import { setBirthMonth } from '@/services/storeLoyalty';
 import { auth as firebaseAuth } from '@/services/firebase';
 import type { User as FbUser } from '@firebase/auth';
 
@@ -60,16 +62,20 @@ interface AuthState {
   /** Wait for Firebase to restore a persisted sign-in on app start. */
   restoreSession: () => Promise<void>;
   continueAsGuest: () => void;
-  updateProfile: (
-    patch: Partial<Pick<User, 'name' | 'email' | 'gender' | 'city' | 'birthDay' | 'birthMonth'>>,
-  ) => void;
+  /**
+   * Save the name (on the Firebase account) and birth month (on the server).
+   * Resolves false if either failed; nothing is shown as saved until it is.
+   */
+  saveProfile: (patch: { name?: string; birthMonth?: number }) => Promise<boolean>;
   logout: () => void;
 }
 
 /** Keychain key the Express-era session client stored its refresh token under. */
 const LEGACY_REFRESH_KEY = 'sunray.refreshToken';
 
-export const useAuthStore = create<AuthState>((set, get) => ({
+export const useAuthStore = create<AuthState>()(
+  persist(
+  (set, get) => ({
   user: null,
   token: null,
   isAuthenticated: false,
@@ -124,6 +130,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
      * auth state instead of reading the property.
      */
     try {
+      // Routing also reads `hasOnboarded` from device storage; don't let the
+      // splash decide before that has loaded.
+      await waitForPersist();
       const fbUser = await storeAuth.waitForAuthReady();
       if (!fbUser) {
         set({ isHydrating: false });
@@ -143,24 +152,41 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   continueAsGuest: () =>
     set({
-      user: { ...mockUser, name: 'ضيف', avatarText: 'ض' },
+      // Nothing borrowed from the demo profile: a guest used to carry its phone
+      // (501234567) and email, and screens showed them as the guest's own.
+      user: { id: 'guest', name: 'ضيف', phone: '', avatarText: 'ض', joinedAt: Date.now() },
       token: null,
       isAuthenticated: true,
       isGuest: true,
     }),
 
-  updateProfile: (patch) =>
-    set((s) =>
-      s.user
-        ? {
-            user: {
-              ...s.user,
-              ...patch,
-              avatarText: patch.name ? patch.name.trim().charAt(0) || s.user.avatarText : s.user.avatarText,
-            },
-          }
-        : s,
-    ),
+  /**
+   * This used to write into memory and say «تم تحديث ملفك» — gone on the next
+   * launch, and the birth month never reached the server, so the birthday
+   * reward it promised could not happen.
+   */
+  saveProfile: async ({ name, birthMonth }) => {
+    const current = get().user;
+    if (!current || get().isGuest) return false;
+    let ok = true;
+    const trimmed = name?.trim();
+    if (trimmed !== undefined && trimmed !== current.name) {
+      ok = (await storeAuth.saveDisplayName(trimmed)) && ok;
+    }
+    if (birthMonth !== undefined && birthMonth !== current.birthMonth) {
+      ok = (await setBirthMonth(birthMonth)) && ok;
+    }
+    if (ok) {
+      set({
+        user: {
+          ...current,
+          ...(trimmed ? { name: trimmed, avatarText: trimmed.charAt(0) || current.avatarText } : {}),
+          ...(birthMonth !== undefined ? { birthMonth } : {}),
+        },
+      });
+    }
+    return ok;
+  },
 
   logout: () => {
     void storeAuth.signOutStore();
@@ -176,5 +202,26 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       authError: null,
     });
   },
-}));
+  }),
+  {
+    name: 'sunray.auth',
+    version: PERSIST_VERSION,
+    storage: deviceStorage,
+    // Only this. The signed-in user comes from Firebase's own persisted
+    // session; keeping a copy here would show a profile after sign-out.
+    partialize: (s) => ({ hasOnboarded: s.hasOnboarded }),
+  },
+  ),
+);
+
+/** Resolves once the persisted slice has been read from device storage. */
+function waitForPersist(): Promise<void> {
+  if (useAuthStore.persist.hasHydrated()) return Promise.resolve();
+  return new Promise((resolve) => {
+    const stop = useAuthStore.persist.onFinishHydration(() => {
+      stop();
+      resolve();
+    });
+  });
+}
 

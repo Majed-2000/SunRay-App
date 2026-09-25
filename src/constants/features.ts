@@ -52,3 +52,22 @@ export const STORE_HAS_RESERVATION = false;
  * constants in the file. Off until a real queue backs it.
  */
 export const STORE_HAS_WAITLIST = false;
+
+/**
+ * Wallet («محفظة سن راي»).
+ *
+ * The balance lives only in this phone's memory: a top-up adds money without
+ * charging anything, and paying from it debits nothing on the server. The
+ * owner's decision is to build it for real (a server ledger credited only by
+ * Moyasar's webhook) — until then it is not shown.
+ */
+export const STORE_HAS_WALLET = false;
+
+/**
+ * Gift cards.
+ *
+ * Codes are generated on the phone with `Math.random()` and the recipient is
+ * never sent anything. `listGiftCards` / `getGiftCard` exist on the server but
+ * issuing does not. Off until issuing and delivery are real.
+ */
+export const STORE_HAS_GIFTCARDS = false;

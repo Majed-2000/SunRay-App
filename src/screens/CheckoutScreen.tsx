@@ -19,6 +19,7 @@ import { formatRiyal, toArabicDigits } from '@/utils/numerals';
 import { useCartTotals } from '@/hooks/useCartTotals';
 import { useResponsive } from '@/hooks/useResponsive';
 import { createStoreOrder, describeOrderError, type CreateOrderResult } from '@/services/storeOrders';
+import { auth } from '@/services/firebase';
 import { describeSettlement, waitForSettlement } from '@/services/storePay';
 import { MoyasarCardForm } from '@/components/MoyasarCardForm';
 import { PlateField, type PlateValue } from '@/components/PlateField';
@@ -143,6 +144,11 @@ export function CheckoutScreen() {
         // The server resolves the coupon again against the real cart and
         // may still refuse it; the total it returns is what gets charged.
         ...(coupon ? { couponCode: coupon.code } : {}),
+        // The name the customer set in their profile, so the counter can call
+        // it. Not the «عميل ١٢٣٤» placeholder the app shows when there is none.
+        ...(auth().currentUser?.displayName?.trim()
+          ? { customer: { name: auth().currentUser!.displayName!.trim() } }
+          : {}),
         // Two modes exist. `orderType` may still say delivery or dine-in from
         // mock data, and the server would silently record either as a pickup.
         mode: curbside ? 'car' : 'pickup',

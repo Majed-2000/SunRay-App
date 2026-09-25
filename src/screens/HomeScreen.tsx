@@ -9,16 +9,15 @@ import {
   GiftCardPreview,
   IconTile,
   LoyaltyCard,
-  OfferCard,
   ProductCard,
   ResponsiveGrid,
   ScreenContainer,
   SectionHeader,
   Txt,
 } from '@/components';
-import { giftDesigns, offers } from '@/data';
+import { giftDesigns } from '@/data';
 import { CONFIG } from '@/constants/config';
-import { STORE_HAS_DELIVERY, STORE_HAS_RESERVATION, STORE_HAS_WAITLIST } from '@/constants/features';
+import { STORE_HAS_DELIVERY, STORE_HAS_GIFTCARDS, STORE_HAS_RESERVATION, STORE_HAS_WAITLIST } from '@/constants/features';
 import type { OrderType } from '@/types';
 import { strings } from '@/i18n';
 import { useResponsive } from '@/hooks/useResponsive';
@@ -46,7 +45,12 @@ export function HomeScreen() {
   const setOrderType = useCartStore((s) => s.setOrderType);
   const unreadCount = useNotificationStore((s) => s.unreadCount());
   const catalogProducts = useCatalogStore((s) => s.products);
-  const featured = useMemo(() => catalogProducts.filter((p) => p.isFeatured), [catalogProducts]);
+  // Nothing on the live menu is flagged featured, so the section falls back to
+  // coffee of the day — real, on the menu, and different every day.
+  const flagged = useMemo(() => catalogProducts.filter((p) => p.isFeatured), [catalogProducts]);
+  const coffeeOfDay = useMemo(() => catalogProducts.filter((p) => p.categoryId === 'قهوة اليوم'), [catalogProducts]);
+  const featured = flagged.length > 0 ? flagged : coffeeOfDay;
+  const featuredTitle = flagged.length > 0 ? 'المختصّة اليوم' : 'قهوة اليوم ☀';
   const t = strings();
   const giftAmounts = useStoreSettingsStore((s) => s.giftAmounts);
 
@@ -192,24 +196,16 @@ export function HomeScreen() {
             <IconTile emoji="🧾" label="طلباتي" tint="#e9e0d0" onPress={() => router.push('/(tabs)/orders')} />
           </View>
 
-          {/* Offers strip */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ gap: 12, paddingHorizontal: spacing.lg }}
-            style={{ marginBottom: spacing['2xl'] }}
-          >
-            {offers.map((o) => (
-              <OfferCard key={o.id} offer={o} width={230} onPress={() => router.push('/offers')} />
-            ))}
-          </ScrollView>
+          {/* The offers strip advertised three promotions the store does not
+              run (20% off, 10th drink free, WELCOME). Removed until offers
+              come from the store. */}
 
           {/* Featured — hidden entirely while nothing is flagged `isFeatured`,
               rather than a heading and a «عرض الكل» sitting above blank space. */}
           {featured.length > 0 && (
             <>
               <View style={{ paddingHorizontal: spacing['2xl'] }}>
-                <SectionHeader title="المختصّة اليوم" actionLabel="عرض الكل" onAction={() => router.push('/(tabs)/menu')} />
+                <SectionHeader title={featuredTitle} actionLabel="عرض الكل" onAction={() => router.push('/(tabs)/menu')} />
               </View>
               <View style={{ paddingHorizontal: spacing.lg }}>
                 <ResponsiveGrid
@@ -228,7 +224,9 @@ export function HomeScreen() {
             </>
           )}
 
-          {/* Gift cards */}
+          {/* Gift cards — off until they are real (see features.ts). */}
+          {STORE_HAS_GIFTCARDS ? (
+          <>
           <View style={{ paddingHorizontal: spacing['2xl'], marginTop: spacing.sm }}>
             <SectionHeader title="بطاقات الإهداء 🎁" subtitle="أهدِ لحظة مشرقة" />
           </View>
@@ -272,6 +270,8 @@ export function HomeScreen() {
             </Txt>
             <Ionicons name="arrow-back" size={15} color={colors.goldDeep} />
           </Pressable>
+          </>
+          ) : null}
         </ScrollView>
       </ScreenContainer>
 

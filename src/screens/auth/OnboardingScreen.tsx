@@ -32,7 +32,10 @@ export function OnboardingScreen() {
 
   const finish = () => {
     completeOnboarding();
-    router.replace('/(auth)/language');
+    // Straight to login. The language step offered only Arabic, with English
+    // greyed out as «قريبًا» and a promise that it could be changed in
+    // settings, which it could not. It returns when English exists.
+    router.replace('/(auth)/login');
   };
 
   const next = () => {

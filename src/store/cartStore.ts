@@ -1,7 +1,9 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+import { deviceStorage, PERSIST_VERSION } from './persistStorage';
 import type { CartLine, OrderType, Product, Coupon } from '@/types';
 import { router } from 'expo-router';
-import { buildCartLine, needsMethodChoice, type ProductSelection } from '@/utils/cart';
+import { buildCartLine, needsMethodChoice, selectionUnitPrice, type ProductSelection } from '@/utils/cart';
 import { validateCoupon, describeCouponError } from '@/services/storeOffers';
 import { useCatalogStore } from './catalogStore';
 import { toast } from './uiStore';
@@ -41,7 +43,9 @@ interface CartState {
   count: () => number;
 }
 
-export const useCartStore = create<CartState>((set, get) => ({
+export const useCartStore = create<CartState>()(
+  persist(
+  (set, get) => ({
   lines: [],
   orderType: 'pickup',
   addressId: null,
@@ -179,7 +183,18 @@ export const useCartStore = create<CartState>((set, get) => ({
   },
 
   count: () => get().lines.reduce((a, l) => a + l.qty, 0),
-}));
+  }),
+  {
+    name: 'sunray.cart',
+    version: PERSIST_VERSION,
+    storage: deviceStorage,
+    // The lines and the service mode survive a restart. Not the coupon: the
+    // server re-checks it at order time anyway, and a stale one would show a
+    // discount that is no longer there.
+    partialize: (s) => ({ lines: s.lines, orderType: s.orderType }),
+  },
+  ),
+);
 
 /** Coupon discount value (﷼) for the current lines. */
 export function couponDiscount(coupon: Coupon | null, lines: CartLine[]): number {
@@ -192,3 +207,30 @@ export function couponDiscount(coupon: Coupon | null, lines: CartLine[]): number
   if (coupon.kind === 'percent') return Math.round(base * (coupon.value / 100) * 100) / 100;
   return Math.min(coupon.value, base);
 }
+
+/**
+ * Keep a saved cart honest against the live menu.
+ *
+ * The cart survives restarts now, so it can outlive what it holds: an item the
+ * branch pulled, or a price changed since. Each time the menu changes, lines
+ * for items no longer orderable are dropped (and the customer told), and unit
+ * prices are re-read — the server prices the order from the same rows anyway,
+ * so a stale figure here would only mislead.
+ */
+useCatalogStore.subscribe((catalog, prev) => {
+  if (catalog.products === prev.products || catalog.products.length === 0) return;
+  const { lines } = useCartStore.getState();
+  if (lines.length === 0) return;
+  const dropped: string[] = [];
+  const next = lines.flatMap((l) => {
+    const product = catalog.products.find((p) => p.id === l.productId);
+    if (!product || !product.isAvailable) {
+      dropped.push(l.nameAr);
+      return [];
+    }
+    const unitPrice = selectionUnitPrice(product, { sizeId: l.sizeId, addOnIds: l.addOnIds, method: l.method, qty: l.qty });
+    return [unitPrice === l.unitPrice ? l : { ...l, unitPrice }];
+  });
+  if (dropped.length || next.some((l, i) => l !== lines[i])) useCartStore.setState({ lines: next });
+  if (dropped.length) toast(`أُزيل من سلتك لأنه لم يعد متوفرًا: ${dropped.join('، ')}`);
+});

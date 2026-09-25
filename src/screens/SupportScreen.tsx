@@ -1,10 +1,26 @@
-import { View } from 'react-native';
+import { Linking, View } from 'react-native';
 import { router } from 'expo-router';
 import { colors, spacing } from '@/theme';
 import { Card, Header, ListRow, ScreenContainer, Txt } from '@/components';
 import { toast } from '@/store';
 
+/**
+ * Support — channels that actually reach Sun Ray.
+ *
+ * This listed WhatsApp, a «٩٢٠ ٠٠٠ ٠٠٠» number and care@sunray.cafe, each of
+ * which only toasted «قريبًا»; none of them exists. The channels the café
+ * publishes (the store website's footer) are its social accounts, so those are
+ * what this opens. Add a phone or WhatsApp here once the business has one.
+ */
+const CHANNELS = [
+  { icon: 'logo-instagram' as const, label: 'راسلنا على إنستقرام', sublabel: '@sunray.sa', url: 'https://ig.me/m/sunray.sa' },
+  { icon: 'logo-tiktok' as const, label: 'تيك توك', sublabel: '@sunray.sa', url: 'https://www.tiktok.com/@sunray.sa' },
+  { icon: 'logo-snapchat' as const, label: 'سناب شات', sublabel: '@sunray.sa', url: 'https://www.snapchat.com/@sunray.sa' },
+];
+
 export function SupportScreen() {
+  const open = (url: string) => Linking.openURL(url).catch(() => toast('تعذّر فتح الرابط'));
+
   return (
     <ScreenContainer header={<Header showBack title="الدعم والمساعدة" />}>
       <View style={{ paddingTop: spacing.lg, paddingBottom: spacing['4xl'] }}>
@@ -13,7 +29,7 @@ export function SupportScreen() {
             كيف نقدر نساعدك؟ ☀
           </Txt>
           <Txt size={13} color={colors.textOnDarkMuted} style={{ marginTop: 6, lineHeight: 21 }}>
-            فريق سن راي جاهز لخدمتك من ٧ صباحًا حتى منتصف الليل طوال أيام الأسبوع.
+            راسلنا وسيرد عليك فريق سن راي. عن طلب معيّن؟ اذكر رقم الطلب من «طلباتي».
           </Txt>
         </Card>
 
@@ -21,9 +37,9 @@ export function SupportScreen() {
           تواصل معنا
         </Txt>
         <View style={{ gap: 10 }}>
-          <ListRow icon="logo-whatsapp" label="واتساب" sublabel="ردّ سريع خلال دقائق" onPress={() => toast('فتح واتساب قريبًا ☀')} />
-          <ListRow icon="call-outline" label="اتصال هاتفي" sublabel="٩٢٠ ٠٠٠ ٠٠٠" onPress={() => toast('الاتصال قريبًا ☀')} />
-          <ListRow icon="mail-outline" label="البريد الإلكتروني" sublabel="care@sunray.cafe" onPress={() => toast('فتح البريد قريبًا ☀')} />
+          {CHANNELS.map((c) => (
+            <ListRow key={c.url} icon={c.icon} label={c.label} sublabel={c.sublabel} onPress={() => open(c.url)} />
+          ))}
         </View>
 
         <Txt size={13} weight="black" color={colors.textMuted} style={{ marginTop: spacing.xl, marginBottom: spacing.md }}>

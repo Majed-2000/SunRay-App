@@ -6,6 +6,7 @@ import { colors, radius, spacing } from '@/theme';
 import { Button, Card, Header, ScreenContainer, TextField, Txt } from '@/components';
 import { formatRiyal } from '@/utils/numerals';
 import { deleteStoreAccount } from '@/services/storeAuth';
+import { STORE_HAS_WALLET } from '@/constants/features';
 import { useAuthStore, useWalletStore, toast } from '@/store';
 
 /** Typed exactly to confirm. Short enough to type, specific enough to be deliberate. */
@@ -26,7 +27,10 @@ const CONFIRM_WORD = 'حذف';
 export function DeleteAccountScreen() {
   const [confirm, setConfirm] = useState('');
   const [busy, setBusy] = useState(false);
-  const balance = useWalletStore((s) => s.balance);
+  // The wallet is still a local mock; its 75 ﷼ was being shown here as money
+  // the customer would lose. Only a real wallet has a balance worth warning about.
+  const mockBalance = useWalletStore((s) => s.balance);
+  const balance = STORE_HAS_WALLET ? mockBalance : 0;
   const logout = useAuthStore((s) => s.logout);
 
   const canDelete = confirm.trim() === CONFIRM_WORD && !busy;
@@ -77,8 +81,7 @@ export function DeleteAccountScreen() {
 
         <Section title="سيُحذف نهائيًا">
           <Line icon="person-outline" text="اسمك ورقم جوالك وبريدك وبياناتك الشخصية" />
-          <Line icon="location-outline" text="عناوينك المحفوظة" />
-          <Line icon="star-outline" text="نقاط الولاء وأكواب القهوة المجمّعة" />
+          <Line icon="star-outline" text="نقاط الولاء" />
           <Line icon="notifications-outline" text="إشعاراتك" />
           <Line icon="log-out-outline" text="جلساتك على كل الأجهزة" />
         </Section>

@@ -22,7 +22,7 @@
  * A customer who is locked out and told only "wrong code" will keep typing.
  * `describeOtpError` maps each reason to what actually happened.
  */
-import { signInWithCustomToken, signOut, onAuthStateChanged, type User as FbUser } from '@firebase/auth';
+import { signInWithCustomToken, signOut, onAuthStateChanged, updateProfile, type User as FbUser } from '@firebase/auth';
 import { auth, callFn, type CallResult } from './firebase';
 
 /** `requestStoreOtp` reply. Times are echoed so the UI can match the server. */
@@ -88,6 +88,24 @@ export async function verifyOtp(localPhone: string, code: string): Promise<CallR
     // The code WAS correct; the session failed to open. Saying "wrong code"
     // here would send the customer back to re-enter a code that already worked.
     return { ok: false, reason: firebaseErrorReason(e) || 'session' };
+  }
+}
+
+/**
+ * Save the customer's name on their Firebase account.
+ *
+ * The store keeps no profile document, so the account's `displayName` is the
+ * one place a name survives a restart — `userFromFirebase` reads it back. It
+ * is also sent with each order so the counter can call the customer by name.
+ */
+export async function saveDisplayName(name: string): Promise<boolean> {
+  const user = auth().currentUser;
+  if (!user) return false;
+  try {
+    await updateProfile(user, { displayName: name.trim() || null });
+    return true;
+  } catch {
+    return false;
   }
 }
 

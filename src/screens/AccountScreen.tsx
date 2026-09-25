@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors, gradients, radius, shadows, spacing } from '@/theme';
 import { Card, ListRow, ScreenContainer, Txt } from '@/components';
 import { CONFIG } from '@/constants/config';
+import { STORE_HAS_DELIVERY, STORE_HAS_GIFTCARDS, STORE_HAS_WALLET } from '@/constants/features';
 import { toArabicDigits } from '@/utils/numerals';
 import { useAuthStore, useLoyaltyStore, toast } from '@/store';
 
@@ -20,14 +21,18 @@ export function AccountScreen() {
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const points = useLoyaltyStore((s) => s.points());
+  const isGuest = useAuthStore((s) => s.isGuest);
 
+  // A row only for what works. Wallet, gift cards and addresses each opened a
+  // mock — a balance that was never charged, codes nobody receives, addresses
+  // for a delivery the store does not make. A guest has no account to edit.
   const rows: RowDef[] = [
     { icon: 'receipt-outline', label: 'طلباتي السابقة', onPress: () => router.push('/(tabs)/orders') },
-    { icon: 'wallet-outline', label: 'المحفظة', onPress: () => router.push('/wallet') },
-    { icon: 'gift-outline', label: 'بطاقات الإهداء', onPress: () => router.push('/gift') },
+    ...(STORE_HAS_WALLET && !isGuest ? [{ icon: 'wallet-outline' as const, label: 'المحفظة', onPress: () => router.push('/wallet') }] : []),
+    ...(STORE_HAS_GIFTCARDS ? [{ icon: 'gift-outline' as const, label: 'بطاقات الإهداء', onPress: () => router.push('/gift') }] : []),
     { icon: 'pricetags-outline', label: 'العروض والكوبونات', onPress: () => router.push('/offers') },
-    { icon: 'location-outline', label: 'عناويني', onPress: () => router.push('/addresses') },
-    { icon: 'person-outline', label: 'تعديل الملف الشخصي', onPress: () => router.push('/edit-profile') },
+    ...(STORE_HAS_DELIVERY && !isGuest ? [{ icon: 'location-outline' as const, label: 'عناويني', onPress: () => router.push('/addresses') }] : []),
+    ...(!isGuest ? [{ icon: 'person-outline' as const, label: 'تعديل الملف الشخصي', onPress: () => router.push('/edit-profile') }] : []),
     { icon: 'settings-outline', label: 'الإعدادات', onPress: () => router.push('/settings') },
     { icon: 'help-circle-outline', label: 'الدعم والمساعدة', onPress: () => router.push('/support') },
     { icon: 'chatbubble-ellipses-outline', label: 'الأسئلة الشائعة', onPress: () => router.push('/faq') },
@@ -69,7 +74,7 @@ export function AccountScreen() {
               {user?.name ?? 'ضيف'}
             </Txt>
             <Txt size={12} color={colors.textFaint} style={{ writingDirection: 'ltr' }}>
-              {CONFIG.COUNTRY_DIAL_CODE} {user?.phone ?? '—'}
+              {isGuest || !user?.phone ? 'زائر — سجّل دخولك لتطلب وتجمع النقاط' : `${CONFIG.COUNTRY_DIAL_CODE} ${user.phone}`}
             </Txt>
           </View>
           <View style={{ backgroundColor: colors.chip, borderRadius: radius.sm, paddingHorizontal: 12, paddingVertical: 8, alignItems: 'center' }}>
@@ -88,8 +93,8 @@ export function AccountScreen() {
             <ListRow key={r.label} icon={r.icon} label={r.label} onPress={r.onPress} />
           ))}
           <ListRow
-            icon="log-out-outline"
-            label="تسجيل الخروج"
+            icon={isGuest ? 'log-in-outline' : 'log-out-outline'}
+            label={isGuest ? 'تسجيل الدخول' : 'تسجيل الخروج'}
             danger
             showChevron={false}
             onPress={() => {

@@ -5,6 +5,7 @@ import type { CartLine, OrderType, Product, Coupon } from '@/types';
 import { router } from 'expo-router';
 import { buildCartLine, needsMethodChoice, selectionUnitPrice, type ProductSelection } from '@/utils/cart';
 import { validateCoupon, describeCouponError } from '@/services/storeOffers';
+import { onAuthChanged } from '@/services/storeAuth';
 import { useCatalogStore } from './catalogStore';
 import { toast } from './uiStore';
 
@@ -217,13 +218,14 @@ export function couponDiscount(coupon: Coupon | null, lines: CartLine[]): number
  * prices are re-read — the server prices the order from the same rows anyway,
  * so a stale figure here would only mislead.
  */
-useCatalogStore.subscribe((catalog, prev) => {
-  if (catalog.products === prev.products || catalog.products.length === 0) return;
+function reconcileWithMenu() {
+  const { products } = useCatalogStore.getState();
+  if (products.length === 0) return;
   const { lines } = useCartStore.getState();
   if (lines.length === 0) return;
   const dropped: string[] = [];
   const next = lines.flatMap((l) => {
-    const product = catalog.products.find((p) => p.id === l.productId);
+    const product = products.find((p) => p.id === l.productId);
     if (!product || !product.isAvailable) {
       dropped.push(l.nameAr);
       return [];
@@ -233,4 +235,88 @@ useCatalogStore.subscribe((catalog, prev) => {
   });
   if (dropped.length || next.some((l, i) => l !== lines[i])) useCartStore.setState({ lines: next });
   if (dropped.length) toast(`أُزيل من سلتك لأنه لم يعد متوفرًا: ${dropped.join('، ')}`);
+}
+
+useCatalogStore.subscribe((catalog, prev) => {
+  if (catalog.products === prev.products) return;
+  reconcileWithMenu();
+});
+
+// The saved cart loads from storage asynchronously. If the menu landed first,
+// the subscription above saw an empty cart and did nothing — and the signature
+// guard in storeCatalog means the next menu emission may never come — so the
+// restored lines kept stale prices and pulled items until checkout failed.
+useCartStore.persist.onFinishHydration(() => reconcileWithMenu());
+
+/**
+ * Keep an applied coupon honest against the cart it was checked for.
+ *
+ * `applyCoupon` validates against the subtotal at that moment, but the
+ * discount was then recomputed locally forever after — so a code needing a
+ * 50 ﷼ spend kept showing its discount on a 15 ﷼ cart, and one applied to a
+ * cart since emptied was still there on the next one. The server refuses both
+ * at `createStoreOrder`. So: an empty cart drops the coupon, and a changed
+ * subtotal re-asks the store (debounced — the stepper fires per tap).
+ */
+const COUPON_REFUSALS = new Set(['not_found', 'invalid', 'expired', 'used', 'max_uses', 'below_min', 'wrong_scope']);
+let couponCheck: ReturnType<typeof setTimeout> | null = null;
+let couponCheckSeq = 0;
+useCartStore.subscribe((cart, prev) => {
+  if (cart.lines === prev.lines || !cart.coupon) return;
+  if (couponCheck) clearTimeout(couponCheck);
+  if (cart.lines.length === 0) {
+    couponCheckSeq += 1;
+    useCartStore.setState({ coupon: null });
+    return;
+  }
+  const subtotalOf = (lines: CartLine[]) =>
+    Math.round(lines.reduce((a, l) => a + l.unitPrice * l.qty, 0) * 100);
+  if (subtotalOf(cart.lines) === subtotalOf(prev.lines)) return;
+  const seq = ++couponCheckSeq;
+  couponCheck = setTimeout(async () => {
+    couponCheck = null;
+    const { coupon, lines } = useCartStore.getState();
+    if (!coupon) return;
+    const res = await validateCoupon(coupon.code, subtotalOf(lines));
+    // A newer change (or a removed / replaced coupon) supersedes this answer.
+    if (seq !== couponCheckSeq || useCartStore.getState().coupon?.code !== coupon.code) return;
+    if (!res.ok) {
+      // Only a definite "no" drops it. A network failure says nothing about
+      // the code, and the server checks it again at order time regardless.
+      if (!COUPON_REFUSALS.has(String(res.reason ?? '').split(':')[0])) return;
+      useCartStore.setState({ coupon: null });
+      toast(`أُزيل الكوبون ${coupon.code}: ${describeCouponError(res.reason)}`);
+      return;
+    }
+    const kind = res.kind === 'percent' ? 'percent' : 'amount';
+    if (res.value != null && (kind !== coupon.kind || res.value !== coupon.value)) {
+      useCartStore.setState({
+        coupon: {
+          ...coupon,
+          kind,
+          value: res.value,
+          titleAr: kind === 'percent' ? `خصم ${res.value}٪` : `خصم ${res.value} ﷼`,
+        } as Coupon,
+      });
+    }
+  }, 800);
+});
+
+/**
+ * A cart belongs to whoever filled it.
+ *
+ * The lines persist to the device and the coupon lives in memory, and logout
+ * touched neither — so the next account on the phone opened onto the previous
+ * customer's items and, in the same session, their personal coupon. Cleared
+ * when a signed-in account signs out or changes. A guest who signs in keeps
+ * the cart: that is the "log in to check out" path.
+ */
+let lastUid: string | null | undefined;
+onAuthChanged((user) => {
+  const uid = user?.uid ?? null;
+  if (lastUid && uid !== lastUid) {
+    couponCheckSeq += 1;
+    useCartStore.getState().clear();
+  }
+  lastUid = uid;
 });

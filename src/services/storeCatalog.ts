@@ -197,8 +197,15 @@ function toProduct(id: string, p: RawProduct): Product | null {
     addOns: [],
     ...(methods.length > 0 ? { methods, defaultMethod: defaultMethodOf(methods) } : {}),
     rating: undefined,
+    // Carried so the catalog store can apply `store/config/closedSections`:
+    // the category label above merges several sections, so it cannot tell
+    // breakfast from the rest once the section itself is gone.
+    section: p.section ?? '',
   } as unknown as Product;
 }
+
+/** A catalog product with the raw section key it came from. */
+export type CatalogProduct = Product & { section?: string };
 
 export interface CatalogSnapshot {
   products: Product[];
@@ -212,9 +219,16 @@ export interface CatalogSnapshot {
  * items during the day from the dashboard, and a customer holding a stale menu
  * orders something that is no longer being made.
  *
+ * `onError` fires when the listen is refused (rules, App Check). Without it
+ * Firebase only logs a warning and never calls back, so the menu sat on its
+ * skeleton forever with nothing to retry.
+ *
  * Returns an unsubscribe.
  */
-export function subscribeCatalog(cb: (snap: CatalogSnapshot) => void): () => void {
+export function subscribeCatalog(
+  cb: (snap: CatalogSnapshot) => void,
+  onError?: (e: Error) => void,
+): () => void {
   const database = db();
   const productsRef = ref(database, 'menu/products');
 
@@ -291,6 +305,6 @@ export function subscribeCatalog(cb: (snap: CatalogSnapshot) => void): () => voi
     cb({ products, categories });
   };
 
-  onValue(productsRef, onProducts);
+  onValue(productsRef, onProducts, (e) => onError?.(e));
   return () => off(productsRef, 'value', onProducts);
 }

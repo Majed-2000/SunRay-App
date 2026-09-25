@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useNavigation } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, spacing } from '@/theme';
 import {
@@ -30,6 +30,7 @@ import {
   useBranchStore,
   useCartStore,
   useOrderStore,
+  orderStage,
   toast,
 } from '@/store';
 import { useStoreSettingsStore } from '@/store/storeSettingsStore';
@@ -41,6 +42,9 @@ type Stage =
   | { step: 'pay'; order: CreateOrderResult }
   /** Card charged here; waiting for the server's webhook to settle it. */
   | { step: 'settling'; order: CreateOrderResult };
+
+/** How long an unpaid order is resumed rather than replaced. */
+const RESUME_MS = 10 * 60 * 1000;
 
 export function CheckoutScreen() {
   const insets = useSafeAreaInsets();
@@ -60,7 +64,65 @@ export function CheckoutScreen() {
   const t = strings();
 
   const [submitting, setSubmitting] = useState(false);
-  const [stage, setStage] = useState<Stage>({ step: 'review' });
+
+  /**
+   * What the order was built from. The same cart coming back to checkout is
+   * the same order: leaving during «بيانات البطاقة» used to drop the order
+   * from the screen, and «تأكيد الطلب» then created a second one, each listed
+   * in «طلباتي» as its own unpaid order.
+   */
+  const cartKey = useMemo(
+    () =>
+      JSON.stringify({
+        lines: lines.map((l) => [l.id, l.productId, l.qty, l.method ?? null, l.notes ?? null]),
+        coupon: coupon?.code ?? null,
+        orderType,
+      }),
+    [lines, coupon, orderType],
+  );
+  const [stage, setStage] = useState<Stage>(() => {
+    const inflight = useOrderStore.getState().checkout;
+    if (!inflight || inflight.cartKey !== cartKey || Date.now() - inflight.at > RESUME_MS) return { step: 'review' };
+    // Not if the feed already shows it past unpaid (expired, cancelled, paid).
+    const known = useOrderStore.getState().getById(inflight.order.orderId);
+    if (known && orderStage(known) !== 'pending') return { step: 'review' };
+    return { step: 'pay', order: inflight.order };
+  });
+  // Bumped after a failed attempt: the Moyasar form keeps showing its finished
+  // 3-D Secure page forever, so a fresh one has to be mounted to try again.
+  const [attempt, setAttempt] = useState(0);
+
+  /**
+   * While the server confirms a charge the customer must stay here. Leaving
+   * used to let the wait run on in the background and, up to 90 seconds later,
+   * clear the cart and jump to the success screen from wherever they were.
+   */
+  const stageRef = useRef(stage);
+  stageRef.current = stage;
+  const leavingRef = useRef(false);
+  const mountedRef = useRef(true);
+  useEffect(
+    () => () => {
+      mountedRef.current = false;
+    },
+    [],
+  );
+  const navigation = useNavigation();
+  useEffect(
+    () =>
+      navigation.addListener('beforeRemove', (e) => {
+        if (leavingRef.current || stageRef.current.step !== 'settling') return;
+        e.preventDefault();
+        toast('انتظر لحظة — نؤكّد دفعتك');
+      }),
+    [navigation],
+  );
+
+  /** Leave checkout on our own terms — past the settling guard above. */
+  const leaveTo = (href: Parameters<typeof router.replace>[0]) => {
+    leavingRef.current = true;
+    router.replace(href);
+  };
   const [plate, setPlate] = useState<PlateValue>({ lettersAr: '', numbers: '' });
 
   /**
@@ -83,24 +145,43 @@ export function CheckoutScreen() {
 
     if (outcome === 'failed') {
       toast('لم تكتمل عملية الدفع، تحقّق من بيانات البطاقة');
+      setAttempt((n) => n + 1);
       return;
     }
 
     setStage({ step: 'settling', order });
     const result = await waitForSettlement(order.orderId);
+    const orders = useOrderStore.getState();
 
     if (result.status === 'paid' || result.status === 'timeout') {
       // Only a confirmed settlement flips it; a timeout stays pending, since
       // the charge may or may not have gone through.
-      if (result.status === 'paid') useOrderStore.getState().markPaid(order.orderId);
+      if (result.status === 'paid') orders.markPaid(order.orderId);
+      orders.setCheckout(null);
       clear();
-      router.replace(`/order-success?id=${order.orderId}`);
+      if (mountedRef.current) leaveTo(`/order-success?id=${order.orderId}`);
       if (result.status === 'timeout') toast(describeSettlement('timeout'));
       return;
     }
 
     toast(describeSettlement(result.status));
-    setStage({ step: 'pay', order });
+    if (result.status === 'failed') {
+      if (mountedRef.current) {
+        setAttempt((n) => n + 1);
+        setStage({ step: 'pay', order });
+      }
+      return;
+    }
+
+    /**
+     * Review, cancelled, refunded: this order is charged or dead, and the card
+     * form must not come back for it — that invited a second payment. Review
+     * is normally a charge being checked, so the cart is done with too.
+     */
+    orders.setCheckout(null);
+    if (result.status === 'review') clear();
+    void orders.loadOrders();
+    if (mountedRef.current) leaveTo(`/orders/${order.orderId}`);
   };
 
   // An estimate before the coupon: the server applies the coupon and returns
@@ -174,10 +255,11 @@ export function CheckoutScreen() {
        */
       if (order.free || order.totalHalalas <= 0) {
         clear();
-        router.replace(`/order-success?id=${order.orderId}`);
+        leaveTo(`/order-success?id=${order.orderId}`);
         return;
       }
 
+      useOrderStore.getState().setCheckout({ order, cartKey, at: Date.now() });
       setStage({ step: 'pay', order });
     } catch (e) {
       // The cart is kept in every failure case so nothing is lost.
@@ -248,6 +330,7 @@ export function CheckoutScreen() {
                 </Card>
               ) : (
                 <MoyasarCardForm
+                  key={`${stage.order.orderId}-${attempt}`}
                   orderId={stage.order.orderId}
                   code={stage.order.code}
                   totalHalalas={stage.order.totalHalalas}

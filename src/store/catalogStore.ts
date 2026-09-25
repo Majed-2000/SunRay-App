@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { Category, Product } from '@/types';
-import { subscribeCatalog } from '@/services/storeCatalog';
+import { subscribeCatalog, type CatalogProduct } from '@/services/storeCatalog';
+import { useStoreSettingsStore } from './storeSettingsStore';
 
 /**
  * The menu.
@@ -34,6 +35,30 @@ interface CatalogState {
 /** Live subscription handle, kept outside state so it is never rendered. */
 let unsubscribe: (() => void) | null = null;
 
+/** The menu as the store sent it, before closed sections are applied. */
+let liveProducts: CatalogProduct[] = [];
+
+/**
+ * How long to wait for the first snapshot before calling it an error.
+ *
+ * The RTDB client has no offline cache here, so a device that starts offline
+ * simply waits — and the menu sat on its skeleton with no way out.
+ */
+const FIRST_SNAPSHOT_TIMEOUT_MS = 15_000;
+
+/**
+ * Mark products in a section the branch has closed (breakfast ended, etc.) as
+ * unavailable. They stay on the menu like a sold-out item, and every existing
+ * `isAvailable` check — the row, quick add, the product screen, the cart
+ * re-sync — then refuses them. Unchanged products keep their identity so the
+ * memoised rows do not all re-render.
+ */
+function applyClosedSections(products: CatalogProduct[], closed: Record<string, boolean>): Product[] {
+  return products.map((p) =>
+    p.isAvailable && p.section && closed[p.section] === true ? { ...p, isAvailable: false } : p,
+  );
+}
+
 export const useCatalogStore = create<CatalogState>((set, get) => ({
   // In mock mode we start ready with mock data (no loading flash). In backend
   // mode we start empty + loading and fetch on app start.
@@ -46,12 +71,36 @@ export const useCatalogStore = create<CatalogState>((set, get) => ({
     // Already listening — the data is live, so re-subscribing would only churn.
     if (unsubscribe) return;
     set({ status: 'loading', error: null });
+
+    // Drop the listener on failure so the retry on ErrorState really
+    // resubscribes — the `if (unsubscribe) return` above made it a no-op.
+    const fail = (message: string) => {
+      clearTimeout(timer);
+      const stop = unsubscribe;
+      unsubscribe = null;
+      stop?.();
+      set({ status: 'error', error: message });
+    };
+    const timer = setTimeout(() => {
+      if (get().status === 'loading') fail('تعذّر الاتصال — تحقّق من الإنترنت وحاول مجددًا');
+    }, FIRST_SNAPSHOT_TIMEOUT_MS);
+
     try {
-      unsubscribe = subscribeCatalog(({ products, categories }) => {
-        set({ products, categories, status: 'ready', error: null });
-      });
+      const stop = subscribeCatalog(
+        ({ products, categories }) => {
+          clearTimeout(timer);
+          liveProducts = products;
+          const closed = useStoreSettingsStore.getState().closedSections;
+          set({ products: applyClosedSections(products, closed), categories, status: 'ready', error: null });
+        },
+        () => fail('تعذّر تحميل القائمة'),
+      );
+      // A refusal reported before this line would otherwise leave a dead
+      // handle behind that blocks every retry.
+      if (get().status === 'error') stop();
+      else unsubscribe = stop;
     } catch (e) {
-      set({ status: 'error', error: e instanceof Error ? e.message : 'تعذّر تحميل القائمة' });
+      fail(e instanceof Error ? e.message : 'تعذّر تحميل القائمة');
     }
   },
 
@@ -66,3 +115,12 @@ export const useCatalogStore = create<CatalogState>((set, get) => ({
   featured: () => get().products.filter((p) => p.isFeatured),
   byCategory: (categoryId) => get().products.filter((p) => p.categoryId === categoryId),
 }));
+
+// Closed sections change independently of the menu, so re-apply them when they
+// do. The cart's re-sync follows the resulting `products` change and drops
+// lines from a section that just closed.
+useStoreSettingsStore.subscribe((settings, prev) => {
+  if (settings.closedSections === prev.closedSections) return;
+  if (useCatalogStore.getState().status !== 'ready') return;
+  useCatalogStore.setState({ products: applyClosedSections(liveProducts, settings.closedSections) });
+});

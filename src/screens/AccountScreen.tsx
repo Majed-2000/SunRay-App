@@ -21,6 +21,10 @@ export function AccountScreen() {
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const points = useLoyaltyStore((s) => s.points());
+  // Before the ledger answers, `points()` is 0 — shown as «٠ نقطة», which a
+  // customer with a real balance reads as their points being gone.
+  const pointsKnown = useLoyaltyStore((s) => s.data !== null);
+  const pointsFailed = useLoyaltyStore((s) => s.status === 'error');
   const isGuest = useAuthStore((s) => s.isGuest);
 
   // A row only for what works. Wallet, gift cards and addresses each opened a
@@ -79,7 +83,7 @@ export function AccountScreen() {
           </View>
           <View style={{ backgroundColor: colors.chip, borderRadius: radius.sm, paddingHorizontal: 12, paddingVertical: 8, alignItems: 'center' }}>
             <Txt size={15} weight="black" color={colors.goldDeep}>
-              {toArabicDigits(points)}
+              {pointsKnown || isGuest ? toArabicDigits(points) : pointsFailed ? '—' : '…'}
             </Txt>
             <Txt size={9} color={colors.textFaint}>
               نقطة

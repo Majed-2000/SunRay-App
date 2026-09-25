@@ -5,7 +5,7 @@ import { colors, spacing } from '@/theme';
 import { Button } from './Button';
 import { Txt } from './Txt';
 import { markCarArrived, describeArrivalError } from '@/services/storeCurbside';
-import { toast } from '@/store';
+import { toast, useOrderStore } from '@/store';
 
 export interface ArriveButtonProps {
   /** Preferred identifier — the random tracking token. */
@@ -42,7 +42,8 @@ export interface ArriveButtonProps {
  */
 export function ArriveButton({ token, code, orderId, alreadyArrived }: ArriveButtonProps) {
   const [busy, setBusy] = useState(false);
-  const [arrived, setArrived] = useState(Boolean(alreadyArrived));
+  const [pressed, setArrived] = useState(false);
+  const arrived = pressed || Boolean(alreadyArrived);
 
   const press = async () => {
     if (busy) return;
@@ -74,6 +75,9 @@ export function ArriveButton({ token, code, orderId, alreadyArrived }: ArriveBut
       }
 
       setArrived(true);
+      // Remembered past this screen, so reopening the order still says the
+      // branch was told instead of offering the button again.
+      if (orderId) useOrderStore.getState().markArrived(orderId);
       toast('أبلغنا الفرع — الطلب في طريقه إليك');
     } catch {
       // A GPS read can fail outright (no fix indoors, hardware off).

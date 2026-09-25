@@ -38,6 +38,10 @@ export function HomeScreen() {
   const user = useAuthStore((s) => s.user);
   const branch = useBranchStore((s) => s.current());
   const branchAuto = useBranchStore((s) => s.auto);
+  const isGuest = useAuthStore((s) => s.isGuest);
+  const hasLoyalty = useLoyaltyStore((s) => s.data != null);
+  const loyaltyStatus = useLoyaltyStore((s) => s.status);
+  const unlinked = useLoyaltyStore((s) => s.unlinked);
   const points = useLoyaltyStore((s) => s.points());
   const tierLabel = useLoyaltyStore((s) => s.tierLabel());
   const pointsToNext = useLoyaltyStore((s) => s.pointsToNextReward());
@@ -59,6 +63,26 @@ export function HomeScreen() {
   // maybe four times a day, and a customer who has the app open across the
   // boundary does not need the headline shifting under them mid-scroll.
   const greeting = useMemo(() => greetingFor(), []);
+
+  /**
+   * `points()` is `balance ?? 0`, so on its own it reads "٠ نقطة" while the
+   * first load is in flight, after it failed, for a phone the ledger does not
+   * know and for a guest — four different truths, none of them "zero". The
+   * Loyalty tab already tells them apart; the card on Home has to as well.
+   */
+  const loyaltyCard = isGuest
+    ? { points: null, note: 'سجّل دخولك لعرض نقاطك', onPress: () => router.push('/(tabs)/loyalty') }
+    : unlinked
+      ? { points: null, note: 'لم نجد نقاطًا لرقمك بعد', onPress: () => router.push('/(tabs)/loyalty') }
+      : !hasLoyalty && loyaltyStatus === 'error'
+        ? {
+            points: null,
+            note: 'تعذّر جلب نقاطك · اضغط لإعادة المحاولة',
+            onPress: () => void useLoyaltyStore.getState().load(),
+          }
+        : !hasLoyalty
+          ? { points: null, note: 'نجلب نقاطك…', onPress: () => router.push('/(tabs)/loyalty') }
+          : { points, note: undefined, onPress: () => router.push('/(tabs)/loyalty') };
 
   const startOrder = (type: OrderType) => {
     setOrderType(type);
@@ -168,11 +192,12 @@ export function HomeScreen() {
           {/* Loyalty card */}
           <View style={{ paddingHorizontal: spacing.lg, marginBottom: spacing.lg }}>
             <LoyaltyCard
-              points={points}
+              points={loyaltyCard.points}
+              note={loyaltyCard.note}
               tierLabel={tierLabel}
               pointsToNext={pointsToNext}
               goal={loyaltyThreshold}
-              onPress={() => router.push('/(tabs)/loyalty')}
+              onPress={loyaltyCard.onPress}
             />
           </View>
 

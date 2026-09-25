@@ -183,7 +183,9 @@ export async function deleteStoreAccount(): Promise<CallResult> {
   try {
     const res = await callFn<CallResult>('deleteStoreAccount');
     if (res?.ok === false) return res;
-    await signOutStore();
+    // No sign-out here: the caller's `logout()` does it after clearing local
+    // state. Signing out first made the auth listener treat it as a session
+    // revoked elsewhere and navigate away mid-flow.
     return { ok: true };
   } catch (e) {
     return { ok: false, reason: firebaseErrorReason(e) };

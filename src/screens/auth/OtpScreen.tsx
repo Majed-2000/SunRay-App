@@ -65,13 +65,30 @@ export function OtpScreen() {
     return () => clearTimeout(t);
   }, [verified]);
 
+  /**
+   * One verification at a time. The fourth digit auto-submits and «تأكيد»
+   * submits too; the code is single-use, so the second request came back
+   * "wrong", toasted «الرمز غير صحيح» and cleared the boxes while the first was
+   * signing the customer in — and on a slow network each extra tap burned one
+   * of the five attempts.
+   */
+  const verifyingRef = useRef(false);
+  const [verifying, setVerifying] = useState(false);
   const submit = async (value: string) => {
+    if (verifyingRef.current) return;
     if (value.length < LENGTH) {
       toast('أدخل رمز التحقق كاملًا');
       return;
     }
-    // Mock mode: any 4 digits works. Live: verifyStoreOtp → Firebase session.
-    const okSignIn = await verifyOtp(value);
+    verifyingRef.current = true;
+    setVerifying(true);
+    let okSignIn = false;
+    try {
+      okSignIn = await verifyOtp(value);
+    } finally {
+      verifyingRef.current = false;
+      setVerifying(false);
+    }
     if (!okSignIn) {
       // The store tells us WHY: wrong · expired · locked after five attempts.
       // "Wrong code" on a lockout leaves the customer typing into a dead prompt.
@@ -168,7 +185,7 @@ export function OtpScreen() {
           )}
         </View>
 
-        <Button label="تأكيد" onPress={() => submit(code)} style={{ marginTop: spacing['2xl'] }} />
+        <Button label="تأكيد" onPress={() => submit(code)} loading={verifying} disabled={verifying} style={{ marginTop: spacing['2xl'] }} />
       </View>
     </ScreenContainer>
   );

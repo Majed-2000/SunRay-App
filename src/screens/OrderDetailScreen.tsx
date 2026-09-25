@@ -8,6 +8,7 @@ import {
   Button,
   Card,
   Divider,
+  ErrorState,
   Header,
   OrderStatusBadge,
   PriceRow,
@@ -43,6 +44,8 @@ export function OrderDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const order = useOrderStore((s) => s.getById(id));
   const fetchOrder = useOrderStore((s) => s.fetchOrder);
+  const feedStatus = useOrderStore((s) => s.status);
+  const arrived = useOrderStore((s) => Boolean(s.arrived[id]));
   const branches = useBranchStore((s) => s.branches);
   const t = strings();
   const [loading, setLoading] = useState(!order);
@@ -51,19 +54,29 @@ export function OrderDetailScreen() {
   const reorder = useCartStore((s) => s.reorder);
 
   // Fetch the latest order (also fills it in if opened directly).
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let active = true;
     fetchOrder(id).finally(() => active && setLoading(false));
     return () => {
       active = false;
     };
-  }, [id, fetchOrder]);
+  }, [id, fetchOrder, attempt]);
 
   if (!order) {
     return (
       <ScreenContainer scroll={false} header={<Header showBack title="تفاصيل الطلب" />}>
         {loading ? (
           <Spinner />
+        ) : feedStatus === 'error' ? (
+          // The feed could not be read — offline, or a server error. Saying the
+          // order does not exist would be wrong, and left no way to try again.
+          <ErrorState
+            onRetry={() => {
+              setLoading(true);
+              setAttempt((n) => n + 1);
+            }}
+          />
         ) : (
           <Txt size={15} color={colors.textMuted} center style={{ marginTop: spacing['4xl'] }}>
             الطلب غير موجود
@@ -138,7 +151,7 @@ export function OrderDetailScreen() {
             step labels — they want to say they are here. */}
         {isStoreOrder && isActive && isCurbside(order.type) ? (
           <Card radiusKey="lg" style={{ marginBottom: spacing.lg }}>
-            <ArriveButton orderId={order.id} code={order.code ?? null} />
+            <ArriveButton orderId={order.id} code={order.code ?? null} alreadyArrived={arrived} />
           </Card>
         ) : null}
 

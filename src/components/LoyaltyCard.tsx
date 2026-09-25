@@ -6,7 +6,14 @@ import { LOGO } from '@/assets';
 import { Txt } from './Txt';
 
 export interface LoyaltyCardProps {
-  points: number;
+  /**
+   * The balance, or **null when it is not known** — still loading, the load
+   * failed, or the ledger has no record of this phone. Null draws a dash, not
+   * a zero: "٠ نقطة" is a statement about the customer, and a wrong one.
+   */
+  points: number | null;
+  /** Replaces the footer line — used to say why the balance is unknown. */
+  note?: string;
   /** Tier name, or null when tiers are switched off in the programme. */
   tierLabel: string | null;
   /**
@@ -23,9 +30,9 @@ export interface LoyaltyCardProps {
   onPress?: () => void;
 }
 
-export function LoyaltyCard({ points, tierLabel, pointsToNext, goal, onPress }: LoyaltyCardProps) {
-  const hasGoal = goal != null && goal > 0 && pointsToNext != null;
-  const pct = hasGoal ? Math.min(100, Math.round((points / goal) * 100)) : 0;
+export function LoyaltyCard({ points, note, tierLabel, pointsToNext, goal, onPress }: LoyaltyCardProps) {
+  const hasGoal = points != null && goal != null && goal > 0 && pointsToNext != null;
+  const pct = hasGoal && points != null ? Math.min(100, Math.round((points / goal) * 100)) : 0;
   return (
     <LinearGradient
       colors={gradients.loyalty}
@@ -71,7 +78,7 @@ export function LoyaltyCard({ points, tierLabel, pointsToNext, goal, onPress }: 
 
       <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 4 }}>
         <Txt size={40} weight="black" color="#2a1c08" style={{ lineHeight: 44 }}>
-          {toArabicDigits(points)}
+          {points == null ? '—' : toArabicDigits(points)}
         </Txt>
         <Txt size={14} weight="bold" color="#5a3f12">
           نقطة مشرقة
@@ -100,12 +107,15 @@ export function LoyaltyCard({ points, tierLabel, pointsToNext, goal, onPress }: 
       ) : null}
 
       <Txt size={12} weight="bold" color="#3a2806" style={{ marginTop: hasGoal ? 8 : 12 }}>
-        {hasGoal
+        {note
+          ? note
+          : hasGoal
           ? pointsToNext > 0
             ? `باقي ${toArabicDigits(pointsToNext)} نقطة لمكافأتك`
             : 'مكافأتك جاهزة 🎉'
           : 'نقاطك تتراكم مع كل طلب'}
-        {onPress ? ' · اضغط للتفاصيل ←' : ''}
+        {/* A note carries its own call to action (retry, sign in). */}
+        {onPress && !note ? ' · اضغط للتفاصيل ←' : ''}
       </Txt>
 
       {/* full-card press target */}

@@ -31,14 +31,11 @@ import {
   useCartStore,
 } from '@/store';
 
-const SCHEDULE_OPTIONS = ['في أقرب وقت', '٥:٠٠ م', '٦:٠٠ م', '٧:٠٠ م', '٨:٠٠ م'];
-
 export function CartScreen() {
   const insets = useSafeAreaInsets();
   const { contentMaxWidth } = useResponsive();
   const [branchOpen, setBranchOpen] = useState(false);
   const [addressOpen, setAddressOpen] = useState(false);
-  const [timeOpen, setTimeOpen] = useState(false);
   const [coupon, setCoupon] = useState('');
   const [applying, setApplying] = useState(false);
 
@@ -53,8 +50,6 @@ export function CartScreen() {
   const removeCoupon = useCartStore((s) => s.removeCoupon);
   const addressId = useCartStore((s) => s.addressId);
   const setAddress = useCartStore((s) => s.setAddress);
-  const scheduledTime = useCartStore((s) => s.scheduledTime);
-  const setScheduledTime = useCartStore((s) => s.setScheduledTime);
 
   const branch = useBranchStore((s) => s.current());
   const addresses = useAddressStore((s) => s.addresses);
@@ -124,13 +119,10 @@ export function CartScreen() {
                 />
               </>
             ) : null}
-            <Divider marginV={0} />
-            <FulfillRow
-              icon="time-outline"
-              label={isDelivery ? 'وقت التوصيل' : 'وقت الاستلام'}
-              value={scheduledTime ?? 'في أقرب وقت'}
-              onPress={() => setTimeOpen(true)}
-            />
+            {/* No pickup-time picker. It offered fixed times (٥–٨ م) that
+                createStoreOrder never receives, so a customer who chose ٧ م got
+                an order made at once and cold on arrival. Every order is ASAP
+                until the server accepts a scheduled time. */}
           </Card>
 
           {/* items */}
@@ -250,7 +242,10 @@ export function CartScreen() {
           {/* totals */}
           <Card style={{ marginTop: spacing.lg }} radiusKey="lg">
             <PriceRow label="المجموع الفرعي" amount={totals.subtotal} />
-            <PriceRow label="ضريبة القيمة المضافة (١٥٪)" amount={totals.vat} />
+            {/* Inclusive — extracted from the shelf prices, not added on top
+                (see utils/money.ts). Unlabelled, subtotal + VAT did not add up
+                to the total and read as tax charged twice. */}
+            <PriceRow label="شامل ضريبة القيمة المضافة (١٥٪)" amount={totals.vat} />
             {isDelivery ? (
               <PriceRow label="رسوم التوصيل" amount={totals.deliveryFee === 0 ? 'مجانًا' : totals.deliveryFee} />
             ) : null}
@@ -341,39 +336,6 @@ export function CartScreen() {
         </View>
       </Sheet>
 
-      {/* time sheet */}
-      <Sheet visible={timeOpen} onClose={() => setTimeOpen(false)} title="اختر الوقت">
-        <View style={{ padding: spacing.lg, gap: 10 }}>
-          {SCHEDULE_OPTIONS.map((opt) => {
-            const value = opt === 'في أقرب وقت' ? null : opt;
-            const active = scheduledTime === value;
-            return (
-              <Pressable
-                key={opt}
-                onPress={() => {
-                  setScheduledTime(value);
-                  setTimeOpen(false);
-                }}
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  backgroundColor: colors.card,
-                  borderRadius: radius.md,
-                  padding: spacing.lg,
-                  borderWidth: 1.5,
-                  borderColor: active ? colors.gold : colors.borderSoft,
-                }}
-              >
-                <Txt size={15} weight="bold" color={colors.ink}>
-                  {opt}
-                </Txt>
-                {active ? <Ionicons name="checkmark-circle" size={20} color={colors.gold} /> : null}
-              </Pressable>
-            );
-          })}
-        </View>
-      </Sheet>
     </>
   );
 }

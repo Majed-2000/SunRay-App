@@ -39,7 +39,15 @@ export function DeleteAccountScreen() {
     if (!canDelete) return;
     setBusy(true);
     try {
-      await deleteStoreAccount();
+      // `deleteStoreAccount` reports failure in its result, it never throws —
+      // ignoring it told customers «تم حذف حسابك» over an account that was
+      // still there, and signed them out of it.
+      const res = await deleteStoreAccount();
+      if (!res.ok) {
+        toast('تعذّر حذف الحساب، حاول مرة أخرى');
+        setBusy(false);
+        return;
+      }
       // Clear local state before navigating: the tokens are already revoked
       // server-side, and leaving a stale session would show a signed-in shell
       // over an account that no longer exists.

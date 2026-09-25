@@ -17,10 +17,45 @@ export interface ProductCardProps {
 /** Grid card used in featured / tablet menu grids. */
 export function ProductCard({ product, onPress, onAdd }: ProductCardProps) {
   const badge = product.tags[0];
+  // Same sold-out treatment as ProductRow. The card used to only grey its "+",
+  // so on a tablet a sold-out item looked orderable and the tap did nothing.
+  const sold = !product.isAvailable;
   return (
-    <Card onPress={onPress} padding={12} radiusKey="xl" shadow="card" style={{ flex: 1 }}>
+    <Card
+      onPress={sold ? undefined : onPress}
+      padding={12}
+      radiusKey="xl"
+      shadow="card"
+      style={{ flex: 1, opacity: sold ? 0.62 : 1 }}
+    >
       <ProductImage emoji={product.emoji} image={product.image} height={120} emojiSize={46}>
-        {badge ? (
+        {sold ? (
+          <View
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(240,234,224,0.82)',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <View
+              style={{
+                backgroundColor: colors.goldDeep,
+                borderRadius: radius.pill,
+                paddingHorizontal: 9,
+                paddingVertical: 4,
+              }}
+            >
+              <Txt size={10} weight="extraBold" color={colors.white}>
+                نفذت الكمية
+              </Txt>
+            </View>
+          </View>
+        ) : badge ? (
           <View
             style={{
               position: 'absolute',

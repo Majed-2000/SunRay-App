@@ -56,6 +56,33 @@ export async function fetchAutoCoupon(amountHalalas: number): Promise<ResolvedCo
   }
 }
 
+/**
+ * Whether this customer has an automatic coupon at all — for the Offers screen.
+ *
+ * Separate from `fetchAutoCoupon` because that one answers "does it apply to
+ * this amount" and folds every failure into null. Asked without a cart, a
+ * coupon with a minimum comes back `below_min`: it exists, it just does not
+ * apply to zero, and reporting it as "no offers" hid it. A network or server
+ * failure is likewise not "no coupon", and the screen needs to offer a retry.
+ */
+export type AutoCouponLookup =
+  | { status: 'found'; coupon: ResolvedCoupon; belowMin: boolean }
+  | { status: 'none' }
+  | { status: 'error' };
+
+export async function lookupAutoCoupon(): Promise<AutoCouponLookup> {
+  try {
+    const res = await callFn<ResolvedCoupon>('myAutoCoupon', { amountHalalas: 0 });
+    if (res && res.ok !== false) return { status: 'found', coupon: res, belowMin: false };
+    if (String(res?.reason ?? '').split(':')[0] === 'below_min') {
+      return { status: 'found', coupon: { ...res, ok: false }, belowMin: true };
+    }
+    return { status: 'none' };
+  } catch {
+    return { status: 'error' };
+  }
+}
+
 export interface StoreGiftCard {
   id: string;
   code?: string | null;

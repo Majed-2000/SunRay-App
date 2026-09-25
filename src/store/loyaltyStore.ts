@@ -6,6 +6,14 @@ const NO_REWARDS: LoyaltyReward[] = [];
 const NO_EVENTS: LoyaltyEvent[] = [];
 
 /**
+ * Bumped by every `load()` and every `reset()`. A response is written only if
+ * no newer load or reset happened while it was in flight — otherwise a slow
+ * reply started before logout (or before an account switch) would land after
+ * it and put the previous customer's balance back on screen.
+ */
+let generation = 0;
+
+/**
  * The customer's loyalty state, mirrored from the live ledger.
  *
  * Nothing here is computed locally and nothing is invented. The previous
@@ -32,6 +40,8 @@ interface LoyaltyState {
   unlinked: boolean;
 
   load: () => Promise<void>;
+  /** Forget the snapshot — on sign-out, guest mode or an account switch. */
+  reset: () => void;
 
   // ── Derived reads. All tolerate `data === null`. ──
   points: () => number;
@@ -57,8 +67,10 @@ export const useLoyaltyStore = create<LoyaltyState>((set, get) => ({
   unlinked: false,
 
   load: async () => {
+    const mine = ++generation;
     set({ status: 'loading' });
     const res = await fetchMyLoyalty();
+    if (mine !== generation) return;
     if (!res) {
       set({ status: 'error' });
       return;
@@ -67,6 +79,11 @@ export const useLoyaltyStore = create<LoyaltyState>((set, get) => ({
     // know yet. Rendering that as a zero balance would tell someone who has
     // been buying coffee for a year that they have never earned anything.
     set({ data: res, status: 'ready', unlinked: res.linked === false });
+  },
+
+  reset: () => {
+    generation++;
+    set({ data: null, status: 'idle', unlinked: false });
   },
 
   points: () => get().data?.balance ?? 0,

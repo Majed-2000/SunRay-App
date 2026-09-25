@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -8,6 +8,7 @@ import { Button, Header, ScreenContainer, Sheet, TextField, Txt } from '@/compon
 import { CONFIG } from '@/constants/config';
 import { MONTHS_AR_LIST } from '@/utils/date';
 import { useAuthStore, useLoyaltyStore, toast } from '@/store';
+import { hasRealName } from '@/store/authStore';
 
 /**
  * Profile — only what is stored and used.
@@ -26,10 +27,23 @@ export function EditProfileScreen() {
   const saveProfile = useAuthStore((s) => s.saveProfile);
   const savedMonth = useLoyaltyStore((s) => s.data?.birthMonth ?? undefined);
 
-  const [name, setName] = useState(user?.name ?? '');
+  // Empty, not «عميل ١٢٣٤», when the account has no name: pre-filling the
+  // stand-in meant one tap on «حفظ» saved it as the customer's real name.
+  const [name, setName] = useState(hasRealName(user) ? user!.name : '');
   const [birthMonth, setBirthMonth] = useState<number | undefined>(user?.birthMonth ?? savedMonth);
+  const [monthTouched, setMonthTouched] = useState(false);
   const [monthOpen, setMonthOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // The saved month comes from the ledger. After a restart it is not in memory
+  // until loyalty loads, and the initial state above was read before that — so
+  // a month the customer had saved showed as «اختر الشهر», as if it was lost.
+  useEffect(() => {
+    if (useLoyaltyStore.getState().data === null) void useLoyaltyStore.getState().load();
+  }, []);
+  useEffect(() => {
+    if (!monthTouched && savedMonth !== undefined) setBirthMonth(savedMonth);
+  }, [savedMonth, monthTouched]);
 
   const onSave = async () => {
     if (!name.trim()) {
@@ -106,6 +120,7 @@ export function EditProfileScreen() {
                 key={m}
                 onPress={() => {
                   setBirthMonth(month);
+                  setMonthTouched(true);
                   setMonthOpen(false);
                 }}
                 style={{

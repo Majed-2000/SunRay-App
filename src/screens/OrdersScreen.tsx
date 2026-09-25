@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { FlatList, RefreshControl, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { colors, radius, shadows, spacing } from '@/theme';
 import {
   Card,
@@ -38,16 +38,19 @@ export function OrdersScreen() {
   const branches = useBranchStore((s) => s.branches);
   const t = strings();
 
-  // Only the backend list needs fetching; mock orders live in the store already
-  // (and re-loading would wipe a just-placed mock order). The backend scopes the
-  // list to the authenticated customer, so guests (who can't order) show empty.
-  useEffect(() => {
-    if (isGuest) {
-      useOrderStore.setState({ status: 'ready', orders: [] });
-    } else {
-      loadOrders();
-    }
-  }, [loadOrders, isGuest]);
+  // On every focus, not once: tab screens stay mounted, so a mount-only load
+  // kept showing «قيد التحضير» for an order the counter had long marked ready.
+  // The feed is scoped to the signed-in customer; guests (who can't order)
+  // show empty.
+  useFocusEffect(
+    useCallback(() => {
+      if (isGuest) {
+        useOrderStore.setState({ status: 'ready', orders: [] });
+      } else {
+        loadOrders();
+      }
+    }, [loadOrders, isGuest]),
+  );
 
   const reload = () => {
     if (!isGuest) loadOrders();

@@ -105,6 +105,12 @@ export interface MyOrder {
   status: string | null;
   /** Set once the branch has handed the order over. */
   fulfillment?: string | null;
+  /**
+   * Fulfilment mode, when the feed carries it. Read if present; when absent
+   * the app keeps the mode it recorded at checkout, since a curbside order
+   * mapped as a pickup loses its «وصلت» button.
+   */
+  mode?: StoreOrderMode | null;
   totalHalalas: number;
   createdAt: number;
   items?: { name: string; qty: number }[];

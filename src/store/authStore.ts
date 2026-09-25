@@ -8,6 +8,22 @@ import * as storeAuth from '@/services/storeAuth';
 import { setBirthMonth } from '@/services/storeLoyalty';
 import { auth as firebaseAuth } from '@/services/firebase';
 import type { User as FbUser } from '@firebase/auth';
+import { router } from 'expo-router';
+import { useLoyaltyStore } from './loyaltyStore';
+
+/** «عميل ١٢٣٤» — shown when the account has no name yet. Never saved as one. */
+function placeholderName(local: string): string {
+  return `عميل ${local.slice(-4)}`.trim();
+}
+
+/**
+ * True when `user.name` is a name the customer gave, not the phone-digit
+ * stand-in. Edit Profile pre-filled the stand-in into the name field, so a
+ * customer who tapped «حفظ» saved «عميل 1234» to their account as their name.
+ */
+export function hasRealName(user: User | null): boolean {
+  return !!user && !!user.name.trim() && user.name !== placeholderName(user.phone);
+}
 
 /**
  * Build the app's `User` from a Firebase account.
@@ -23,7 +39,7 @@ function userFromFirebase(fb: FbUser | null, fallbackPhone: string): User {
   // 5XXXXXXXX form.
   const e164 = fb?.phoneNumber ?? '';
   const local = e164.replace(/^\+?966/, '') || fallbackPhone || '';
-  const name = fb?.displayName?.trim() || `عميل ${local.slice(-4)}`;
+  const name = fb?.displayName?.trim() || placeholderName(local);
   return {
     id: fb?.uid ?? local,
     name,
@@ -51,6 +67,16 @@ interface AuthState {
    * need different next actions. A single boolean cannot carry that.
    */
   authError: string | null;
+  /**
+   * The phone this device last verified, and for which account.
+   *
+   * Sign-in is by custom token, so the Firebase account may carry no
+   * `phoneNumber`. The OTP step knows the phone, but only in memory — after a
+   * restart a signed-in customer came back with no phone at all and the
+   * Account screen called them «زائر». Keyed by uid so it never lends one
+   * customer's number to another.
+   */
+  verifiedPhone: { uid: string; phone: string } | null;
 
   setLocale: (locale: LocaleCode) => void;
   completeOnboarding: () => void;
@@ -86,6 +112,7 @@ export const useAuthStore = create<AuthState>()(
   // Firebase restores a persisted sign-in asynchronously; routing waits for it.
   isHydrating: true,
   authError: null,
+  verifiedPhone: null,
 
   setLocale: (locale) => {
     setLocale(locale);
@@ -117,7 +144,9 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: true,
       isGuest: false,
       authError: null,
+      verifiedPhone: fbUser && phone ? { uid: fbUser.uid, phone } : null,
     });
+    watchAuth();
     return true;
   },
 
@@ -134,17 +163,37 @@ export const useAuthStore = create<AuthState>()(
       // splash decide before that has loaded.
       await waitForPersist();
       const fbUser = await storeAuth.waitForAuthReady();
+      watchAuth();
       if (!fbUser) {
         set({ isHydrating: false });
         return;
       }
       set({
-        user: userFromFirebase(fbUser, get().pendingPhone),
+        user: userFromFirebase(fbUser, phoneFor(fbUser.uid)),
         token: fbUser.uid,
         isAuthenticated: true,
         isGuest: false,
         isHydrating: false,
       });
+      /**
+       * The user Firebase restores is the copy it saved on this device, so a
+       * name set on the web store, by the café or on another phone never
+       * arrived here. Re-read the account — after routing, not before it: a
+       * slow network must not hold the splash screen.
+       */
+      void fbUser
+        .reload()
+        .then(() => {
+          const fresh = firebaseAuth().currentUser;
+          const s = get();
+          if (!fresh || fresh.uid !== fbUser.uid || !s.isAuthenticated || s.isGuest) return;
+          const next = userFromFirebase(fresh, phoneFor(fresh.uid));
+          if (s.user && next.name === s.user.name && next.phone === s.user.phone) return;
+          set({ user: s.user ? { ...next, birthMonth: s.user.birthMonth } : next });
+        })
+        // Offline: the saved copy stands. A revoked account is signed out by
+        // Firebase, and the auth listener below takes it from there.
+        .catch(() => {});
     } catch {
       set({ isHydrating: false });
     }
@@ -170,20 +219,30 @@ export const useAuthStore = create<AuthState>()(
     if (!current || get().isGuest) return false;
     let ok = true;
     const trimmed = name?.trim();
-    if (trimmed !== undefined && trimmed !== current.name) {
-      ok = (await storeAuth.saveDisplayName(trimmed)) && ok;
+    // Each part is applied as soon as the server has it. They used to be
+    // applied together only if both succeeded — so a refused birth month left
+    // Home showing the old name while Firebase already held the new one.
+    if (trimmed && trimmed !== current.name) {
+      if (await storeAuth.saveDisplayName(trimmed)) {
+        const u = get().user ?? current;
+        set({ user: { ...u, name: trimmed, avatarText: trimmed.charAt(0) || u.avatarText } });
+      } else {
+        ok = false;
+      }
     }
-    if (birthMonth !== undefined && birthMonth !== current.birthMonth) {
-      ok = (await setBirthMonth(birthMonth)) && ok;
-    }
-    if (ok) {
-      set({
-        user: {
-          ...current,
-          ...(trimmed ? { name: trimmed, avatarText: trimmed.charAt(0) || current.avatarText } : {}),
-          ...(birthMonth !== undefined ? { birthMonth } : {}),
-        },
-      });
+    // Compared with what the ledger holds. `current.birthMonth` is empty after
+    // every restart, so the month was re-sent on every save, even a name-only
+    // one — and a refusal then reported the whole save as failed.
+    const savedMonth = useLoyaltyStore.getState().data?.birthMonth ?? current.birthMonth;
+    if (birthMonth !== undefined && birthMonth !== savedMonth) {
+      if (await setBirthMonth(birthMonth)) {
+        const u = get().user ?? current;
+        set({ user: { ...u, birthMonth } });
+        // The ledger is where Edit Profile reads the month back from.
+        void useLoyaltyStore.getState().load();
+      } else {
+        ok = false;
+      }
     }
     return ok;
   },
@@ -200,16 +259,21 @@ export const useAuthStore = create<AuthState>()(
       isGuest: false,
       pendingPhone: '',
       authError: null,
+      verifiedPhone: null,
     });
+    // The balance on Home and Account is this customer's; the next person to
+    // sign in (or a guest) must not open onto it.
+    useLoyaltyStore.getState().reset();
   },
   }),
   {
     name: 'sunray.auth',
     version: PERSIST_VERSION,
     storage: deviceStorage,
-    // Only this. The signed-in user comes from Firebase's own persisted
-    // session; keeping a copy here would show a profile after sign-out.
-    partialize: (s) => ({ hasOnboarded: s.hasOnboarded }),
+    // The signed-in user comes from Firebase's own persisted session; keeping
+    // a copy here would show a profile after sign-out. `verifiedPhone` is only
+    // a fallback for that account's own phone and is cleared on logout.
+    partialize: (s) => ({ hasOnboarded: s.hasOnboarded, verifiedPhone: s.verifiedPhone }),
   },
   ),
 );
@@ -225,3 +289,35 @@ function waitForPersist(): Promise<void> {
   });
 }
 
+/** The phone this device verified for `uid`, or '' for any other account. */
+function phoneFor(uid: string): string {
+  const v = useAuthStore.getState().verifiedPhone;
+  return v && v.uid === uid ? v.phone : '';
+}
+
+/**
+ * Follow Firebase's sign-in state for the life of the app.
+ *
+ * The session was read once at launch and never again. When Firebase later
+ * dropped it — the account deleted from the web store, which revokes every
+ * session, or a refresh token that stopped working — the app stayed "signed
+ * in" while every call came back unauthenticated, with no way back to login.
+ */
+let stopWatching: (() => void) | null = null;
+function watchAuth() {
+  if (stopWatching) return;
+  stopWatching = storeAuth.onAuthChanged((fb) => {
+    const s = useAuthStore.getState();
+    // Our own logout clears the state before Firebase reports the sign-out,
+    // so this only acts on a sign-out that came from somewhere else.
+    if (!s.isAuthenticated || s.isGuest) return;
+    if (!fb) {
+      s.logout();
+      router.replace('/(auth)/login');
+      return;
+    }
+    if (s.user?.id !== fb.uid) {
+      useAuthStore.setState({ user: userFromFirebase(fb, phoneFor(fb.uid)), token: fb.uid });
+    }
+  });
+}

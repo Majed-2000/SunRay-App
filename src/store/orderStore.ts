@@ -11,6 +11,8 @@ import {
 } from '@/types';
 import { cancelOrder, fetchMyOrders, type CreateOrderResult, type MyOrder } from '@/services/storeOrders';
 import { CONFIG } from '@/constants/config';
+import { auth } from '@/services/firebase';
+import { useAuthStore } from './authStore';
 
 /** The VAT already inside a tax-inclusive total — extracted, never added. See utils/money.ts. */
 function inclusiveVat(total: number): number {
@@ -132,6 +134,30 @@ interface OrderState {
    * detail screens can show it before the feed catches up.
    */
   recordPlaced: (result: CreateOrderResult, input: { type: OrderType; branchId: string; lines: CartLine[] }) => Order;
+  /**
+   * Orders this customer has reported «وصلت» for, this session. The arrival is
+   * an event on the server and the feed does not echo it back, so without this
+   * a reopened order showed the button again and the customer could not tell
+   * whether the branch had been told.
+   */
+  arrived: Record<string, true>;
+  markArrived: (id: string) => void;
+  /**
+   * The order checkout created and is still collecting a card for. Kept here,
+   * not in the screen, so leaving checkout and coming back with the same cart
+   * resumes paying for it instead of creating a second order.
+   */
+  checkout: InFlightCheckout | null;
+  setCheckout: (checkout: InFlightCheckout | null) => void;
+  /** Forget everything — the signed-in customer changed. */
+  reset: () => void;
+}
+
+export interface InFlightCheckout {
+  order: CreateOrderResult;
+  /** Signature of the cart it was created from; a changed cart is a new order. */
+  cartKey: string;
+  at: number;
 }
 
 /** How long a just-placed order is kept while the feed has not listed it. */
@@ -197,6 +223,11 @@ function mapStatus(o: MyOrder): { status: OrderStatus; deliveryStatus: DeliveryS
     // timestamp — one clock, not two.
     case 'expired':
       return { status: FoodicsOrderStatus.Void, deliveryStatus: null };
+    // Under review is normally a charge the server wants a human to look at.
+    // Falling through to Pending showed it as unpaid, with a cancel prompt
+    // promising «لن يُخصم منك شيء» to someone who may well have been charged.
+    case 'review':
+      return { status: FoodicsOrderStatus.Active, deliveryStatus: null };
     default:
       return { status: FoodicsOrderStatus.Pending, deliveryStatus: null };
   }
@@ -227,7 +258,7 @@ function mapStoreOrder(o: MyOrder): Order {
       : null,
     foodicsOrderId: null,
     createdAt: o.createdAt || Date.now(),
-    type: 'pickup',
+    type: o.mode === 'car' ? 'car' : 'pickup',
     status,
     deliveryStatus,
     branchId: '',
@@ -257,16 +288,32 @@ function upsert(orders: Order[], order: Order): Order[] {
   return copy;
 }
 
-export const useOrderStore = create<OrderState>((set, get) => ({
+const EMPTY = {
   // Empty until the first read of the customer's feed.
-  orders: [],
-  status: 'loading',
-  error: null,
+  orders: [] as Order[],
+  status: 'loading' as Status,
+  error: null as string | null,
+  arrived: {} as Record<string, true>,
+  checkout: null as InFlightCheckout | null,
+};
+
+export const useOrderStore = create<OrderState>((set, get) => ({
+  ...EMPTY,
+
+  reset: () => set({ ...EMPTY, arrived: {} }),
+
+  markArrived: (id) => set((s) => ({ arrived: { ...s.arrived, [id]: true } })),
+
+  setCheckout: (checkout) => set({ checkout }),
 
   getById: (id) => get().orders.find((o) => o.id === id),
 
   loadOrders: async () => {
     set({ status: 'loading', error: null });
+    // A response for a customer who has since signed out must not land in the
+    // next customer's list.
+    const uid = auth().currentUser?.uid ?? null;
+    const stale = () => (auth().currentUser?.uid ?? null) !== uid;
     try {
       /**
        * One feed from the store, scoped to the signed-in customer's phone.
@@ -277,6 +324,7 @@ export const useOrderStore = create<OrderState>((set, get) => ({
        * sessions and gift cards into one list, newest first.
        */
       const { phone, orders } = await fetchMyOrders();
+      if (stale()) return;
       if (phone === null) {
         // NOT an empty list. The server could not tie this account to a number,
         // and rendering that as "no orders yet" is what hid the same fault for a
@@ -284,15 +332,29 @@ export const useOrderStore = create<OrderState>((set, get) => ({
         set({ status: 'error', error: 'تعذّر التعرّف على رقمك' });
         return;
       }
-      const fromFeed = orders.map(mapStoreOrder);
+      const before = get().orders;
+      const fromFeed = orders.map((row) => {
+        const mapped = mapStoreOrder(row);
+        // The feed carries no branch, and may not carry the mode. What checkout
+        // recorded is right; losing it turned a curbside order into a pickup
+        // and hid the «وصلت» button the moment the feed listed the order.
+        const local = before.find((o) => o.id === row.id);
+        if (!local) return mapped;
+        return {
+          ...mapped,
+          type: row.mode ? mapped.type : local.type,
+          branchId: mapped.branchId || local.branchId,
+        };
+      });
       // Keep an order placed moments ago that the feed does not list yet —
       // otherwise the success screen's order vanishes on the first refresh.
       const seen = new Set(fromFeed.map((o) => o.id));
-      const recent = get().orders.filter(
+      const recent = before.filter(
         (o) => !seen.has(o.id) && Date.now() - o.createdAt < RECENT_PLACED_MS,
       );
       set({ orders: [...recent, ...fromFeed], status: 'ready', error: null });
     } catch (e) {
+      if (stale()) return;
       set({ status: 'error', error: e instanceof Error ? e.message : 'تعذّر تحميل الطلبات' });
     }
   },
@@ -358,3 +420,17 @@ export const useOrderStore = create<OrderState>((set, get) => ({
     return order;
   },
 }));
+
+/**
+ * Follow the signed-in customer.
+ *
+ * Nothing else clears this store, so after one customer signed out and another
+ * signed in, the badge, the list and any order placed in the last ten minutes
+ * were the previous customer's. And nothing loaded the feed at launch, so the
+ * active-orders badge read zero until the Orders tab was opened.
+ */
+useAuthStore.subscribe((s, prev) => {
+  if (s.user?.id === prev.user?.id && s.isGuest === prev.isGuest) return;
+  useOrderStore.getState().reset();
+  if (s.user && !s.isGuest) void useOrderStore.getState().loadOrders();
+});

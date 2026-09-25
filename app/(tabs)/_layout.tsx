@@ -1,13 +1,27 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Platform, type ColorValue } from 'react-native';
+import { AppState, Platform, type ColorValue } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts } from '@/theme';
 import { strings } from '@/i18n';
-import { isActiveOrder, useBranchStore, useCatalogStore, useOrderStore, useStoreSettingsStore } from '@/store';
+import {
+  isActiveOrder,
+  useAuthStore,
+  useBranchStore,
+  useCatalogStore,
+  useLoyaltyStore,
+  useOrderStore,
+  useStoreSettingsStore,
+} from '@/store';
 
 type IoniconName = keyof typeof Ionicons.glyphMap;
+
+/** Drop everything that belongs to the signed-in customer. */
+function clearCustomerData() {
+  useLoyaltyStore.getState().reset();
+  useOrderStore.setState({ orders: [], status: 'idle', error: null });
+}
 
 /**
  * Outline when inactive, solid when active.
@@ -45,6 +59,58 @@ export default function TabsLayout() {
     const stopSettings = useStoreSettingsStore.getState().start();
     return stopSettings;
   }, []);
+
+  /**
+   * Per-customer data — points and orders — loaded here, when the customer
+   * enters the app, not by the tab that displays it.
+   *
+   * Only the Loyalty tab used to call `load()`, and a tab screen mounts on its
+   * first visit. So Home showed "٠ نقطة" from launch until the customer
+   * happened to open نقاطي, and the orders badge stayed empty until they opened
+   * طلباتي. Keyed on the account, so a switch or guest mode starts clean; the
+   * cleanup runs on logout too (it replaces this whole navigator), so the next
+   * person on this phone never sees the previous customer's balance or orders.
+   */
+  const userId = useAuthStore((s) => s.user?.id ?? null);
+  const isGuest = useAuthStore((s) => s.isGuest);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const signedIn = isAuthenticated && !isGuest && userId != null;
+  useEffect(() => {
+    if (signedIn) {
+      void useLoyaltyStore.getState().load();
+      void useOrderStore.getState().loadOrders();
+    } else {
+      clearCustomerData();
+    }
+    return clearCustomerData;
+  }, [signedIn, userId]);
+
+  // Points are awarded when an order settles, usually while the app is in a
+  // pocket. Coming back to it is when the customer looks for them.
+  useEffect(() => {
+    if (!signedIn) return;
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next !== 'active') return;
+      void useLoyaltyStore.getState().load();
+      void useOrderStore.getState().loadOrders();
+    });
+    return () => sub.remove();
+  }, [signedIn]);
+
+  // An order leaving the active list has settled (or been cancelled, which may
+  // refund redeemed points) — either way the balance just moved.
+  const prevActive = useRef(activeOrders);
+  useEffect(() => {
+    if (signedIn && activeOrders < prevActive.current) void useLoyaltyStore.getState().load();
+    prevActive.current = activeOrders;
+  }, [activeOrders, signedIn]);
+
+  // A saved birth month lives in the ledger; Edit Profile reads it back from
+  // this store, so re-read after a save or it reopens showing the old month.
+  const birthMonth = useAuthStore((s) => s.user?.birthMonth);
+  useEffect(() => {
+    if (signedIn && birthMonth !== undefined) void useLoyaltyStore.getState().load();
+  }, [birthMonth, signedIn]);
   return (
     <Tabs
       screenOptions={{

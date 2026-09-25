@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { Branch } from '@/types';
-import { subscribeOpenState } from '@/services/storeConfig';
+import { useStoreSettingsStore } from './storeSettingsStore';
 
 /**
  * The branch.
@@ -16,8 +16,12 @@ import { subscribeOpenState } from '@/services/storeConfig';
  * includes a closed seasonal branch is worse.
  *
  * What IS live is whether the branch is accepting orders: `store_hours` closes
- * it automatically for Taif prayer times, Friday, and maintenance. That is
- * subscribed, not fetched, because it changes while a customer is mid-cart.
+ * it automatically for Taif prayer times, Friday, and maintenance. It is
+ * mirrored from `storeSettingsStore`, which owns the one subscription to
+ * `store/config/open`. This store used to open a second listener on the same
+ * node that was never stopped: every snapshot arrived twice, it outlived
+ * logout, and Home (reading here) and Checkout (reading there) had two sources
+ * for one fact.
  *
  * The shape stays an array so the screens that map over `branches` keep working.
  */
@@ -40,6 +44,7 @@ const HALQA: Branch = {
   hoursAr: '',
   openingFrom: '',
   openingTo: '',
+  // Nothing measures this; the picker must not show it as a real distance.
   distanceKm: 0,
   supportsDelivery: false,
   supportsDineIn: false,
@@ -61,20 +66,24 @@ interface BranchState {
   current: () => Branch;
 }
 
-/** Live subscription handle, kept out of state so it is never rendered. */
+/** Mirror handle, kept out of state so it is never rendered. */
 let unsubscribe: (() => void) | null = null;
+
+type OpenSlice = { open: boolean; closedReason: string | null };
 
 export const useBranchStore = create<BranchState>((set, get) => ({
   branches: [HALQA],
   selectedBranchId: HALQA.id,
-  auto: true,
+  // False: no location is ever read, so nothing was detected. Home labels an
+  // `auto` branch «فرعك الأقرب», a claim the app never checked.
+  auto: false,
   status: 'ready',
   error: null,
   closedReason: null,
 
   load: async () => {
     if (unsubscribe) return;
-    unsubscribe = subscribeOpenState(({ open, reason }) => {
+    const apply = ({ open, closedReason: reason }: OpenSlice) => {
       const s = get();
       // Rebuild the branch objects only when the state actually changed.
       // `.map()` unconditionally would hand every screen selecting `current()`
@@ -85,13 +94,17 @@ export const useBranchStore = create<BranchState>((set, get) => ({
         closedReason: reason,
         status: 'ready',
       });
-    });
+    };
+    // A local store subscription, not a network listener, so keeping it for
+    // the life of the process costs nothing.
+    apply(useStoreSettingsStore.getState());
+    unsubscribe = useStoreSettingsStore.subscribe(apply);
   },
 
   // Kept so existing callers (the branch picker sheet) still compile. With one
   // branch there is nothing to choose, and both resolve to the same place.
   selectBranch: (id) => set({ selectedBranchId: id, auto: false }),
-  selectNearest: () => set({ selectedBranchId: HALQA.id, auto: true }),
+  selectNearest: () => set({ selectedBranchId: HALQA.id, auto: false }),
 
   current: () => {
     const { branches, selectedBranchId } = get();

@@ -35,12 +35,12 @@ export function SettingsScreen() {
           <ListRow
             icon="shield-checkmark-outline"
             label="سياسة الخصوصية"
-            onPress={() => Linking.openURL(PRIVACY_URL)}
+            onPress={() => Linking.openURL(PRIVACY_URL).catch(() => toast('تعذّر فتح الرابط'))}
           />
           <ListRow
             icon="document-text-outline"
             label="الشروط والأحكام"
-            onPress={() => Linking.openURL(TERMS_URL)}
+            onPress={() => Linking.openURL(TERMS_URL).catch(() => toast('تعذّر فتح الرابط'))}
           />
           <ListRow icon="information-circle-outline" label="عن التطبيق" value={APP_VERSION_AR} onPress={() => toast('Sun Ray · سن راي')} />
         </View>

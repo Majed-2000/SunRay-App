@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { colors, radius, spacing } from '@/theme';
 import { Button, Card, EmptyState, Header, ScreenContainer, Spinner, Txt } from '@/components';
-import { fetchAutoCoupon, type ResolvedCoupon } from '@/services/storeOffers';
+import { lookupAutoCoupon, type AutoCouponLookup } from '@/services/storeOffers';
 import { useAuthStore } from '@/store';
 import { toArabicDigits } from '@/utils/numerals';
 
@@ -20,20 +20,26 @@ import { toArabicDigits } from '@/utils/numerals';
 export function OffersScreen() {
   const isGuest = useAuthStore((s) => s.isGuest);
   const [loading, setLoading] = useState(!isGuest);
-  const [auto, setAuto] = useState<ResolvedCoupon | null>(null);
+  const [result, setResult] = useState<AutoCouponLookup | null>(null);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     if (isGuest) return;
     let active = true;
-    // Amount 0: we only want to know whether one exists. The cart asks again
-    // with the real subtotal, where minimums apply.
-    fetchAutoCoupon(0)
-      .then((c) => active && setAuto(c))
+    setLoading(true);
+    // Asked without a cart: we only want to know whether one exists. A coupon
+    // with a minimum answers `below_min` here and still counts as existing; the
+    // server applies it at order time once the cart reaches the minimum.
+    lookupAutoCoupon()
+      .then((r) => active && setResult(r))
       .finally(() => active && setLoading(false));
     return () => {
       active = false;
     };
-  }, [isGuest]);
+  }, [isGuest, attempt]);
+
+  const auto = result?.status === 'found' ? result.coupon : null;
+  const belowMin = result?.status === 'found' && result.belowMin;
 
   const value =
     auto?.kind === 'percent'
@@ -67,11 +73,23 @@ export function OffersScreen() {
                   {value}
                 </Txt>
                 <Txt size={12} color={colors.textMuted}>
-                  يُطبَّق تلقائيًا على طلبك القادم — لا تحتاج كودًا
+                  {belowMin
+                    ? 'يُطبَّق تلقائيًا عندما يبلغ طلبك الحد الأدنى — لا تحتاج كودًا'
+                    : 'يُطبَّق تلقائيًا على طلبك القادم — لا تحتاج كودًا'}
                 </Txt>
               </View>
             </View>
           </Card>
+        ) : result?.status === 'error' ? (
+          // A failed request is not "no offers"; saying so would hide a coupon
+          // the customer does have.
+          <EmptyState
+            emoji="⚠️"
+            title="تعذّر تحميل عروضك"
+            subtitle="تحقق من اتصالك ثم حاول مرة أخرى"
+            actionLabel="إعادة المحاولة"
+            onAction={() => setAttempt((n) => n + 1)}
+          />
         ) : (
           <EmptyState
             emoji="🏷️"

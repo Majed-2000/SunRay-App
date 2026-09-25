@@ -78,9 +78,22 @@ export function waitForSettlement(
       resolve(result);
     };
 
+    let first = true;
     const handler = (snap: DataSnapshot) => {
       const order = snap.val() as { status?: string } | null;
       const status = order?.status;
+      /**
+       * `onValue` fires at once with the current value. A `failed` already
+       * there belongs to an EARLIER attempt on this order: the webhook for the
+       * card just charged has not arrived yet. Resolving on it told a customer
+       * whose retry went through that it had failed, and put the card form back
+       * in front of them. Only a transition to `failed` counts; if this attempt
+       * failed too the value does not change, and the wait ends as `timeout`,
+       * which is never shown as a failure.
+       */
+      const staleFailure = first && status === 'failed';
+      first = false;
+      if (staleFailure) return;
       if (
         status === 'paid' ||
         status === 'failed' ||

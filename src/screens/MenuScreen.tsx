@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, ScrollView, View, type ListRenderItemInfo } from 'react-native';
 import { router } from 'expo-router';
 import { colors, spacing } from '@/theme';
@@ -52,6 +52,15 @@ export function MenuScreen() {
 
   const listRef = useRef<FlatList<Product>>(null);
   const pillsRef = useRef<ScrollView>(null);
+
+  // Chips come from what is on the menu right now. When the branch pulls the
+  // last item of the selected one, its chip vanishes but the filter stayed —
+  // a blank list with nothing highlighted to explain it. Fall back to «الكل».
+  useEffect(() => {
+    if (filter !== 'all' && status === 'ready' && !categories.some((c) => c.id === filter)) {
+      setFilter('all');
+    }
+  }, [categories, filter, status]);
 
   /**
    * Change category, then jump the list back to the top.

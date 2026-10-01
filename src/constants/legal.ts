@@ -1,13 +1,25 @@
-/**
- * Public legal pages. Both stores record these URLs, so they must stay live.
- *
- * Today they are served by Caddy on the VPS (`EXPO_PUBLIC_API_BASE_URL`), the
- * only thing that host still does for the app. When the pages move to Firebase
- * Hosting on a permanent domain, change the base here and in `eas.json`.
- */
-const LEGAL_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
+import type { LegalDocId } from '@/data/legal';
 
-export const PRIVACY_URL = `${LEGAL_BASE_URL}/privacy`;
-export const TERMS_URL = `${LEGAL_BASE_URL}/terms`;
+/**
+ * Public legal pages — the URLs entered in App Store Connect and Play Console.
+ *
+ * They are sunray.sa's own pages, which cover every Sun Ray service including
+ * this app. They used to be served by Caddy on the VPS; that host is being
+ * switched off, and every link pointing at it would have died with it.
+ *
+ * Inside the app the documents are shown natively (`app/legal/[doc]`), from
+ * `data/legal.ts`. Keep the two saying the same thing.
+ */
+const SITE = 'https://sunray.sa';
+
+export const PRIVACY_URL = `${SITE}/privacy`;
+export const TERMS_URL = `${SITE}/terms`;
 /** Registered in Play Console as the account-deletion URL. */
-export const DELETE_ACCOUNT_URL = `${LEGAL_BASE_URL}/delete-account`;
+export const DELETE_ACCOUNT_URL = `${SITE}/data-deletion`;
+
+/** The public copy of each in-app document. The refund policy is a section of the terms there. */
+export const LEGAL_WEB_URLS: Record<LegalDocId, string> = {
+  privacy: PRIVACY_URL,
+  terms: TERMS_URL,
+  refunds: TERMS_URL,
+};

@@ -64,10 +64,15 @@ export const STORE_HAS_WAITLIST = false;
 export const STORE_HAS_WALLET = false;
 
 /**
- * Gift cards.
+ * Gift packages («باقات الإهداء»).
  *
- * Codes are generated on the phone with `Math.random()` and the recipient is
- * never sent anything. `listGiftCards` / `getGiftCard` exist on the server but
- * issuing does not. Off until issuing and delivery are real.
+ * Now the website's real flow (`services/storeGifts.ts`): packages from
+ * `store/config/giftPackages`, `createSelfGift` → `updateGiftCardDetails` →
+ * `createGiftCardPayment` → Moyasar with `{ gift_id, gift_intent }`, confirmed
+ * by reading the gift back. The recipient opens and claims it on sunray.sa.
+ * Switched on 2026-10-02 at the owner's request. ⚠️ Before a public release,
+ * make one real purchase of the cheapest package from the app and check the
+ * gift turns active: the app cannot pass the site's `callback_url`, so it
+ * settles by Moyasar's webhook alone, and the webhook code is not in this repo.
  */
-export const STORE_HAS_GIFTCARDS = false;
+export const STORE_HAS_GIFTCARDS = true;

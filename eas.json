@@ -8,16 +8,10 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
-      },
-      "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://sunraycafe.duckdns.org"
       }
     },
     "production": {
-      "autoIncrement": true,
-      "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://sunraycafe.duckdns.org"
-      }
+      "autoIncrement": true
     }
   },
   "submit": {

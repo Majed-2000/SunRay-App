@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { RefreshControl, ScrollView, View } from 'react-native';
 import { colors, radius, shadows, spacing } from '@/theme';
-import { Card, EmptyState, ErrorState, Icon, ScreenContainer, Spinner, Txt } from '@/components';
+import { router } from 'expo-router';
+import { Button, Card, EmptyState, ErrorState, Icon, ListRow, ScreenContainer, Spinner, Txt } from '@/components';
 import { toArabicDigits } from '@/utils/numerals';
 import { useAuthStore, useLoyaltyStore } from '@/store';
-import type { LoyaltyEvent } from '@/services/storeLoyalty';
+import { BIRTHDAY_REFUSAL_AR, type LoyaltyEvent, type MyLoyalty } from '@/services/storeLoyalty';
 
 /**
  * The customer's points, as the ledger actually holds them.
@@ -189,6 +190,19 @@ export function LoyaltyScreen() {
           <StatCard value={toArabicDigits(data?.lifetimeRedeemed ?? 0)} label="نقطة مستبدلة" />
         </View>
 
+        {data?.birthdayEnabled ? <BirthdayCard data={data} /> : null}
+
+        {/* In-branch purchases on the same ledger, with their invoices and a
+            rating — the website lists them as «زياراتي». */}
+        <View style={{ marginBottom: spacing.lg }}>
+          <ListRow
+            brandIcon="receipt"
+            label="زياراتي"
+            sublabel="مشترياتك من الفرع وفواتيرها"
+            onPress={() => router.push('/visits')}
+          />
+        </View>
+
         {/* Points lapse through INACTIVITY, not on a calendar date — an active
             customer never loses anything, so this only appears when it is
             actually close. */}
@@ -277,6 +291,94 @@ export function LoyaltyScreen() {
         ) : null}
       </ScrollView>
     </ScreenContainer>
+  );
+}
+
+const MONTHS_AR = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+
+/**
+ * The birthday reward, in the four states the website distinguishes: received
+ * this year · due now (with the button) · month set but not due · month not set.
+ *
+ * One message for all of them — the old website said «tell the cashier» all
+ * month — produced arguments at the till: an invitation shown to someone not
+ * yet due, or to someone who had already collected, is a promise the cashier
+ * then has to refuse. The server is the judge; this only reflects what it said.
+ *
+ * `birthdayLabel` is written by the admin on the dashboard — data, shown as is.
+ */
+function BirthdayCard({ data }: { data: MyLoyalty }) {
+  const claimBirthday = useLoyaltyStore((s) => s.claimBirthday);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
+
+  const done = data.birthdayGranted === true;
+  const ready = data.birthdayDue && !done;
+
+  const claim = async () => {
+    // Disabled before the call, not after: two taps on a slow network would
+    // otherwise send two requests. The server's transaction stops a second
+    // reward either way; this stops the second request.
+    if (busy) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      const res = await claimBirthday();
+      setMsg(
+        res.ok
+          ? { text: 'صدرت مكافأتك — تُطبَّق تلقائياً على طلبك القادم', ok: true }
+          : { text: BIRTHDAY_REFUSAL_AR[res.reason], ok: false },
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const body = done
+    ? 'استلمت مكافأة هذا العام — نلتقي في ميلادك القادم'
+    : ready
+      ? 'هذا شهرك! اضغط الزر لإصدار مكافأتك'
+      : data.birthMonth
+        ? `شهر ميلادك: ${MONTHS_AR[data.birthMonth - 1] ?? ''} — نحتفل معك فيه`
+        : 'اختر شهر ميلادك ونحتفل معك — الشهر فقط، بلا تاريخ كامل';
+
+  return (
+    <Card radiusKey="lg" style={{ marginBottom: spacing.lg }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+        <Icon name="cake-birthday" size={28} />
+        <Txt size={15} weight="black" color={colors.ink} style={{ flex: 1 }}>
+          {data.birthdayLabel || 'مكافأة الميلاد'}
+        </Txt>
+      </View>
+      <Txt
+        size={13}
+        weight={ready ? 'extraBold' : 'regular'}
+        color={ready ? colors.success : colors.textMuted}
+        style={{ marginTop: 6, lineHeight: 20 }}
+      >
+        {body}
+      </Txt>
+      {ready && !msg?.ok ? (
+        <View style={{ marginTop: spacing.md }}>
+          <Button label="أصدر مكافأتي" variant="gold" loading={busy} disabled={busy} onPress={() => void claim()} />
+        </View>
+      ) : null}
+      {!done && !ready ? (
+        <View style={{ marginTop: spacing.sm }}>
+          <Button
+            label={data.birthMonth ? 'تعديل شهر الميلاد' : 'حدّد شهر ميلادك'}
+            variant="outline"
+            size="sm"
+            onPress={() => router.push('/edit-profile')}
+          />
+        </View>
+      ) : null}
+      {msg ? (
+        <Txt size={12} weight="bold" color={msg.ok ? colors.success : colors.danger} style={{ marginTop: spacing.sm }}>
+          {msg.text}
+        </Txt>
+      ) : null}
+    </Card>
   );
 }
 

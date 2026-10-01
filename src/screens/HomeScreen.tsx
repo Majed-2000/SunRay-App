@@ -6,18 +6,18 @@ import { colors, radius, shadows, spacing } from '@/theme';
 import {
   BranchPickerSheet,
   FloatingCartBar,
-  GiftCardPreview,
   IconTile,
   LoyaltyCard,
+  PhotoStrip,
   ProductCard,
   ResponsiveGrid,
   ScreenContainer,
   SectionHeader,
   Txt,
 } from '@/components';
-import { giftDesigns } from '@/data';
 import { CONFIG } from '@/constants/config';
 import { STORE_HAS_DELIVERY, STORE_HAS_GIFTCARDS, STORE_HAS_RESERVATION, STORE_HAS_WAITLIST } from '@/constants/features';
+import type { IconName } from '@/components/icons/Icon';
 import type { OrderType } from '@/types';
 import { strings } from '@/i18n';
 import { useResponsive } from '@/hooks/useResponsive';
@@ -29,7 +29,6 @@ import {
   useCatalogStore,
   useLoyaltyStore,
   useNotificationStore,
-  useStoreSettingsStore,
 } from '@/store';
 
 export function HomeScreen() {
@@ -56,7 +55,6 @@ export function HomeScreen() {
   const featured = flagged.length > 0 ? flagged : coffeeOfDay;
   const featuredTitle = flagged.length > 0 ? 'المختصّة اليوم' : 'قهوة اليوم';
   const t = strings();
-  const giftAmounts = useStoreSettingsStore((s) => s.giftAmounts);
 
 
   // Recomputed per mount rather than per render: the band it lands in changes
@@ -249,54 +247,26 @@ export function HomeScreen() {
             </>
           )}
 
-          {/* Gift cards — off until they are real (see features.ts). */}
-          {STORE_HAS_GIFTCARDS ? (
-          <>
+          {/* Services — what sunray.sa offers, in the order its home page lists
+              them. Rows of four so the tiles keep the quick-action width. */}
           <View style={{ paddingHorizontal: spacing['2xl'], marginTop: spacing.sm }}>
-            <SectionHeader title="بطاقات الإهداء" subtitle="أهدِ لحظة مشرقة" />
+            <SectionHeader title="خدماتنا" />
           </View>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ gap: 12, paddingHorizontal: spacing.lg }}
-          >
-            {giftDesigns.map((d, i) => (
-              <GiftCardPreview
-                key={d.id}
-                design={d}
-                amount={giftAmounts[i] ?? giftAmounts[0] ?? 0}
-                size="sm"
-                footerEnd="أهدِ ←"
-                style={{ width: 170 }}
-              />
+          <View style={{ gap: 10, paddingHorizontal: spacing.lg, marginBottom: spacing['2xl'] }}>
+            {chunk(SERVICES, 4).map((row, i) => (
+              <View key={i} style={{ flexDirection: 'row', gap: 10 }}>
+                {row.map((sv) => (
+                  <IconTile key={sv.label} icon={sv.icon} label={sv.label} onPress={() => router.push(sv.href)} />
+                ))}
+                {/* Pad a short last row so its tiles stay the same width. */}
+                {Array.from({ length: 4 - row.length }, (_, k) => (
+                  <View key={`pad${k}`} style={{ flex: 1 }} />
+                ))}
+              </View>
             ))}
-          </ScrollView>
+          </View>
 
-          {/* A link, drawn as a link. This was a Card inside a centring
-              Pressable with its own horizontal margin, so it floated at a width
-              that matched nothing else on the screen — a fifth card shape on a
-              page already made of cards, carrying one line of text. */}
-          <Pressable
-            onPress={() => router.push('/gift')}
-            accessibilityRole="button"
-            hitSlop={{ top: 8, bottom: 8 }}
-            style={({ pressed }) => ({
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 6,
-              paddingVertical: spacing.lg,
-              marginTop: spacing.xs,
-              opacity: pressed ? 0.55 : 1,
-            })}
-          >
-            <Txt size={14} weight="extraBold" color={colors.goldDeep}>
-              تصفّح كل بطاقات الإهداء
-            </Txt>
-            <Ionicons name="arrow-back" size={15} color={colors.goldDeep} />
-          </Pressable>
-          </>
-          ) : null}
+          <PhotoStrip />
         </ScrollView>
       </ScreenContainer>
 
@@ -304,4 +274,23 @@ export function HomeScreen() {
       <BranchPickerSheet visible={pickerOpen} onClose={() => setPickerOpen(false)} />
     </>
   );
+}
+
+type Service = { icon: IconName; label: string; href: Parameters<typeof router.push>[0] };
+
+const SERVICES: Service[] = [
+  { icon: 'search', label: 'ماسح الطلب', href: '/scan' },
+  { icon: 'car', label: 'منيو Go', href: '/go-menu' },
+  { icon: 'pin', label: 'فروعنا', href: '/branches' },
+  ...(STORE_HAS_GIFTCARDS ? [{ icon: 'gift' as const, label: 'باقات الإهداء', href: '/gift' as const }] : []),
+  { icon: 'jug', label: 'كاترينق', href: '/catering' },
+  { icon: 'ticket', label: 'تعويضاتي', href: '/compensations' },
+  { icon: 'chat', label: 'الدعم الفني', href: '/support' },
+  { icon: 'sparkle', label: 'تحدي ساني', href: '/sany' },
+];
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const rows: T[][] = [];
+  for (let i = 0; i < items.length; i += size) rows.push(items.slice(i, i + size));
+  return rows;
 }

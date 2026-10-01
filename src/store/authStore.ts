@@ -164,7 +164,10 @@ export const useAuthStore = create<AuthState>()(
       await waitForPersist();
       const fbUser = await storeAuth.waitForAuthReady();
       watchAuth();
-      if (!fbUser) {
+      // An anonymous user is not a customer: the pager signs one in for a guest
+      // only when the server demands auth. Restoring it as «signed in» would
+      // show an account with no phone, no name and no points.
+      if (!fbUser || fbUser.isAnonymous) {
         set({ isHydrating: false });
         return;
       }

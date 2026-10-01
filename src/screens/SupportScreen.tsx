@@ -7,12 +7,18 @@ import { toast } from '@/store';
 /**
  * Support — channels that actually reach Sun Ray.
  *
- * This listed WhatsApp, a «٩٢٠ ٠٠٠ ٠٠٠» number and care@sunray.cafe, each of
- * which only toasted «قريبًا»; none of them exists. The channels the café
- * publishes (the store website's footer) are its social accounts, so those are
- * what this opens. Add a phone or WhatsApp here once the business has one.
+ * This once listed a «٩٢٠ ٠٠٠ ٠٠٠» number and care@sunray.cafe, each of which
+ * only toasted «قريبًا»; neither exists. Every channel here is one the café
+ * publishes itself: WhatsApp 966549177174 is on the sunray.sa footer and is the
+ * number the website's catering page and its WhatsApp bot use; the social
+ * accounts are the footer's too.
+ *
+ * Tickets come first: a complaint sent as a ticket lands on the staff
+ * dashboard with a tracking number and a reply the customer can read in the
+ * app, where a DM depends on someone noticing it.
  */
 const CHANNELS = [
+  { icon: 'logo-whatsapp' as const, label: 'واتساب', sublabel: '+966 54 917 7174', url: 'https://wa.me/966549177174' },
   { icon: 'logo-instagram' as const, label: 'راسلنا على إنستقرام', sublabel: '@sunray.sa', url: 'https://ig.me/m/sunray.sa' },
   { icon: 'logo-tiktok' as const, label: 'تيك توك', sublabel: '@sunray.sa', url: 'https://www.tiktok.com/@sunray.sa' },
   { icon: 'logo-snapchat' as const, label: 'سناب شات', sublabel: '@sunray.sa', url: 'https://www.snapchat.com/@sunray.sa' },
@@ -34,6 +40,19 @@ export function SupportScreen() {
             راسلنا وسيرد عليك فريق سن راي. عن طلب معيّن؟ اذكر رقم الطلب من «طلباتي».
           </Txt>
         </Card>
+
+        <Txt size={13} weight="black" color={colors.textMuted} style={{ marginBottom: spacing.md }}>
+          الدعم الفني
+        </Txt>
+        <View style={{ gap: 10, marginBottom: spacing.xl }}>
+          <ListRow
+            brandIcon="ticket"
+            label="افتح تذكرة"
+            sublabel="شكوى أو اقتراح — نرد عليك برقم متابعة"
+            onPress={() => router.push('/ticket/new')}
+          />
+          <ListRow brandIcon="chat" label="تذاكري" sublabel="حالة تذاكرك وردود فريقنا" onPress={() => router.push('/ticket')} />
+        </View>
 
         <Txt size={13} weight="black" color={colors.textMuted} style={{ marginBottom: spacing.md }}>
           تواصل معنا

@@ -33,7 +33,21 @@ export function AccountScreen() {
   const rows: RowDef[] = [
     { icon: 'receipt-outline', label: 'طلباتي السابقة', onPress: () => router.push('/(tabs)/orders') },
     ...(STORE_HAS_WALLET && !isGuest ? [{ icon: 'wallet-outline' as const, label: 'المحفظة', onPress: () => router.push('/wallet') }] : []),
-    ...(STORE_HAS_GIFTCARDS ? [{ icon: 'gift-outline' as const, label: 'بطاقات الإهداء', onPress: () => router.push('/gift') }] : []),
+    ...(STORE_HAS_GIFTCARDS
+      ? [
+          { icon: 'gift-outline' as const, label: 'باقات الإهداء', onPress: () => router.push('/gift') },
+          ...(!isGuest ? [{ icon: 'gift' as const, label: 'هداياي', onPress: () => router.push('/gift/mine') }] : []),
+        ]
+      : []),
+    ...(!isGuest
+      ? [
+          { icon: 'ticket-outline' as const, label: 'تعويضاتي', onPress: () => router.push('/compensations') },
+          { icon: 'calendar-outline' as const, label: 'طلبات الكاترينق', onPress: () => router.push('/catering/mine') },
+          { icon: 'chatbox-ellipses-outline' as const, label: 'تذاكري', onPress: () => router.push('/ticket') },
+        ]
+      : []),
+    { icon: 'qr-code-outline', label: 'ماسح الطلب', onPress: () => router.push('/scan') },
+    { icon: 'location-outline', label: 'فروعنا', onPress: () => router.push('/branches') },
     { icon: 'pricetags-outline', label: 'العروض والكوبونات', onPress: () => router.push('/offers') },
     ...(STORE_HAS_DELIVERY && !isGuest ? [{ icon: 'location-outline' as const, label: 'عناويني', onPress: () => router.push('/addresses') }] : []),
     ...(!isGuest ? [{ icon: 'person-outline' as const, label: 'تعديل الملف الشخصي', onPress: () => router.push('/edit-profile') }] : []),

@@ -4,7 +4,6 @@ import { colors, spacing } from '@/theme';
 import { Header, ListRow, ScreenContainer, Txt } from '@/components';
 import { toast, useAuthStore } from '@/store';
 import { APP_VERSION_AR } from '@/constants/appVersion';
-import { PRIVACY_URL, TERMS_URL } from '@/constants/legal';
 
 /**
  * Settings — only switches that switch something.
@@ -35,12 +34,17 @@ export function SettingsScreen() {
           <ListRow
             icon="shield-checkmark-outline"
             label="سياسة الخصوصية"
-            onPress={() => Linking.openURL(PRIVACY_URL).catch(() => toast('تعذّر فتح الرابط'))}
+            onPress={() => router.push('/legal/privacy')}
           />
           <ListRow
             icon="document-text-outline"
             label="الشروط والأحكام"
-            onPress={() => Linking.openURL(TERMS_URL).catch(() => toast('تعذّر فتح الرابط'))}
+            onPress={() => router.push('/legal/terms')}
+          />
+          <ListRow
+            icon="receipt-outline"
+            label="الإلغاء والاسترداد"
+            onPress={() => router.push('/legal/refunds')}
           />
           <ListRow icon="information-circle-outline" label="عن التطبيق" value={APP_VERSION_AR} onPress={() => toast('Sun Ray · سن راي')} />
         </View>

@@ -1,8 +1,8 @@
 import { Redirect } from 'expo-router';
 import { STORE_HAS_GIFTCARDS } from '@/constants/features';
-import { GiftListScreen } from '@/screens/gift/GiftListScreen';
+import { GiftPackagesScreen } from '@/screens/gift/GiftPackagesScreen';
 
-// Gated at the route, so a deep link cannot open a feature that is not real yet.
+// Gated at the route, so a deep link cannot open a feature that is switched off.
 export default function Route() {
-  return STORE_HAS_GIFTCARDS ? <GiftListScreen /> : <Redirect href="/(tabs)/home" />;
+  return STORE_HAS_GIFTCARDS ? <GiftPackagesScreen /> : <Redirect href="/(tabs)/home" />;
 }

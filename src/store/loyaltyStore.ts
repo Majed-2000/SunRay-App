@@ -1,5 +1,12 @@
 import { create } from 'zustand';
-import { fetchMyLoyalty, type LoyaltyEvent, type LoyaltyReward, type MyLoyalty } from '@/services/storeLoyalty';
+import {
+  claimBirthdayReward,
+  fetchMyLoyalty,
+  type BirthdayRefusal,
+  type LoyaltyEvent,
+  type LoyaltyReward,
+  type MyLoyalty,
+} from '@/services/storeLoyalty';
 
 /** Stable empty fallbacks — see the note on `rewards` below. */
 const NO_REWARDS: LoyaltyReward[] = [];
@@ -42,6 +49,11 @@ interface LoyaltyState {
   load: () => Promise<void>;
   /** Forget the snapshot — on sign-out, guest mode or an account switch. */
   reset: () => void;
+  /**
+   * Issue this year's birthday reward, then reload so the card shows it as
+   * received. The server decides eligibility; this only asks.
+   */
+  claimBirthday: () => Promise<{ ok: true } | { ok: false; reason: BirthdayRefusal }>;
 
   // ── Derived reads. All tolerate `data === null`. ──
   points: () => number;
@@ -84,6 +96,14 @@ export const useLoyaltyStore = create<LoyaltyState>((set, get) => ({
   reset: () => {
     generation++;
     set({ data: null, status: 'idle', unlinked: false });
+  },
+
+  claimBirthday: async () => {
+    const res = await claimBirthdayReward();
+    // Reload on a refusal too: «already granted» means the snapshot on screen is
+    // stale, and the card should stop offering the button.
+    await get().load();
+    return res;
   },
 
   points: () => get().data?.balance ?? 0,

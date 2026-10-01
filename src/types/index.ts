@@ -220,28 +220,14 @@ export interface WalletTransaction {
 }
 
 // ───────────────────────── Gift Cards ─────────────────────────
+/**
+ * A gift card face — one of the three the website offers. The art itself is
+ * the site's SVG (see `data/giftDesigns.ts`); the gift's live data is in
+ * `services/storeGifts.ts`.
+ */
 export interface GiftDesign {
-  id: string;
+  id: 'sunray' | 'graduation' | 'custom';
   nameAr: string;
-  gradient: readonly [string, string];
-  shadowColor: string;
-  labelColor: string;
-}
-
-export type GiftStatus = 'active' | 'used' | 'expired';
-
-export interface GiftCard {
-  id: string;
-  code: string; // generated mock code
-  amount: number;
-  designId: string;
-  senderName: string;
-  recipientName: string;
-  recipientPhone: string;
-  message: string;
-  status: GiftStatus;
-  createdAt: number;
-  direction: 'sent' | 'received';
 }
 
 // ───────────────────────── Loyalty ─────────────────────────

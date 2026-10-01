@@ -3,7 +3,7 @@
     "name": "Sun Ray",
     "slug": "sun-ray-cafe",
     "scheme": "sunray",
-    "version": "1.3.0",
+    "version": "1.4.0",
     "orientation": "portrait",
     "icon": "./assets/sunray-logo-icon.png",
     "userInterfaceStyle": "light",
@@ -36,11 +36,12 @@
         "backgroundColor": "#efe6d6",
         "barStyle": "dark-content"
       },
-      "versionCode": 14,
+      "versionCode": 15,
       "blockedPermissions": [
         "android.permission.SYSTEM_ALERT_WINDOW",
         "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE"
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
@@ -75,9 +76,17 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "نستخدم موقعك فقط عند ضغطك «وصلت» في خدمة السيارة، للتأكد أنك عند الفرع.",
+          "locationWhenInUsePermission": "نستخدم موقعك فقط عندما تطلبه بنفسك: عند ضغطك «وصلت» في خدمة السيارة، أو لإيجاد أقرب فرع، أو لتحديد موقع مناسبة الكاترينق.",
           "isAndroidBackgroundLocationEnabled": false,
           "isIosBackgroundLocationEnabled": false
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "نستخدم الكاميرا فقط لمسح باركود الكاشير ومتابعة طلبك. لا نصوّر ولا نحفظ أي صورة.",
+          "microphonePermission": "التطبيق لا يسجّل الصوت ولا يطلب الميكروفون؛ هذا النص مطلوب تقنيًا فقط.",
+          "recordAudioAndroid": false
         }
       ],
       [

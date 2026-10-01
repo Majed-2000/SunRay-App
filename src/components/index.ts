@@ -39,3 +39,4 @@ export { PlateField } from './PlateField';
 export { MoyasarCardForm } from './MoyasarCardForm';
 export { Icon } from './icons/Icon';
 export type { IconName } from './icons/Icon';
+export { PhotoStrip } from './PhotoStrip';

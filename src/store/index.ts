@@ -6,8 +6,6 @@ export { useCartStore, couponDiscount } from './cartStore';
 export { useWalletStore } from './walletStore';
 export { useLoyaltyStore } from './loyaltyStore';
 export { useStoreSettingsStore } from './storeSettingsStore';
-export { useGiftStore } from './giftStore';
-export type { CreateGiftInput } from './giftStore';
 export { useAddressStore } from './addressStore';
 export type { NewAddressInput } from './addressStore';
 export { useNotificationStore } from './notificationStore';

@@ -8,6 +8,7 @@ import { Card, ListRow, ScreenContainer, Txt } from '@/components';
 import { CONFIG } from '@/constants/config';
 import { STORE_HAS_DELIVERY, STORE_HAS_GIFTCARDS, STORE_HAS_WALLET } from '@/constants/features';
 import { toArabicDigits } from '@/utils/numerals';
+import { ltr } from '@/utils/validators';
 import { useAuthStore, useLoyaltyStore, toast } from '@/store';
 
 type IoniconName = keyof typeof Ionicons.glyphMap;
@@ -91,8 +92,8 @@ export function AccountScreen() {
             <Txt size={18} weight="black" color={colors.ink}>
               {user?.name ?? 'ضيف'}
             </Txt>
-            <Txt size={12} color={colors.textFaint} style={{ writingDirection: 'ltr' }}>
-              {isGuest || !user?.phone ? 'زائر — سجّل دخولك لتطلب وتجمع النقاط' : `${CONFIG.COUNTRY_DIAL_CODE} ${user.phone}`}
+            <Txt size={12} color={colors.textFaint} >
+              {isGuest || !user?.phone ? 'زائر — سجّل دخولك لتطلب وتجمع النقاط' : ltr(`${CONFIG.COUNTRY_DIAL_CODE} ${user.phone}`)}
             </Txt>
           </View>
           <View style={{ backgroundColor: colors.chip, borderRadius: radius.sm, paddingHorizontal: 12, paddingVertical: 8, alignItems: 'center' }}>

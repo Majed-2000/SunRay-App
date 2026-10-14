@@ -27,3 +27,12 @@ describe('isValidSaudiMobile', () => {
     expect(isValidSaudiMobile('50123')).toBe(false);
   });
 });
+
+import { LRM, ltr } from '../validators';
+
+describe('ltr', () => {
+  it('prefixes a left-to-right mark, once, and leaves empty text alone', () => {
+    expect(ltr('+966 50 123 4567')).toBe(`${LRM}+966 50 123 4567`);
+    expect(ltr('')).toBe('');
+  });
+});

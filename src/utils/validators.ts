@@ -34,3 +34,14 @@ export function isValidOtp(code: string): boolean {
 export function isNonEmpty(s: string): boolean {
   return s.trim().length > 0;
 }
+
+/** Left-to-Right Mark. `writingDirection` is iOS-only; this works on Android too. */
+export const LRM = String.fromCharCode(0x200e);
+
+/**
+ * Prefix text with an LRM so a phone number keeps its left-to-right order
+ * ("+966 50 123 4567") inside an RTL line instead of being reordered.
+ */
+export function ltr(text: string): string {
+  return text ? LRM + text : text;
+}

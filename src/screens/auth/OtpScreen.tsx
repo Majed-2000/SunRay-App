@@ -7,7 +7,7 @@ import { CONFIG } from '@/constants/config';
 import { Button, Header, ScreenContainer, Txt } from '@/components';
 import { useAuthStore, toast } from '@/store';
 import { toArabicDigits, toWesternDigits } from '@/utils/numerals';
-import { formatMobileDisplay } from '@/utils/validators';
+import { formatMobileDisplay, ltr } from '@/utils/validators';
 import { cooldownRemaining } from '@/utils/otpCooldown';
 
 const LENGTH = 4;
@@ -121,7 +121,7 @@ export function OtpScreen() {
         <Txt size={14} color={colors.textMuted} style={{ marginTop: 8, lineHeight: 22 }}>
           أرسلنا رمزًا مكوّنًا من ٤ أرقام إلى{'\n'}
           <Txt size={14} weight="extraBold" color={colors.ink}>
-            {CONFIG.COUNTRY_DIAL_CODE} {formatMobileDisplay(phone)}
+            {ltr(`${CONFIG.COUNTRY_DIAL_CODE} ${formatMobileDisplay(phone)}`)}
           </Txt>
         </Txt>
 

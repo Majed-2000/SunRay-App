@@ -7,6 +7,7 @@ import { colors, gradients, radius, spacing } from '@/theme';
 import { Button, Header, ScreenContainer, Sheet, TextField, Txt } from '@/components';
 import { CONFIG } from '@/constants/config';
 import { MONTHS_AR_LIST } from '@/utils/date';
+import { ltr } from '@/utils/validators';
 import { useAuthStore, useLoyaltyStore, toast } from '@/store';
 import { hasRealName } from '@/store/authStore';
 
@@ -99,8 +100,8 @@ export function EditProfileScreen() {
           <View>
             <FieldLabel>رقم الجوال</FieldLabel>
             <View style={{ backgroundColor: colors.chip, borderRadius: radius.md, paddingHorizontal: spacing.lg, paddingVertical: 16 }}>
-              <Txt size={15} weight="bold" color={colors.textMuted} style={{ writingDirection: 'ltr' }}>
-                {CONFIG.COUNTRY_DIAL_CODE} {user?.phone || '—'}
+              <Txt size={15} weight="bold" color={colors.textMuted} >
+                {user?.phone ? ltr(`${CONFIG.COUNTRY_DIAL_CODE} ${user.phone}`) : '—'}
               </Txt>
             </View>
             <Txt size={11} color={colors.textFaint} style={{ marginTop: 6 }}>

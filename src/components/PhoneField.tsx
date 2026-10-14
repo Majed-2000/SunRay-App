@@ -1,7 +1,7 @@
 import { TextInput, View, type StyleProp, type ViewStyle } from 'react-native';
 import { colors, fonts, radius } from '@/theme';
 import { CONFIG } from '@/constants/config';
-import { formatMobileDisplay, normalizeMobile, isValidSaudiMobile } from '@/utils/validators';
+import { formatMobileDisplay, normalizeMobile, isValidSaudiMobile, LRM } from '@/utils/validators';
 import { Txt } from './Txt';
 
 export interface PhoneFieldProps {
@@ -13,7 +13,6 @@ export interface PhoneFieldProps {
 
 // Left-to-Right Mark — forces the line's base direction to LTR so the
 // space-separated digit groups ("50 946 8000") are NOT reordered by RTL bidi.
-const LRM = String.fromCharCode(0x200e);
 
 /**
  * Saudi phone input. The app stays Arabic/RTL, but this field is forced LTR:

@@ -167,6 +167,10 @@ export function OtpScreen() {
             if (digits.length === LENGTH) submit(digits);
           }}
           keyboardType="number-pad"
+          // SMS one-time-code autofill: iOS suggests the code above the keyboard,
+          // Android reads it through the SMS retriever.
+          textContentType="oneTimeCode"
+          autoComplete="sms-otp"
           maxLength={LENGTH}
           style={{ position: 'absolute', opacity: 0, height: 1, width: 1 }}
         />

@@ -10,6 +10,7 @@ import { auth as firebaseAuth } from '@/services/firebase';
 import type { User as FbUser } from '@firebase/auth';
 import { router } from 'expo-router';
 import { useLoyaltyStore } from './loyaltyStore';
+import { pickCooldownSec } from '@/utils/otpCooldown';
 
 /** «عميل ١٢٣٤» — shown when the account has no name yet. Never saved as one. */
 function placeholderName(local: string): string {
@@ -68,6 +69,16 @@ interface AuthState {
    */
   authError: string | null;
   /**
+   * When the next OTP send is allowed (ms epoch). Comes from the server's own
+   * `cooldownSec`, so the resend countdown matches what the server enforces.
+   */
+  otpCooldownEndsAt: number;
+  /**
+   * The phone a code was last sent to and when. In memory only: lets the login
+   * screen resume the OTP step instead of failing on the server's cooldown.
+   */
+  lastOtpSent: { phone: string; at: number } | null;
+  /**
    * The phone this device last verified, and for which account.
    *
    * Sign-in is by custom token, so the Firebase account may carry no
@@ -112,6 +123,8 @@ export const useAuthStore = create<AuthState>()(
   // Firebase restores a persisted sign-in asynchronously; routing waits for it.
   isHydrating: true,
   authError: null,
+  otpCooldownEndsAt: 0,
+  lastOtpSent: null,
   verifiedPhone: null,
 
   setLocale: (locale) => {
@@ -124,7 +137,15 @@ export const useAuthStore = create<AuthState>()(
   requestOtp: async (phone) => {
     set({ pendingPhone: phone, authError: null });
     const res = await storeAuth.requestOtp(phone);
-    if (!res.ok) set({ authError: storeAuth.describeOtpError(res.reason) });
+    if (res.ok) {
+      const now = Date.now();
+      set({
+        otpCooldownEndsAt: now + pickCooldownSec(res.cooldownSec) * 1000,
+        lastOtpSent: { phone, at: now },
+      });
+    } else {
+      set({ authError: storeAuth.describeOtpError(res.reason) });
+    }
     return res.ok;
   },
 

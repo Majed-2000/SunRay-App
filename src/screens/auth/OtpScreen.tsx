@@ -8,6 +8,7 @@ import { Button, Header, ScreenContainer, Txt } from '@/components';
 import { useAuthStore, toast } from '@/store';
 import { toArabicDigits, toWesternDigits } from '@/utils/numerals';
 import { formatMobileDisplay } from '@/utils/validators';
+import { cooldownRemaining } from '@/utils/otpCooldown';
 
 const LENGTH = 4;
 /** How long the success state lingers before continuing to home. */
@@ -18,7 +19,8 @@ export function OtpScreen() {
   const verifyOtp = useAuthStore((s) => s.verifyOtp);
   const requestOtp = useAuthStore((s) => s.requestOtp);
   const [code, setCode] = useState('');
-  const [seconds, setSeconds] = useState(30);
+  // Server-driven: the store records when the next send is allowed.
+  const [seconds, setSeconds] = useState(() => cooldownRemaining(useAuthStore.getState().otpCooldownEndsAt));
   const [verified, setVerified] = useState(false);
   const inputRef = useRef<TextInput>(null);
 
@@ -33,7 +35,8 @@ export function OtpScreen() {
    *
    * The countdown only restarts when the send is accepted. Restarting it on
    * failure would lock them out of retrying for another 30 seconds over a
-   * request that never left the phone.
+   * request that never left the phone. The length comes from the server's
+   * `cooldownSec` (default 60), recorded by the store on every accepted send.
    */
   const [resending, setResending] = useState(false);
   const resend = async () => {
@@ -42,7 +45,7 @@ export function OtpScreen() {
     try {
       const sent = await requestOtp(phone);
       if (sent) {
-        setSeconds(30);
+        setSeconds(cooldownRemaining(useAuthStore.getState().otpCooldownEndsAt));
         setCode('');
         toast('تم إرسال الرمز مجددًا');
         inputRef.current?.focus();

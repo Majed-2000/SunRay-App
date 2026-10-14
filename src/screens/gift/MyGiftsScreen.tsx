@@ -52,6 +52,9 @@ export function MyGiftsScreen() {
   const [bought, setBought] = useState<BoughtGift[] | null>(null);
   const [gifts, setGifts] = useState<MyGifts | null>(null);
   const [failed, setFailed] = useState(false);
+  // One list failing is not an empty list: the fallback `[]` below used to be
+  // indistinguishable from «لم ترسل هدايا بعد».
+  const [partial, setPartial] = useState({ bought: false, gifts: false });
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
@@ -61,6 +64,7 @@ export function MyGiftsScreen() {
     const [b, g] = await Promise.allSettled([fetchBoughtGifts(), fetchMyGifts()]);
     if (b.status === 'fulfilled') setBought(b.value);
     if (g.status === 'fulfilled') setGifts(g.value);
+    setPartial({ bought: b.status === 'rejected', gifts: g.status === 'rejected' });
     if (b.status === 'rejected' && g.status === 'rejected') setFailed(true);
     else {
       if (b.status === 'rejected') setBought((x) => x ?? []);
@@ -121,6 +125,18 @@ export function MyGiftsScreen() {
     return !gid || !boughtIds.has(gid);
   });
   const sentCount = bought.length + sentOther.length;
+  const tabFailed = tab === 'sent' ? partial.bought || partial.gifts : partial.gifts;
+  const retry = (
+    <ErrorState message="تعذّر تحميل الهدايا — حاول بعد قليل" onRetry={() => void load()} />
+  );
+  const retryBanner = (
+    <Card radiusKey="lg">
+      <Txt size={13} weight="bold" color={colors.danger}>
+        تعذّر تحميل بعض الهدايا، قد تكون القائمة ناقصة
+      </Txt>
+      <Button label="إعادة المحاولة" variant="outline" size="sm" onPress={() => void load()} style={{ marginTop: spacing.sm }} />
+    </Card>
+  );
 
   return (
     <ScreenContainer
@@ -143,7 +159,9 @@ export function MyGiftsScreen() {
         contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingBottom: spacing['4xl'], gap: spacing.md }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.goldDeep} />}
       >
-        {tab === 'sent' ? (
+        {tabFailed && (tab === 'sent' ? sentCount === 0 : received.length === 0) ? retry : null}
+        {tabFailed && (tab === 'sent' ? sentCount > 0 : received.length > 0) ? retryBanner : null}
+        {tabFailed && (tab === 'sent' ? sentCount === 0 : received.length === 0) ? null : tab === 'sent' ? (
           sentCount === 0 ? (
             <EmptyState
               icon="gift"

@@ -13,6 +13,7 @@ import { cancelOrder, fetchMyOrders, type CreateOrderResult, type MyOrder } from
 import { CONFIG } from '@/constants/config';
 import { auth } from '@/services/firebase';
 import { useAuthStore } from './authStore';
+import { clearInflight, loadInflight, saveInflight } from '@/services/inflightCheckout';
 
 /** The VAT already inside a tax-inclusive total — extracted, never added. See utils/money.ts. */
 function inclusiveVat(total: number): number {
@@ -158,6 +159,8 @@ export interface InFlightCheckout {
   /** Signature of the cart it was created from; a changed cart is a new order. */
   cartKey: string;
   at: number;
+  /** Customer it was created for; stamped by `setCheckout`. */
+  uid?: string | null;
 }
 
 /** How long a just-placed order is kept while the feed has not listed it. */
@@ -304,7 +307,14 @@ export const useOrderStore = create<OrderState>((set, get) => ({
 
   markArrived: (id) => set((s) => ({ arrived: { ...s.arrived, [id]: true } })),
 
-  setCheckout: (checkout) => set({ checkout }),
+  // Mirrored to device storage: memory alone lost the order when the app was
+  // closed mid-payment, and the saved cart then created a second one.
+  setCheckout: (checkout) => {
+    const stamped = checkout ? { ...checkout, uid: auth().currentUser?.uid ?? null } : null;
+    if (stamped) void saveInflight(stamped);
+    else void clearInflight();
+    set({ checkout: stamped });
+  },
 
   getById: (id) => get().orders.find((o) => o.id === id),
 
@@ -432,5 +442,21 @@ export const useOrderStore = create<OrderState>((set, get) => ({
 useAuthStore.subscribe((s, prev) => {
   if (s.user?.id === prev.user?.id && s.isGuest === prev.isGuest) return;
   useOrderStore.getState().reset();
-  if (s.user && !s.isGuest) void useOrderStore.getState().loadOrders();
+  if (s.user && !s.isGuest) {
+    void useOrderStore.getState().loadOrders();
+    // `reset` just dropped the in-memory copy, and at launch the session is
+    // restored after the store is created. The device copy is only taken back
+    // for the customer it was made for.
+    void restoreInflight();
+  }
 });
+
+/** Put the order checkout was paying for back, from device storage. */
+async function restoreInflight(): Promise<void> {
+  const rec = await loadInflight();
+  if (!rec || useOrderStore.getState().checkout) return;
+  const uid = auth().currentUser?.uid ?? null;
+  if (rec.uid && uid && rec.uid !== uid) return;
+  useOrderStore.setState({ checkout: rec });
+}
+void restoreInflight();

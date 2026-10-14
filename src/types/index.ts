@@ -115,6 +115,16 @@ export interface CartLine {
   notes?: string;
   unitPrice: number;
   qty: number;
+  /**
+   * Set on a loyalty-reward line: the reward's id, sent as `rewardId`. Such a
+   * line is price zero, quantity one, and has no stepper. The points are taken
+   * by the server in `createStoreOrder`, never by the app.
+   */
+  rewardId?: string;
+  /** Points that reward costs — for the balance guard only. */
+  rewardPoints?: number;
+  /** Temp chosen from the reward product's `fxTemps`; sent as `temp`. */
+  rewardTemp?: string;
 }
 
 // ───────────────────────── Branches & Addresses ─────────────────────────

@@ -163,7 +163,7 @@ export function CartScreen() {
                   ) : null}
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 6 }}>
                     <Txt size={14} weight="black" color={colors.goldDeep}>
-                      {formatRiyal(line.unitPrice * line.qty)}
+                      {line.rewardId ? 'مجانًا' : formatRiyal(line.unitPrice * line.qty)}
                     </Txt>
                     {/* Sits inches from the quantity stepper, so it gets a
                         generous target of its own — a slip here empties the
@@ -181,12 +181,15 @@ export function CartScreen() {
                     </Pressable>
                   </View>
                 </View>
-                <QtyStepper
-                  size="sm"
-                  value={line.qty}
-                  onInc={() => incLine(line.id)}
-                  onDec={() => decLine(line.id)}
-                />
+                {/* A reward is one redemption — no stepper; «حذف» removes it. */}
+                {line.rewardId ? null : (
+                  <QtyStepper
+                    size="sm"
+                    value={line.qty}
+                    onInc={() => incLine(line.id)}
+                    onDec={() => decLine(line.id)}
+                  />
+                )}
               </View>
             ))}
           </View>

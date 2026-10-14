@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
-import { RefreshControl, ScrollView, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { colors, radius, shadows, spacing } from '@/theme';
 import { router } from 'expo-router';
+
 import { Button, Card, EmptyState, ErrorState, Icon, ListRow, ScreenContainer, Spinner, Txt } from '@/components';
 import { toArabicDigits } from '@/utils/numerals';
 import { ksaDate } from '@/utils/ksaDate';
 import { eventSign } from '@/utils/loyaltySign';
-import { useAuthStore, useLoyaltyStore } from '@/store';
-import { BIRTHDAY_REFUSAL_AR, type LoyaltyEvent, type MyLoyalty } from '@/services/storeLoyalty';
+import { useAuthStore, useCartStore, useLoyaltyStore } from '@/store';
+import { rewardTemps, rewardTempLabel } from '@/utils/rewards';
+import { BIRTHDAY_REFUSAL_AR, type LoyaltyEvent, type LoyaltyReward, type MyLoyalty } from '@/services/storeLoyalty';
 
 /**
  * The customer's points, as the ledger actually holds them.
@@ -227,47 +229,7 @@ export function LoyaltyScreen() {
             </Txt>
             <View style={{ gap: 10, marginBottom: spacing.lg }}>
               {data.rewards.map((r, i) => (
-                <View
-                  key={`${r.points}-${i}`}
-                  style={[
-                    shadows.xs,
-                    {
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      gap: 13,
-                      backgroundColor: colors.card,
-                      borderRadius: radius.md,
-                      padding: 13,
-                      opacity: r.affordable ? 1 : 0.55,
-                    },
-                  ]}
-                >
-                  <View
-                    style={{
-                      width: 44,
-                      height: 44,
-                      borderRadius: radius.sm,
-                      backgroundColor: colors.chipGold,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    <Icon name={r.affordable ? 'gift' : 'lock'} size={26} accent={r.affordable ? undefined : null} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Txt size={15} weight="extraBold" color={colors.ink}>
-                      {r.label ?? data.rewardLabel}
-                    </Txt>
-                    <Txt size={12} color={colors.textFaint} style={{ marginTop: 2 }}>
-                      {r.affordable
-                        ? 'أضفها لسلّتك من القائمة'
-                        : `باقي ${toArabicDigits(Math.max(0, r.points - points))} نقطة`}
-                    </Txt>
-                  </View>
-                  <Txt size={14} weight="black" color={colors.goldDeep}>
-                    {toArabicDigits(r.points)}
-                  </Txt>
-                </View>
+                <RewardRow key={`${r.id ?? r.points}-${i}`} reward={r} fallbackLabel={data.rewardLabel} balance={points} />
               ))}
             </View>
           </>
@@ -447,5 +409,139 @@ function StatCard({ value, label, accent }: { value: string; label: string; acce
         {label}
       </Txt>
     </Card>
+  );
+}
+
+/**
+ * One rung of the reward ladder, with «استبدل» when the balance covers it.
+ *
+ * Redeeming only puts the reward in the cart as a free line; the server takes
+ * the points when the order is created. With several products or temps the
+ * choice is made here, the same two pickers the website shows.
+ */
+function RewardRow({ reward: r, fallbackLabel, balance }: { reward: LoyaltyReward; fallbackLabel: string; balance: number }) {
+  const addReward = useCartStore((s) => s.addReward);
+  const products = r.products ?? [];
+  const canRedeem = r.affordable && !!r.id && products.length > 0;
+  const [open, setOpen] = useState(false);
+  const [productKey, setProductKey] = useState(products[0]?.key ?? '');
+  const product = products.find((p) => p.key === productKey) ?? products[0];
+  const temps = rewardTemps(product);
+  const [temp, setTemp] = useState<string | undefined>(undefined);
+  const chosenTemp = temp && temps.includes(temp) ? temp : temps[0];
+  const needsChoice = products.length > 1 || temps.length > 1;
+
+  const add = (p = product, t = chosenTemp) => {
+    if (!r.id || !p) return;
+    const res = addReward({ ...r, id: r.id }, p, t);
+    if (res.ok) {
+      setOpen(false);
+      router.push('/cart');
+    }
+  };
+  const onRedeem = () => {
+    if (!needsChoice) return add();
+    setOpen((v) => !v);
+  };
+
+  return (
+    <View
+      style={[
+        shadows.xs,
+        { backgroundColor: colors.card, borderRadius: radius.md, padding: 13, opacity: r.affordable ? 1 : 0.55 },
+      ]}
+    >
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 13 }}>
+        <View
+          style={{
+            width: 44,
+            height: 44,
+            borderRadius: radius.sm,
+            backgroundColor: colors.chipGold,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Icon name={r.affordable ? 'gift' : 'lock'} size={26} accent={r.affordable ? undefined : null} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Txt size={15} weight="extraBold" color={colors.ink}>
+            {r.label ?? fallbackLabel}
+          </Txt>
+          <Txt size={12} color={colors.textFaint} style={{ marginTop: 2 }}>
+            {r.affordable
+              ? canRedeem
+                ? 'استبدلها وتُضاف لسلّتك مجانًا'
+                : 'أضفها لسلّتك من القائمة'
+              : `باقي ${toArabicDigits(Math.max(0, r.points - balance))} نقطة`}
+          </Txt>
+        </View>
+        <Txt size={14} weight="black" color={colors.goldDeep}>
+          {toArabicDigits(r.points)}
+        </Txt>
+      </View>
+
+      {canRedeem ? (
+        <Button
+          label={open ? 'إغلاق' : 'استبدل'}
+          variant="gold"
+          size="sm"
+          onPress={onRedeem}
+          style={{ marginTop: spacing.md }}
+        />
+      ) : null}
+
+      {open && canRedeem ? (
+        <View style={{ marginTop: spacing.md, gap: spacing.md }}>
+          {products.length > 1 ? (
+            <View style={{ gap: 6 }}>
+              <Txt size={12} weight="bold" color={colors.textMuted}>
+                اختر المنتج
+              </Txt>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                {products.map((p) => (
+                  <Chip key={p.key} label={p.name ?? p.key} on={p.key === product?.key} onPress={() => { setProductKey(p.key); setTemp(undefined); }} />
+                ))}
+              </View>
+            </View>
+          ) : null}
+          {temps.length > 1 ? (
+            <View style={{ gap: 6 }}>
+              <Txt size={12} weight="bold" color={colors.textMuted}>
+                اختر النوع
+              </Txt>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                {temps.map((t) => (
+                  <Chip key={t} label={rewardTempLabel(t)} on={t === chosenTemp} onPress={() => setTemp(t)} />
+                ))}
+              </View>
+            </View>
+          ) : null}
+          <Button label="أضف للسلة" size="sm" onPress={() => add()} />
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function Chip({ label, on, onPress }: { label: string; on: boolean; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected: on }}
+      style={{
+        paddingHorizontal: 14,
+        paddingVertical: 8,
+        borderRadius: radius.sm,
+        borderWidth: 1.5,
+        borderColor: on ? colors.gold : colors.borderSoft,
+        backgroundColor: on ? colors.chipGold : colors.card,
+      }}
+    >
+      <Txt size={13} weight="extraBold" color={colors.ink}>
+        {label}
+      </Txt>
+    </Pressable>
   );
 }

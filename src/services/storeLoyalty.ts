@@ -44,7 +44,19 @@ export interface LoyaltyEvent {
 }
 
 /** A rung on the reward ladder, with the real product behind it. */
+/** A product a reward can be taken as. */
+export interface LoyaltyRewardProduct {
+  /** Key in `menu/products` — the order item's `serviceId`. */
+  key: string;
+  name?: string;
+  /** Allowed temps; `"-"` means none. */
+  fxTemps?: string[];
+}
+
 export interface LoyaltyReward {
+  /** Sent as `rewardId` on the order item. */
+  id?: string;
+  products?: LoyaltyRewardProduct[];
   points: number;
   label?: string;
   productId?: string;

@@ -8,6 +8,15 @@ import { validateCoupon, describeCouponError } from '@/services/storeOffers';
 import { onAuthChanged } from '@/services/storeAuth';
 import { useCatalogStore } from './catalogStore';
 import { toast } from './uiStore';
+import { useLoyaltyStore } from './loyaltyStore';
+import {
+  buildRewardLine,
+  checkRewardRoom,
+  rewardCartPoints,
+  type RewardLike,
+  type RewardProductLike,
+  type RewardRoom,
+} from '@/utils/rewards';
 
 interface CartState {
   lines: CartLine[];
@@ -24,6 +33,13 @@ interface CartState {
   decLine: (id: string) => void;
   removeLine: (id: string) => void;
   setLineNotes: (id: string, notes: string) => void;
+  /**
+   * Put a loyalty reward in the cart as its own free line (qty 1, no stepper).
+   * Refused — with the website's wording — when the cart's reward points plus
+   * this one would exceed the balance. Points are taken by `createStoreOrder`
+   * only; nothing is deducted here.
+   */
+  addReward: (reward: RewardLike & { id: string }, product: RewardProductLike, temp?: string) => RewardRoom;
   clear: () => void;
 
   setOrderType: (type: OrderType) => void;
@@ -94,9 +110,10 @@ export const useCartStore = create<CartState>()(
     toast('أُضيف إلى السلة ✓');
   },
 
+  // A reward line is one redemption: it has no quantity to raise.
   incLine: (id) =>
     set((s) => ({
-      lines: s.lines.map((l) => (l.id === id ? { ...l, qty: l.qty + 1 } : l)),
+      lines: s.lines.map((l) => (l.id === id && !l.rewardId ? { ...l, qty: l.qty + 1 } : l)),
     })),
   decLine: (id) =>
     set((s) => ({
@@ -109,6 +126,17 @@ export const useCartStore = create<CartState>()(
     set((s) => ({
       lines: s.lines.map((l) => (l.id === id ? { ...l, notes: notes.trim() || undefined } : l)),
     })),
+  addReward: (reward, product, temp) => {
+    const balance = useLoyaltyStore.getState().data?.balance ?? 0;
+    const room = checkRewardRoom(balance, rewardCartPoints(get().lines), reward.points);
+    if (!room.ok) {
+      toast(room.message);
+      return room;
+    }
+    set((s) => ({ lines: [...s.lines, buildRewardLine(reward, product, temp)] }));
+    toast('أُضيفت المكافأة إلى السلة');
+    return room;
+  },
   clear: () =>
     set({ lines: [], coupon: null, useWallet: false, redeemPoints: false, scheduledTime: null }),
 
@@ -226,6 +254,15 @@ function reconcileWithMenu() {
   const dropped: string[] = [];
   const next = lines.flatMap((l) => {
     const product = products.find((p) => p.id === l.productId);
+    // A reward line stays free. Only a product the menu knows and has pulled
+    // is dropped; one the app's catalog does not list is left for the server.
+    if (l.rewardId) {
+      if (product && !product.isAvailable) {
+        dropped.push(l.nameAr);
+        return [];
+      }
+      return [l];
+    }
     if (!product || !product.isAvailable) {
       dropped.push(l.nameAr);
       return [];

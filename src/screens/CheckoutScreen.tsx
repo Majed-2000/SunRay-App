@@ -19,7 +19,8 @@ import { formatRiyal, toArabicDigits } from '@/utils/numerals';
 import { useCartTotals } from '@/hooks/useCartTotals';
 import { useResponsive } from '@/hooks/useResponsive';
 import { checkoutDisplayTotal } from '@/utils/money';
-import { createStoreOrder, describeOrderError, type CreateOrderResult } from '@/services/storeOrders';
+import { rewardsWithinBalance } from '@/utils/rewards';
+import { createStoreOrder, describeOrderError, type BrewTemp, type CreateOrderResult } from '@/services/storeOrders';
 import { auth } from '@/services/firebase';
 import { describeSettlement, readOrderStatus, waitForSettlement } from '@/services/storePay';
 import { isResumable, resumeDecision } from '@/utils/inflightCheckout';
@@ -32,6 +33,7 @@ import {
   useBranchStore,
   useCartStore,
   useOrderStore,
+  useLoyaltyStore,
   orderStage,
   toast,
 } from '@/store';
@@ -248,6 +250,13 @@ export function CheckoutScreen() {
       return;
     }
     if (submitting) return;
+    // Rewards were checked when added, but the balance can have moved since
+    // (an order elsewhere). Say it here rather than as a server refusal.
+    const rewardRoom = rewardsWithinBalance(useLoyaltyStore.getState().data?.balance ?? 0, lines);
+    if (!rewardRoom.ok) {
+      toast(rewardRoom.message);
+      return;
+    }
     setSubmitting(true);
     try {
       /**
@@ -267,7 +276,13 @@ export function CheckoutScreen() {
         // `temp` carries the brewing method. Without it the server priced
         // and the barista prepared the product's default, whatever the
         // customer had picked.
-        items: lines.map((l) => ({ serviceId: l.productId, qty: l.qty, temp: l.method, notes: l.notes })),
+        items: lines.map((l) =>
+          l.rewardId
+            ? // A reward: its own item, quantity one, priced by the server (zero,
+              // plus any special-milk surcharge). The server takes the points.
+              { serviceId: l.productId, qty: 1, temp: l.rewardTemp as BrewTemp | undefined, rewardId: l.rewardId, notes: l.notes }
+            : { serviceId: l.productId, qty: l.qty, temp: l.method, notes: l.notes },
+        ),
         // The server resolves the coupon again against the real cart and
         // may still refuse it; the total it returns is what gets charged.
         ...(coupon ? { couponCode: coupon.code } : {}),

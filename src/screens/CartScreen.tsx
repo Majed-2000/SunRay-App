@@ -7,6 +7,7 @@ import { colors, radius, shadows, spacing } from '@/theme';
 import {
   BranchPickerSheet,
   Button,
+  Icon,
   Card,
   Divider,
   EmptyState,
@@ -21,6 +22,7 @@ import {
 } from '@/components';
 import type { OrderType } from '@/types';
 import { strings } from '@/i18n';
+import { ORDER_TYPES } from '@/constants/orderTypes';
 import { formatRiyal } from '@/utils/numerals';
 import { useCartTotals } from '@/hooks/useCartTotals';
 import { useResponsive } from '@/hooks/useResponsive';
@@ -30,15 +32,13 @@ import {
   useCartStore,
 } from '@/store';
 
-const SCHEDULE_OPTIONS = ['في أقرب وقت', '٥:٠٠ م', '٦:٠٠ م', '٧:٠٠ م', '٨:٠٠ م'];
-
 export function CartScreen() {
   const insets = useSafeAreaInsets();
   const { contentMaxWidth } = useResponsive();
   const [branchOpen, setBranchOpen] = useState(false);
   const [addressOpen, setAddressOpen] = useState(false);
-  const [timeOpen, setTimeOpen] = useState(false);
   const [coupon, setCoupon] = useState('');
+  const [applying, setApplying] = useState(false);
 
   const lines = useCartStore((s) => s.lines);
   const orderType = useCartStore((s) => s.orderType);
@@ -51,8 +51,6 @@ export function CartScreen() {
   const removeCoupon = useCartStore((s) => s.removeCoupon);
   const addressId = useCartStore((s) => s.addressId);
   const setAddress = useCartStore((s) => s.setAddress);
-  const scheduledTime = useCartStore((s) => s.scheduledTime);
-  const setScheduledTime = useCartStore((s) => s.setScheduledTime);
 
   const branch = useBranchStore((s) => s.current());
   const addresses = useAddressStore((s) => s.addresses);
@@ -61,12 +59,13 @@ export function CartScreen() {
   const totals = useCartTotals();
   const t = strings();
   const isDelivery = orderType === 'delivery';
+  const needsAddress = isDelivery && !selectedAddress;
 
   if (lines.length === 0) {
     return (
       <ScreenContainer header={<Header showBack title="سلّتك" />}>
         <EmptyState
-          emoji="🧺"
+          icon="bag"
           title={t.empty.cart}
           subtitle={t.empty.cartHint}
           actionLabel="تصفّح القائمة"
@@ -91,7 +90,7 @@ export function CartScreen() {
           <View style={{ width: '100%', maxWidth: contentMaxWidth, alignSelf: 'center' }}>
           {/* order type */}
           <View style={{ flexDirection: 'row', gap: 8, marginBottom: spacing.lg }}>
-            {(['pickup', 'delivery', 'dineIn'] as OrderType[]).map((type) => (
+            {ORDER_TYPES.map((type) => (
               <OptionChip
                 key={type}
                 label={t.orderType[type].split(' ')[0]}
@@ -121,13 +120,10 @@ export function CartScreen() {
                 />
               </>
             ) : null}
-            <Divider marginV={0} />
-            <FulfillRow
-              icon="time-outline"
-              label={isDelivery ? 'وقت التوصيل' : 'وقت الاستلام'}
-              value={scheduledTime ?? 'في أقرب وقت'}
-              onPress={() => setTimeOpen(true)}
-            />
+            {/* No pickup-time picker. It offered fixed times (٥–٨ م) that
+                createStoreOrder never receives, so a customer who chose ٧ م got
+                an order made at once and cold on arrival. Every order is ASAP
+                until the server accepts a scheduled time. */}
           </Card>
 
           {/* items */}
@@ -149,35 +145,51 @@ export function CartScreen() {
               >
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <Txt size={15} weight="extraBold" color={colors.ink}>
-                      {line.emoji} {line.nameAr}
+                    <Icon name={line.icon ?? 'cup-hot'} size={20} />
+                    <Txt size={15} weight="extraBold" color={colors.ink} style={{ flexShrink: 1 }}>
+                      {line.nameAr}
                     </Txt>
                   </View>
                   <Txt size={11} color={colors.textFaint} style={{ marginTop: 1 }}>
                     {line.optionLabel}
                   </Txt>
                   {line.notes ? (
-                    <Txt size={11} color={colors.textMuted} style={{ marginTop: 1 }}>
-                      📝 {line.notes}
-                    </Txt>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 1 }}>
+                      <Icon name="note" size={13} color={colors.textMuted} accent={null} />
+                      <Txt size={11} color={colors.textMuted} style={{ flexShrink: 1 }}>
+                        {line.notes}
+                      </Txt>
+                    </View>
                   ) : null}
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 6 }}>
-                    <Txt size={14} weight="black" color={colors.terracotta}>
-                      {formatRiyal(line.unitPrice * line.qty)}
+                    <Txt size={14} weight="black" color={colors.goldDeep}>
+                      {line.rewardId ? 'مجانًا' : formatRiyal(line.unitPrice * line.qty)}
                     </Txt>
-                    <Pressable onPress={() => removeLine(line.id)} hitSlop={6}>
+                    {/* Sits inches from the quantity stepper, so it gets a
+                        generous target of its own — a slip here empties the
+                        line instead of decrementing it. */}
+                    <Pressable
+                      onPress={() => removeLine(line.id)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`حذف ${line.nameAr}`}
+                      hitSlop={{ top: 14, bottom: 14, left: 10, right: 10 }}
+                      style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}
+                    >
                       <Txt size={12} weight="bold" color={colors.danger}>
                         حذف
                       </Txt>
                     </Pressable>
                   </View>
                 </View>
-                <QtyStepper
-                  size="sm"
-                  value={line.qty}
-                  onInc={() => incLine(line.id)}
-                  onDec={() => decLine(line.id)}
-                />
+                {/* A reward is one redemption — no stepper; «حذف» removes it. */}
+                {line.rewardId ? null : (
+                  <QtyStepper
+                    size="sm"
+                    value={line.qty}
+                    onInc={() => incLine(line.id)}
+                    onDec={() => decLine(line.id)}
+                  />
+                )}
               </View>
             ))}
           </View>
@@ -216,8 +228,19 @@ export function CartScreen() {
                   size="sm"
                   fullWidth={false}
                   variant="outline"
-                  onPress={() => {
-                    if (applyCoupon(coupon)) setCoupon('');
+                  loading={applying}
+                  onPress={async () => {
+                    // The check is a round trip to the store now, so it has to
+                    // be awaited — the old sync call treated the Promise itself
+                    // as truthy and cleared the field on every attempt, valid
+                    // code or not.
+                    if (applying) return;
+                    setApplying(true);
+                    try {
+                      if (await applyCoupon(coupon)) setCoupon('');
+                    } finally {
+                      setApplying(false);
+                    }
                   }}
                 />
               </View>
@@ -227,7 +250,10 @@ export function CartScreen() {
           {/* totals */}
           <Card style={{ marginTop: spacing.lg }} radiusKey="lg">
             <PriceRow label="المجموع الفرعي" amount={totals.subtotal} />
-            <PriceRow label="ضريبة القيمة المضافة (١٥٪)" amount={totals.vat} />
+            {/* Inclusive — extracted from the shelf prices, not added on top
+                (see utils/money.ts). Unlabelled, subtotal + VAT did not add up
+                to the total and read as tax charged twice. */}
+            <PriceRow label="شامل ضريبة القيمة المضافة (١٥٪)" amount={totals.vat} />
             {isDelivery ? (
               <PriceRow label="رسوم التوصيل" amount={totals.deliveryFee === 0 ? 'مجانًا' : totals.deliveryFee} />
             ) : null}
@@ -255,7 +281,18 @@ export function CartScreen() {
         }}
       >
         <View style={{ width: '100%', maxWidth: contentMaxWidth, alignSelf: 'center' }}>
-          <Button label="متابعة الدفع" trailing={formatRiyal(totals.total)} onPress={() => router.push('/checkout')} />
+          {/* A delivery order with no address is not something checkout catches
+              — it forwards `addressId: undefined` and places the order anyway,
+              leaving the branch with nowhere to send it. Blocked here, where
+              the address is one tap away, rather than after payment. */}
+          {/* Not disabled — a dead button leaves people tapping and guessing.
+              It stays live and carries them to the one thing that is missing. */}
+          <Button
+            label={needsAddress ? 'اختر عنوان التوصيل' : 'متابعة الدفع'}
+            trailing={needsAddress ? undefined : formatRiyal(totals.total)}
+            iconLeft={needsAddress ? <Ionicons name="location" size={18} color={colors.white} /> : undefined}
+            onPress={() => (needsAddress ? setAddressOpen(true) : router.push('/checkout'))}
+          />
         </View>
       </View>
 
@@ -285,7 +322,7 @@ export function CartScreen() {
                 },
               ]}
             >
-              <Ionicons name="location" size={18} color={colors.terracotta} />
+              <Ionicons name="location" size={18} color={colors.goldDeep} />
               <View style={{ flex: 1 }}>
                 <Txt size={14} weight="extraBold" color={colors.ink}>
                   {a.titleAr}
@@ -307,39 +344,6 @@ export function CartScreen() {
         </View>
       </Sheet>
 
-      {/* time sheet */}
-      <Sheet visible={timeOpen} onClose={() => setTimeOpen(false)} title="اختر الوقت">
-        <View style={{ padding: spacing.lg, gap: 10 }}>
-          {SCHEDULE_OPTIONS.map((opt) => {
-            const value = opt === 'في أقرب وقت' ? null : opt;
-            const active = scheduledTime === value;
-            return (
-              <Pressable
-                key={opt}
-                onPress={() => {
-                  setScheduledTime(value);
-                  setTimeOpen(false);
-                }}
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  backgroundColor: colors.card,
-                  borderRadius: radius.md,
-                  padding: spacing.lg,
-                  borderWidth: 1.5,
-                  borderColor: active ? colors.gold : colors.borderSoft,
-                }}
-              >
-                <Txt size={15} weight="bold" color={colors.ink}>
-                  {opt}
-                </Txt>
-                {active ? <Ionicons name="checkmark-circle" size={20} color={colors.gold} /> : null}
-              </Pressable>
-            );
-          })}
-        </View>
-      </Sheet>
     </>
   );
 }
@@ -358,9 +362,20 @@ function FulfillRow({
   return (
     <Pressable
       onPress={onPress}
-      style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: spacing.lg }}
+      accessibilityRole="button"
+      accessibilityLabel={`${label}: ${value}`}
+      // These rows open a sheet, and the sheet takes a moment to animate in.
+      // Without a pressed state the row looked inert for that moment, so people
+      // tapped it twice.
+      style={({ pressed }) => ({
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        padding: spacing.lg,
+        backgroundColor: pressed ? colors.chip : colors.transparent,
+      })}
     >
-      <Ionicons name={icon} size={20} color={colors.terracotta} />
+      <Ionicons name={icon} size={20} color={colors.goldDeep} />
       <View style={{ flex: 1 }}>
         <Txt size={11} color={colors.textFaint}>
           {label}

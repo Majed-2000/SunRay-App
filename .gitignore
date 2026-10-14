@@ -42,3 +42,15 @@ yarn-error.*
 
 # Local Expo env (machine-specific; never commit)
 .env
+
+# The café's internal web system (HR, payroll, attendance, biometrics, finance).
+# A working copy lives here for reference only. It is NOT part of the app and
+# must never enter this repo — one `git add -A` would commit employee records.
+/SUNRAY_OS_V20
+
+# Large local scratch data
+/mooninfo.json
+
+# Foodics access tokens and account credentials. Never commit: the repo is public.
+*token*.txt
+*Token*.txt

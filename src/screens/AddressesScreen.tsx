@@ -1,4 +1,4 @@
-import { View } from 'react-native';
+import { Alert, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { colors, radius, spacing } from '@/theme';
@@ -12,6 +12,29 @@ export function AddressesScreen() {
   const setDefault = useAddressStore((s) => s.setDefault);
   const remove = useAddressStore((s) => s.remove);
 
+  /**
+   * Deleting an address is irreversible and there is no undo, so it asks first.
+   *
+   * It was a bare `onPress` on the word "حذف" — 13px of text, right beside
+   * "تعيين كافتراضي", removing the address on the first tap. A mis-tap cost the
+   * customer their saved address with nothing to say what had just happened.
+   * The address name goes in the prompt so the confirmation answers "which
+   * one?", not just "are you sure?".
+   */
+  const confirmRemove = (id: string, title: string) => {
+    Alert.alert('حذف العنوان', `سيُحذف «${title}» نهائيًا.`, [
+      { text: 'إلغاء', style: 'cancel' },
+      {
+        text: 'حذف',
+        style: 'destructive',
+        onPress: () => {
+          remove(id);
+          toast('تم حذف العنوان');
+        },
+      },
+    ]);
+  };
+
   return (
     <ScreenContainer
       header={<Header showBack title="عناويني" />}
@@ -19,13 +42,13 @@ export function AddressesScreen() {
     >
       <View style={{ paddingTop: spacing.lg, gap: 12 }}>
         {addresses.length === 0 ? (
-          <EmptyState emoji="📍" title="لا توجد عناوين" subtitle="أضف عنوانك لتسهيل التوصيل" />
+          <EmptyState icon="pin" title="لا توجد عناوين" subtitle="أضف عنوانك لتسهيل التوصيل" />
         ) : (
           addresses.map((a) => (
             <Card key={a.id} radiusKey="lg">
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                 <View style={{ width: 42, height: 42, borderRadius: radius.sm, backgroundColor: colors.chip, alignItems: 'center', justifyContent: 'center' }}>
-                  <Ionicons name={LABEL_ICON[a.label]} size={20} color={colors.terracotta} />
+                  <Ionicons name={LABEL_ICON[a.label]} size={20} color={colors.goldDeep} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -34,7 +57,9 @@ export function AddressesScreen() {
                     </Txt>
                     {a.isDefault ? (
                       <View style={{ backgroundColor: colors.chipGold, borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 2 }}>
-                        <Txt size={10} weight="extraBold" color={colors.terracotta}>
+                        {/* Charcoal, not gold: 10px Dark Gold on a gold chip
+                            is 4.31:1, under AA. */}
+                        <Txt size={10} weight="extraBold" color={colors.ink}>
                           الافتراضي
                         </Txt>
                       </View>
@@ -47,19 +72,11 @@ export function AddressesScreen() {
               </View>
               <View style={{ flexDirection: 'row', gap: 16, marginTop: spacing.md, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.borderSoft }}>
                 {!a.isDefault ? (
-                  <Txt size={13} weight="bold" color={colors.terracotta} onPress={() => setDefault(a.id)}>
+                  <Txt size={13} weight="bold" color={colors.goldDeep} onPress={() => setDefault(a.id)}>
                     تعيين كافتراضي
                   </Txt>
                 ) : null}
-                <Txt
-                  size={13}
-                  weight="bold"
-                  color={colors.danger}
-                  onPress={() => {
-                    remove(a.id);
-                    toast('تم حذف العنوان');
-                  }}
-                >
+                <Txt size={13} weight="bold" color={colors.danger} onPress={() => confirmRemove(a.id, a.titleAr)}>
                   حذف
                 </Txt>
               </View>

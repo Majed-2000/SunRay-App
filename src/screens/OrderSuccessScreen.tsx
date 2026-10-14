@@ -1,15 +1,23 @@
 import { View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { colors, radius, shadows, spacing } from '@/theme';
+import { colors, shadows, spacing } from '@/theme';
 import { Button, Card, Divider, ScreenContainer, Txt } from '@/components';
 import { useOrderStore, orderRef } from '@/store';
 import { formatRiyal, toArabicDigits } from '@/utils/numerals';
 
+/**
+ * After an order is placed.
+ *
+ * This used to promise «جاهز خلال ١٢ دقيقة» and «+٠ نقطة» for every live order —
+ * neither figure exists until the branch accepts the order and it settles — and
+ * its button navigated to `/track/undefined` because the live order was never
+ * put in the store. Now checkout records the order before arriving here, and
+ * the screen shows only what is known: the counter code and the total.
+ */
 export function OrderSuccessScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const order = useOrderStore((s) => s.getById(id));
-  const isDelivery = order?.type === 'delivery';
 
   return (
     <ScreenContainer scroll={false}>
@@ -31,14 +39,11 @@ export function OrderSuccessScreen() {
         </View>
 
         <Txt size={26} weight="black" color={colors.ink} center style={{ marginTop: spacing.xl }}>
-          تم إرسال طلبك ☀
-        </Txt>
-        <Txt size={14} color={colors.textMuted} style={{ marginTop: 6 }}>
-          رقم الطلب {order ? orderRef(order.id) : '—'}
+          تم إرسال طلبك
         </Txt>
         <View
           style={{
-            backgroundColor: '#f3e8d0',
+            backgroundColor: colors.chipGoldStrong,
             borderRadius: 100,
             paddingHorizontal: 14,
             paddingVertical: 6,
@@ -53,48 +58,38 @@ export function OrderSuccessScreen() {
           سيؤكّد الفرع طلبك خلال لحظات ثم يبدأ التحضير،{'\n'}وتقدر تتابع الحالة من «طلباتي».
         </Txt>
 
-        <Card radiusKey="xl" style={{ width: '100%', marginTop: spacing['2xl'] }}>
-          <Txt size={13} color={colors.textFaint} center>
-            {isDelivery ? 'يصلك خلال' : 'جاهز للاستلام خلال'}
-          </Txt>
-          <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'center', gap: 6, marginTop: 4 }}>
-            <Txt size={40} weight="black" color={colors.ink}>
-              {toArabicDigits(order?.etaMinutes ?? 12)}
+        {order ? (
+          <Card radiusKey="xl" style={{ width: '100%', marginTop: spacing['2xl'] }}>
+            <Txt size={13} color={colors.textFaint} center>
+              رقم طلبك عند الاستلام
             </Txt>
-            <Txt size={16} weight="bold" color={colors.textSecondary}>
-              دقيقة
+            <Txt size={36} weight="black" color={colors.ink} center latin style={{ marginTop: 4 }}>
+              {orderRef(order)}
             </Txt>
-          </View>
-          <Divider dashed />
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Txt size={14} color={colors.textSecondary}>
-              ربحت من هذا الطلب
-            </Txt>
-            <Txt size={16} weight="black" color={colors.terracotta}>
-              +{toArabicDigits(order?.pointsEarned ?? 0)} نقطة
-            </Txt>
-          </View>
-          {order ? (
-            <>
-              <Divider />
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Divider dashed />
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Txt size={14} color={colors.textSecondary}>
+                الإجمالي
+              </Txt>
+              <Txt size={15} weight="extraBold" color={colors.ink}>
+                {formatRiyal(order.total)}
+              </Txt>
+            </View>
+            {order.pointsEarned > 0 ? (
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: spacing.sm }}>
                 <Txt size={14} color={colors.textSecondary}>
-                  الإجمالي
+                  ربحت من هذا الطلب
                 </Txt>
-                <Txt size={15} weight="extraBold" color={colors.ink}>
-                  {formatRiyal(order.total)}
+                <Txt size={16} weight="black" color={colors.goldDeep}>
+                  +{toArabicDigits(order.pointsEarned)} نقطة
                 </Txt>
               </View>
-            </>
-          ) : null}
-        </Card>
+            ) : null}
+          </Card>
+        ) : null}
 
         <View style={{ width: '100%', marginTop: spacing.xl, gap: 10 }}>
-          {isDelivery ? (
-            <Button label="تتبع الطلب" variant="gold" onPress={() => router.replace(`/track/${order?.id}`)} />
-          ) : (
-            <Button label="عرض الطلب" variant="gold" onPress={() => router.replace(`/orders/${order?.id}`)} />
-          )}
+          {id ? <Button label="عرض الطلب" variant="gold" onPress={() => router.replace(`/orders/${id}`)} /> : null}
           <Button label="العودة للرئيسية" onPress={() => router.replace('/(tabs)/home')} />
         </View>
       </View>

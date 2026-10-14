@@ -5,6 +5,7 @@ import type { Product } from '@/types';
 import { colors, radius, shadows, spacing } from '@/theme';
 import { formatRiyal, toArabicDigits } from '@/utils/numerals';
 import { Txt } from './Txt';
+import { Icon } from './icons/Icon';
 import { Card } from './Card';
 import { ProductImage } from './ProductImage';
 
@@ -17,10 +18,45 @@ export interface ProductCardProps {
 /** Grid card used in featured / tablet menu grids. */
 export function ProductCard({ product, onPress, onAdd }: ProductCardProps) {
   const badge = product.tags[0];
+  // Same sold-out treatment as ProductRow. The card used to only grey its "+",
+  // so on a tablet a sold-out item looked orderable and the tap did nothing.
+  const sold = !product.isAvailable;
   return (
-    <Card onPress={onPress} padding={12} radiusKey="xl" shadow="card" style={{ flex: 1 }}>
-      <ProductImage emoji={product.emoji} image={product.image} height={120} emojiSize={46}>
-        {badge ? (
+    <Card
+      onPress={sold ? undefined : onPress}
+      padding={12}
+      radiusKey="xl"
+      shadow="card"
+      style={{ flex: 1, opacity: sold ? 0.62 : 1 }}
+    >
+      <ProductImage icon={product.icon} image={product.image} height={120} iconSize={48}>
+        {sold ? (
+          <View
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(240,234,224,0.82)',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <View
+              style={{
+                backgroundColor: colors.goldDeep,
+                borderRadius: radius.pill,
+                paddingHorizontal: 9,
+                paddingVertical: 4,
+              }}
+            >
+              <Txt size={10} weight="extraBold" color={colors.white}>
+                نفذت الكمية
+              </Txt>
+            </View>
+          </View>
+        ) : badge ? (
           <View
             style={{
               position: 'absolute',
@@ -48,9 +84,7 @@ export function ProductCard({ product, onPress, onAdd }: ProductCardProps) {
         </Txt>
         {product.rating ? (
           <>
-            <Txt size={11} color={colors.gold}>
-              ★
-            </Txt>
+            <Icon name="sun" size={12} />
             <Txt size={11} weight="bold" color={colors.textSecondary}>
               {toArabicDigits(product.rating.toFixed(1))}
             </Txt>
@@ -69,7 +103,7 @@ export function ProductCard({ product, onPress, onAdd }: ProductCardProps) {
         <Txt size={15} weight="black" color={colors.ink}>
           {formatRiyal(product.price)}
         </Txt>
-        <AddButton onPress={onAdd} disabled={!product.isAvailable} />
+        <AddButton onPress={onAdd} disabled={!product.isAvailable} name={product.nameAr} />
       </View>
     </Card>
   );
@@ -81,6 +115,10 @@ function ProductRowBase({ product, onPress, onAdd }: ProductCardProps) {
   return (
     <Pressable
       onPress={sold ? undefined : onPress}
+      disabled={sold}
+      accessibilityRole="button"
+      accessibilityLabel={sold ? `${product.nameAr} — غير متوفر` : product.nameAr}
+      accessibilityState={{ disabled: sold }}
       style={({ pressed }) => [
         shadows.sm,
         {
@@ -95,12 +133,12 @@ function ProductRowBase({ product, onPress, onAdd }: ProductCardProps) {
       ]}
     >
       <ProductImage
-        emoji={product.emoji}
+        icon={product.icon}
         image={product.image}
         height={66}
-        emojiSize={24}
+        iconSize={30}
         radiusKey="md"
-        showTag={false}
+       
         style={{ width: 66 }}
       >
         {sold ? (
@@ -129,7 +167,7 @@ function ProductRowBase({ product, onPress, onAdd }: ProductCardProps) {
           {sold ? (
             <View
               style={{
-                backgroundColor: colors.terracotta,
+                backgroundColor: colors.goldDeep,
                 borderRadius: radius.pill,
                 paddingHorizontal: 7,
                 paddingVertical: 3,
@@ -159,7 +197,7 @@ function ProductRowBase({ product, onPress, onAdd }: ProductCardProps) {
               width: 30,
               height: 30,
               borderRadius: radius.full,
-              backgroundColor: '#e8e0d4',
+              backgroundColor: colors.borderSoft,
               alignItems: 'center',
               justifyContent: 'center',
             }}
@@ -167,7 +205,7 @@ function ProductRowBase({ product, onPress, onAdd }: ProductCardProps) {
             <Ionicons name="close" size={14} color={colors.textMuted} />
           </View>
         ) : (
-          <AddButton onPress={onAdd} gold />
+          <AddButton onPress={onAdd} gold name={product.nameAr} />
         )}
       </View>
     </Pressable>
@@ -178,14 +216,21 @@ function AddButton({
   onPress,
   disabled,
   gold,
+  name,
 }: {
   onPress?: () => void;
   disabled?: boolean;
   gold?: boolean;
+  /** Product name, so the icon-only button announces what it adds. */
+  name?: string;
 }) {
   return (
     <Pressable
       onPress={disabled ? undefined : onPress}
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityLabel={name ? `أضف ${name} إلى السلة` : 'أضف إلى السلة'}
+      accessibilityState={{ disabled: Boolean(disabled) }}
       hitSlop={8}
       style={({ pressed }) => [
         shadows.sm,

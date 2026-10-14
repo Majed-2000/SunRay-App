@@ -1,0 +1,24 @@
+# Runs on every pull request and every push to main: the type checker and the
+# unit tests (money, cart, hot/cold choice). Nothing here builds or ships the
+# app; that stays a deliberate step.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      # .npmrc sets legacy-peer-deps — the install fails without it.
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test

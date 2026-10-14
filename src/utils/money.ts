@@ -14,6 +14,8 @@ export interface OrderTotals {
 export interface TotalsInput {
   lines: CartLine[];
   isDelivery: boolean;
+  /** Fee as quoted by the store. Omitted → 0, never a compiled-in default. */
+  deliveryFee?: number;
   discount?: number; // coupon discount (﷼)
   walletApplied?: number; // wallet balance applied (﷼)
   pointsDiscount?: number; // value of redeemed points (﷼)
@@ -40,11 +42,16 @@ export function calcTotals(input: TotalsInput): OrderTotals {
   const { lines, isDelivery } = input;
   const subtotal = calcSubtotal(lines);
 
-  let deliveryFee = 0;
-  if (isDelivery) {
-    deliveryFee =
-      subtotal >= CONFIG.FREE_DELIVERY_THRESHOLD ? 0 : CONFIG.DELIVERY_FEE;
-  }
+  /**
+   * The delivery fee is the SERVER'S number.
+   *
+   * It used to be a 15 ﷼ literal with a 120 ﷼ free-delivery threshold compiled
+   * into the app. Both are values the business changes without shipping a
+   * release, and a stale copy quotes the customer a fee that is not what the
+   * card is charged. Callers pass what the store told them; absent that we
+   * charge nothing rather than invent a figure.
+   */
+  const deliveryFee = isDelivery ? clampNonNeg(input.deliveryFee ?? 0) : 0;
 
   const discount = clampNonNeg(input.discount ?? 0);
   const gross = subtotal + deliveryFee - discount;
@@ -68,8 +75,15 @@ export function calcTotals(input: TotalsInput): OrderTotals {
   };
 }
 
-export function pointsEarned(subtotal: number): number {
-  return Math.round(subtotal * CONFIG.POINTS_PER_RIYAL);
+/**
+ * Points a spend would earn, at the rate the LEDGER reports.
+ *
+ * `pointsPerSar` arrives from `myLoyalty`; it is a configurable value, not the
+ * 1:1 constant this used to assume. The real award happens when the order
+ * settles — this is only an estimate for the screen.
+ */
+export function pointsEarned(subtotal: number, pointsPerSar: number): number {
+  return Math.round(subtotal * (pointsPerSar > 0 ? pointsPerSar : 0));
 }
 
 function round2(n: number): number {
@@ -77,4 +91,16 @@ function round2(n: number): number {
 }
 function clampNonNeg(n: number): number {
   return n < 0 ? 0 : n;
+}
+
+/**
+ * The total a checkout screen shows. Once the server has created the order its
+ * signed figure (halalas) is the only one that is charged, so it wins; before
+ * that, the cart's own estimate — coupon already taken off, same as the cart.
+ */
+export function checkoutDisplayTotal(estimate: OrderTotals, serverHalalas?: number | null): number {
+  if (typeof serverHalalas === 'number' && Number.isFinite(serverHalalas) && serverHalalas >= 0) {
+    return round2(serverHalalas / 100);
+  }
+  return estimate.total;
 }

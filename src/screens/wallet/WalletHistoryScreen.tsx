@@ -9,7 +9,7 @@ export function WalletHistoryScreen() {
   return (
     <ScreenContainer scroll={false} header={<Header showBack title="سجل العمليات" />}>
       {transactions.length === 0 ? (
-        <EmptyState emoji="🧾" title="لا توجد عمليات بعد" />
+        <EmptyState icon="receipt" title="لا توجد عمليات بعد" />
       ) : (
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingVertical: spacing.lg, paddingBottom: spacing['4xl'] }}>
           <Card radiusKey="lg">

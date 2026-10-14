@@ -42,7 +42,7 @@ export function LanguageScreen() {
               key={opt.code}
               onPress={() => {
                 if (opt.soon) {
-                  toast('الإنجليزية قريبًا ☀');
+                  toast('الإنجليزية قريبًا');
                   return;
                 }
                 setSelected(opt.code);

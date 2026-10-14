@@ -30,7 +30,7 @@ export function WalletTopupScreen() {
       return;
     }
     topup(finalAmount);
-    toast('تم شحن المحفظة 🎉');
+    toast('تم شحن المحفظة');
     router.back();
   };
 
@@ -71,14 +71,14 @@ export function WalletTopupScreen() {
           <Txt size={14} color={colors.textSecondary}>
             الرصيد بعد الشحن
           </Txt>
-          <Txt size={16} weight="black" color={colors.terracotta}>
+          <Txt size={16} weight="black" color={colors.goldDeep}>
             {toArabicDigits(balance + (finalAmount || 0))} ﷼
           </Txt>
         </Card>
 
         <Button label="شحن الآن" variant="gold" style={{ marginTop: spacing.xl }} onPress={onTopup} />
         <Txt size={11} color={colors.textFaint} center style={{ marginTop: spacing.lg }}>
-          🔒 شحن تجريبي — لا يتم خصم أي مبلغ حقيقي
+          شحن تجريبي — لا يتم خصم أي مبلغ حقيقي
         </Txt>
       </View>
     </ScreenContainer>

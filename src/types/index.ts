@@ -1,3 +1,4 @@
+import type { IconName } from '@/components/icons/glyphs';
 import {
   FoodicsOrderType,
   FoodicsOrderStatus,
@@ -36,7 +37,7 @@ export interface Category {
   foodicsId: string; // maps to a Foodics category UUID
   nameAr: string;
   nameEn: string;
-  emoji: string;
+  icon: IconName;
 }
 
 export interface ProductSize {
@@ -56,6 +57,19 @@ export interface ProductAddOn {
   group: 'milk' | 'extra'; // milk = single-select, extra = multi-select
 }
 
+/**
+ * Brewing method. On the live menu this is the one option that exists: a
+ * product may carry `methodPriceHalalas`, and the server prices the line by the
+ * method sent as `temp` in `createStoreOrder`.
+ */
+export type BrewMethod = 'hot' | 'cold' | 'classic' | 'freddo';
+
+export interface ProductMethod {
+  id: BrewMethod;
+  labelAr: string;
+  price: number; // full unit price for this method (﷼), not a delta
+}
+
 export interface Product {
   id: string;
   foodicsId: string; // maps to a Foodics product UUID
@@ -65,11 +79,19 @@ export interface Product {
   descriptionEn: string;
   price: number; // base price (﷼)
   image: string | null; // null → placeholder
-  emoji: string; // placeholder visual
+  /** Brand icon shown when there is no photo, and beside the category. */
+  icon: IconName;
   categoryId: string; // references Category.id (mock key or backend id)
   calories?: number;
   sizes: ProductSize[]; // app-flattened view of Foodics "size" modifier options
   addOns: ProductAddOn[]; // app-flattened view of other Foodics modifier options
+  /** Brewing methods, when the product is priced per method. Absent otherwise. */
+  methods?: ProductMethod[];
+  /**
+   * The method preselected on the product screen. Absent when the customer
+   * must choose — hot vs cold has no safe default (see storeCatalog).
+   */
+  defaultMethod?: BrewMethod;
   isAvailable: boolean; // mirrors Foodics product is_active
   isFeatured: boolean;
   tags: string[];
@@ -83,13 +105,26 @@ export interface CartLine {
   productId: string;
   nameAr: string;
   nameEn: string;
-  emoji: string;
+  /** Optional: carts saved before icons replaced emoji do not have one. */
+  icon?: IconName;
   optionLabel: string; // human readable "وسط · حليب لوز"
   sizeId?: string;
   addOnIds: string[];
+  /** Brewing method — sent to the server as `temp`, which prices the line by it. */
+  method?: BrewMethod;
   notes?: string;
   unitPrice: number;
   qty: number;
+  /**
+   * Set on a loyalty-reward line: the reward's id, sent as `rewardId`. Such a
+   * line is price zero, quantity one, and has no stepper. The points are taken
+   * by the server in `createStoreOrder`, never by the app.
+   */
+  rewardId?: string;
+  /** Points that reward costs — for the balance guard only. */
+  rewardPoints?: number;
+  /** Temp chosen from the reward product's `fxTemps`; sent as `temp`. */
+  rewardTemp?: string;
 }
 
 // ───────────────────────── Branches & Addresses ─────────────────────────
@@ -129,7 +164,16 @@ export interface Address {
  * pickup → 2 (PickUp), delivery → 3 (Delivery), dineIn → 1 (DineIn).
  * See `toFoodicsOrderType` in services/foodics.ts.
  */
-export type OrderType = 'pickup' | 'delivery' | 'dineIn';
+/**
+ * How the customer receives the order.
+ *
+ * `pickup` and `car` are the two the store actually supports — `car` is
+ * curbside, where the barista brings the order out to a plate number. The app
+ * had never modelled curbside at all, and instead offered `delivery` and
+ * `dineIn`, neither of which exists in `createStoreOrder`. Those two are kept
+ * behind `STORE_HAS_DELIVERY` rather than deleted.
+ */
+export type OrderType = 'pickup' | 'car' | 'delivery' | 'dineIn';
 
 export type PaymentMethod = 'wallet' | 'card' | 'applePay' | 'cash';
 
@@ -142,6 +186,20 @@ export interface OrderItemSnapshot {
 
 export interface Order {
   id: string; // internal reference, e.g. SR-1234
+  /** The store's short counter code (e.g. SR-0042), when the server issued one. */
+  code?: string | null;
+  /** Hosted payment page while the order is still unpaid; null once paid or expired. */
+  payUrl?: string | null;
+  /** False when the feed does not say (live orders) — hide rather than guess. */
+  paymentKnown?: boolean;
+  /**
+   * What the row is. The feed merges store orders (`cart`) with catering,
+   * session bookings, support tickets and gift cards; only `cart` is a coffee
+   * order with preparation stages, a cancel button and a reorder.
+   */
+  feedType?: string;
+  /** A refund the customer is allowed to see. */
+  refund?: { amount: number; at: number | null; cancelled: boolean } | null;
   foodicsOrderId: string | null; // Foodics order UUID — null until backend injects it
   createdAt: number; // epoch ms
   type: OrderType;
@@ -172,44 +230,19 @@ export interface WalletTransaction {
 }
 
 // ───────────────────────── Gift Cards ─────────────────────────
+/**
+ * A gift card face — one of the three the website offers. The art itself is
+ * the site's SVG (see `data/giftDesigns.ts`); the gift's live data is in
+ * `services/storeGifts.ts`.
+ */
 export interface GiftDesign {
-  id: string;
+  id: 'sunray' | 'graduation' | 'custom';
   nameAr: string;
-  gradient: readonly [string, string];
-  shadowColor: string;
-  labelColor: string;
-}
-
-export type GiftStatus = 'active' | 'used' | 'expired';
-
-export interface GiftCard {
-  id: string;
-  code: string; // generated mock code
-  amount: number;
-  designId: string;
-  senderName: string;
-  recipientName: string;
-  recipientPhone: string;
-  message: string;
-  status: GiftStatus;
-  createdAt: number;
-  direction: 'sent' | 'received';
 }
 
 // ───────────────────────── Loyalty ─────────────────────────
 export type LoyaltyTier = 'bronze' | 'silver' | 'gold';
 
-export type RewardKind = 'discount' | 'freeItem' | 'sizeUpgrade' | 'walletTopup';
-
-export interface Reward {
-  id: string;
-  nameAr: string;
-  nameEn: string;
-  emoji: string;
-  cost: number; // points
-  kind: RewardKind;
-  value?: number; // discount % or wallet ﷼ etc.
-}
 
 // ───────────────────────── Coupons ─────────────────────────
 export type CouponKind = 'percent' | 'fixed';

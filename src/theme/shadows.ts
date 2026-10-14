@@ -1,8 +1,17 @@
 import { Platform, ViewStyle } from 'react-native';
 
 /**
- * Warm brown-tinted shadows matching the design. Android uses elevation,
- * iOS uses shadow* props. Use via `...shadows.card`.
+ * Shadows, per the brand's UI spec: `rgba(67,67,68,0.10)` — light, wide, subtle.
+ *
+ * They were previously tinted warm brown (`#785020`), which belonged to the old
+ * amber palette and reads as a dirty halo against the cream surfaces the
+ * identity actually calls for. Charcoal is the brand's only dark.
+ *
+ * The guidelines name "high-contrast shadows" as forbidden, so the heavy
+ * variants have come down: `lg` was 0.28, which under the floating cart bar
+ * looked like a drop rather than a lift.
+ *
+ * Android uses elevation, iOS uses shadow* props. Use via `...shadows.card`.
  */
 type Shadow = Pick<
   ViewStyle,
@@ -26,16 +35,22 @@ const make = (
     default: { elevation, shadowColor: hex },
   }) as Shadow;
 
+/** Deep Charcoal — the shadow colour named in the brand UI spec. */
+const CHARCOAL = '#434344';
+/** Dark Gold. Used only for the gold "glow" the spec asks for on emphasis. */
+const GOLD_GLOW = '#8a6d12';
+
 export const shadows = {
   none: {} as Shadow,
-  xs: make('#785020', 0.06, 6, 2, 1),
-  sm: make('#785020', 0.08, 10, 3, 2),
-  card: make('#785020', 0.08, 16, 5, 3),
-  md: make('#785020', 0.1, 20, 6, 5),
-  lg: make('#2a2018', 0.28, 30, 12, 9),
-  gold: make('#be821e', 0.28, 30, 14, 9),
-  goldStrong: make('#be821e', 0.36, 32, 14, 11),
-  terracotta: make('#b5662e', 0.35, 20, 8, 8),
+  xs: make(CHARCOAL, 0.06, 6, 2, 1),
+  sm: make(CHARCOAL, 0.08, 10, 3, 2),
+  card: make(CHARCOAL, 0.1, 16, 5, 3),
+  md: make(CHARCOAL, 0.1, 20, 6, 5),
+  lg: make(CHARCOAL, 0.16, 30, 12, 9),
+  gold: make(GOLD_GLOW, 0.22, 30, 14, 9),
+  goldStrong: make(GOLD_GLOW, 0.28, 32, 14, 11),
+  /** Kept for call sites that still name it; charcoal like everything else. */
+  terracotta: make(CHARCOAL, 0.16, 20, 8, 8),
 } as const;
 
 export type ShadowKey = keyof typeof shadows;

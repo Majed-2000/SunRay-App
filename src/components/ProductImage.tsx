@@ -1,29 +1,27 @@
 import { Image, View, type ViewStyle } from 'react-native';
 import { colors, radius } from '@/theme';
-import { Txt } from './Txt';
+import { Icon, type IconName } from './icons/Icon';
 
 export interface ProductImageProps {
-  emoji: string;
+  icon: IconName;
   image?: string | null;
   height?: number;
-  emojiSize?: number;
+  iconSize?: number;
   radiusKey?: keyof typeof radius;
-  showTag?: boolean;
   style?: ViewStyle;
   children?: React.ReactNode; // overlay badges
 }
 
 /**
- * Placeholder product visual — diagonal cream stripes + emoji until real
- * photography is provided. Renders the image when available.
+ * Product visual: the photo when the store has one, otherwise cream stripes
+ * with the product's brand icon.
  */
 export function ProductImage({
-  emoji,
+  icon,
   image,
   height = 120,
-  emojiSize = 46,
+  iconSize = 46,
   radiusKey = 'lg',
-  showTag = true,
   style,
   children,
 }: ProductImageProps) {
@@ -47,25 +45,8 @@ export function ProductImage({
       {image ? (
         <Image source={{ uri: image }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
       ) : (
-        <Txt size={emojiSize}>{emoji}</Txt>
+        <Icon name={icon} size={iconSize} />
       )}
-      {showTag && !image ? (
-        <View
-          style={{
-            position: 'absolute',
-            top: 8,
-            left: 8,
-            backgroundColor: 'rgba(255,255,255,0.7)',
-            paddingHorizontal: 6,
-            paddingVertical: 2,
-            borderRadius: 6,
-          }}
-        >
-          <Txt size={8} latin color={colors.textFaint}>
-            photo
-          </Txt>
-        </View>
-      ) : null}
       {children}
     </View>
   );

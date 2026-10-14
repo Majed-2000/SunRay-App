@@ -30,6 +30,10 @@ export function Header({ title, subtitle, showBack, onBack, right, large }: Head
         <Pressable
           onPress={onBack ?? (() => router.back())}
           hitSlop={8}
+          // Icon-only, so the label has to be spelled out — TalkBack otherwise
+          // announces "زر" with nothing after it.
+          accessibilityRole="button"
+          accessibilityLabel="رجوع"
           style={({ pressed }) => [
             shadows.xs,
             {

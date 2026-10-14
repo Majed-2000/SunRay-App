@@ -3,7 +3,7 @@ import { ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { colors, spacing } from '@/theme';
-import { Button, Card, Divider, Header, OptionChip, QtyStepper, ScreenContainer, Txt } from '@/components';
+import { Button, Card, Divider, Header, Icon, OptionChip, QtyStepper, ScreenContainer, Txt } from '@/components';
 import { useBranchStore } from '@/store';
 import { toArabicDigits } from '@/utils/numerals';
 
@@ -24,10 +24,10 @@ export function ReserveScreen() {
       <ScreenContainer header={<Header showBack title="حجز جلسة" onBack={() => router.replace('/(tabs)/home')} />}>
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: spacing['4xl'] }}>
           <View style={{ width: 96, height: 96, borderRadius: 48, backgroundColor: colors.gold, alignItems: 'center', justifyContent: 'center' }}>
-            <Txt size={44}>🪑</Txt>
+            <Icon name="seat" size={52} accent={colors.white} />
           </View>
           <Txt size={25} weight="black" color={colors.ink} style={{ marginTop: spacing.xl }}>
-            تم تأكيد حجزك ☀
+            تم تأكيد حجزك
           </Txt>
           <Card radiusKey="xl" style={{ width: '100%', marginTop: spacing.xl }}>
             <Txt size={13} color={colors.textFaint}>
@@ -54,7 +54,7 @@ export function ReserveScreen() {
     >
       <View style={{ paddingTop: spacing.md, paddingBottom: spacing.xl }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: spacing.lg }}>
-          <Ionicons name="storefront-outline" size={18} color={colors.terracotta} />
+          <Ionicons name="storefront-outline" size={18} color={colors.goldDeep} />
           <Txt size={14} weight="extraBold" color={colors.ink}>
             {branch.nameAr}
           </Txt>

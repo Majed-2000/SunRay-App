@@ -25,7 +25,7 @@ export function AddressNewScreen() {
       return;
     }
     add({ label, titleAr: title || LABELS.find((l) => l.id === label)!.label, detailsAr: details });
-    toast('تمت إضافة العنوان ☀');
+    toast('تمت إضافة العنوان');
     router.back();
   };
 

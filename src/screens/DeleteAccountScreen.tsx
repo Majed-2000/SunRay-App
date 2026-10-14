@@ -5,7 +5,8 @@ import { router } from 'expo-router';
 import { colors, radius, spacing } from '@/theme';
 import { Button, Card, Header, ScreenContainer, TextField, Txt } from '@/components';
 import { formatRiyal } from '@/utils/numerals';
-import { deleteAccount } from '@/services/auth';
+import { deleteStoreAccount } from '@/services/storeAuth';
+import { STORE_HAS_WALLET } from '@/constants/features';
 import { useAuthStore, useWalletStore, toast } from '@/store';
 
 /** Typed exactly to confirm. Short enough to type, specific enough to be deliberate. */
@@ -26,7 +27,10 @@ const CONFIRM_WORD = 'حذف';
 export function DeleteAccountScreen() {
   const [confirm, setConfirm] = useState('');
   const [busy, setBusy] = useState(false);
-  const balance = useWalletStore((s) => s.balance);
+  // The wallet is still a local mock; its 75 ﷼ was being shown here as money
+  // the customer would lose. Only a real wallet has a balance worth warning about.
+  const mockBalance = useWalletStore((s) => s.balance);
+  const balance = STORE_HAS_WALLET ? mockBalance : 0;
   const logout = useAuthStore((s) => s.logout);
 
   const canDelete = confirm.trim() === CONFIRM_WORD && !busy;
@@ -35,7 +39,15 @@ export function DeleteAccountScreen() {
     if (!canDelete) return;
     setBusy(true);
     try {
-      await deleteAccount();
+      // `deleteStoreAccount` reports failure in its result, it never throws —
+      // ignoring it told customers «تم حذف حسابك» over an account that was
+      // still there, and signed them out of it.
+      const res = await deleteStoreAccount();
+      if (!res.ok) {
+        toast('تعذّر حذف الحساب، حاول مرة أخرى');
+        setBusy(false);
+        return;
+      }
       // Clear local state before navigating: the tokens are already revoked
       // server-side, and leaving a stale session would show a signed-in shell
       // over an account that no longer exists.
@@ -61,11 +73,11 @@ export function DeleteAccountScreen() {
         {balance > 0 ? (
           <Card
             radiusKey="lg"
-            style={{ marginTop: spacing.xl, borderWidth: 1, borderColor: colors.terracotta }}
+            style={{ marginTop: spacing.xl, borderWidth: 1, borderColor: colors.goldDeep }}
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              <Ionicons name="wallet-outline" size={20} color={colors.terracotta} />
-              <Txt size={15} weight="black" color={colors.terracotta} style={{ flex: 1 }}>
+              <Ionicons name="wallet-outline" size={20} color={colors.goldDeep} />
+              <Txt size={15} weight="black" color={colors.goldDeep} style={{ flex: 1 }}>
                 لديك رصيد {formatRiyal(balance)}
               </Txt>
             </View>
@@ -76,10 +88,8 @@ export function DeleteAccountScreen() {
         ) : null}
 
         <Section title="سيُحذف نهائيًا">
-          <Line icon="person-outline" text="اسمك ورقم جوالك وبريدك وبياناتك الشخصية" />
-          <Line icon="location-outline" text="عناوينك المحفوظة" />
-          <Line icon="star-outline" text="نقاط الولاء وأكواب القهوة المجمّعة" />
-          <Line icon="notifications-outline" text="إشعاراتك" />
+          <Line icon="person-outline" text="اسمك ورقم جوالك وبياناتك الشخصية" />
+          <Line icon="star-outline" text="نقاط الولاء" />
           <Line icon="log-out-outline" text="جلساتك على كل الأجهزة" />
         </Section>
 
@@ -117,7 +127,7 @@ export function DeleteAccountScreen() {
           loading={busy}
           style={{
             marginTop: spacing.lg,
-            backgroundColor: canDelete ? colors.terracotta : colors.border,
+            backgroundColor: canDelete ? colors.goldDeep : colors.border,
           }}
         />
 

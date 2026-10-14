@@ -36,14 +36,17 @@ const withAndroidAbiFilters = (config) =>
 
     // Drop any existing definition so we don't end up with duplicate keys — the
     // React Native template ships this property with all four architectures.
+    // Our own comment too: prebuild without --clean re-runs this on the
+    // existing file, and a comment is not a property, so each run used to add
+    // another copy (eight had piled up).
+    const COMMENT = 'Set by plugins/withAndroidAbiFilters.js — emulator ABIs (x86, x86_64) excluded to cut ~33 MB.';
     cfg.modResults = cfg.modResults.filter(
-      (item) => !(item.type === 'property' && item.key === KEY),
+      (item) =>
+        !(item.type === 'property' && item.key === KEY) &&
+        !(item.type === 'comment' && item.value === COMMENT),
     );
 
-    cfg.modResults.push({
-      type: 'comment',
-      value: 'Set by plugins/withAndroidAbiFilters.js — emulator ABIs (x86, x86_64) excluded to cut ~33 MB.',
-    });
+    cfg.modResults.push({ type: 'comment', value: COMMENT });
     cfg.modResults.push({ type: 'property', key: KEY, value: ABIS.join(',') });
 
     return cfg;

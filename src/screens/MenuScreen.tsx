@@ -1,22 +1,24 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, ScrollView, View, type ListRenderItemInfo } from 'react-native';
 import { router } from 'expo-router';
-import { colors, radius, spacing } from '@/theme';
+import { colors, spacing } from '@/theme';
 import {
   CategoryPill,
   EmptyState,
   ErrorState,
   FloatingCartBar,
+  MenuSkeleton,
   ProductCard,
   ProductRow,
   ResponsiveGrid,
   ScreenContainer,
-  Spinner,
+  SegmentedTabs,
   Txt,
 } from '@/components';
 import { PRODUCT_ROW_HEIGHT } from '@/components/ProductCard';
 import { useResponsive } from '@/hooks/useResponsive';
 import { useCartStore, useCatalogStore } from '@/store';
+import { ORDER_TYPES, ORDER_TYPE_SHORT } from '@/constants/orderTypes';
 import type { Product } from '@/types';
 
 /** Row height plus the 12px gap between rows — the stride FlatList measures by. */
@@ -47,6 +49,38 @@ export function MenuScreen() {
     () => products.filter((p) => filter === 'all' || p.categoryId === filter),
     [products, filter],
   );
+
+  const listRef = useRef<FlatList<Product>>(null);
+  const pillsRef = useRef<ScrollView>(null);
+
+  // Chips come from what is on the menu right now. When the branch pulls the
+  // last item of the selected one, its chip vanishes but the filter stayed —
+  // a blank list with nothing highlighted to explain it. Fall back to «الكل».
+  useEffect(() => {
+    if (filter !== 'all' && status === 'ready' && !categories.some((c) => c.id === filter)) {
+      setFilter('all');
+    }
+  }, [categories, filter, status]);
+
+  /**
+   * Change category, then jump the list back to the top.
+   *
+   * This used to be `key={filter}` on the FlatList, which is the expensive way
+   * to get the same scroll reset: React tears the whole list down and builds a
+   * new one, discarding every mounted row and its layout. On "الكل" — 111
+   * products — that remount is a visible stall on every single tap of the
+   * category strip, which is exactly where it is least affordable.
+   *
+   * Keeping the list mounted and moving the offset costs nothing: `data` is a
+   * different array, the rows re-render, and the scroll position is set without
+   * a layout pass. The pill strip resets alongside it so the selected category
+   * is not left scrolled off the edge.
+   */
+  const selectFilter = useCallback((next: Filter) => {
+    setFilter(next);
+    listRef.current?.scrollToOffset({ offset: 0, animated: false });
+    pillsRef.current?.scrollTo({ x: 0, animated: true });
+  }, []);
 
   const openProduct = useCallback((id: string) => router.push(`/product/${id}`), []);
 
@@ -80,58 +114,34 @@ export function MenuScreen() {
           </Txt>
         </View>
 
-        {/* mode toggle */}
-        <View
-          style={{
-            flexDirection: 'row',
-            backgroundColor: '#e3d6bf',
-            borderRadius: radius.md,
-            padding: 4,
-            marginHorizontal: spacing.lg,
-            marginTop: spacing.sm,
-            marginBottom: spacing.lg,
-          }}
-        >
-          {(['pickup', 'delivery'] as const).map((m) => {
-            const active = orderType === m;
-            return (
-              <View
-                key={m}
-                style={{
-                  flex: 1,
-                  backgroundColor: active ? colors.card : 'transparent',
-                  borderRadius: radius.sm + 1,
-                }}
-              >
-                <Txt
-                  size={13}
-                  weight="extraBold"
-                  center
-                  color={active ? colors.ink : colors.textMuted}
-                  onPress={() => setOrderType(m)}
-                  style={{ paddingVertical: 10 }}
-                >
-                  {m === 'pickup' ? '☕ استلام' : '🛵 توصيل'}
-                </Txt>
-              </View>
-            );
-          })}
-        </View>
+        {/* Fulfilment. Built from ORDER_TYPES so this control, the cart and
+            checkout cannot disagree about what the store offers — they each
+            used to hardcode their own list, and all three sold delivery.
+
+            Was also a hand-rolled copy of SegmentedTabs with `onPress` on the
+            text, so only the glyphs responded to a tap. */}
+        <SegmentedTabs
+          tabs={ORDER_TYPES.map((k) => ({ key: k, label: ORDER_TYPE_SHORT[k] }))}
+          value={orderType}
+          onChange={setOrderType}
+        />
 
         {/* category tabs — fixed-height band so it never overlaps the grid */}
         <View style={{ height: 46, marginBottom: spacing.md }}>
           <ScrollView
+            ref={pillsRef}
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ gap: 8, paddingHorizontal: spacing.lg, alignItems: 'center' }}
           >
-            <CategoryPill label="الكل" active={filter === 'all'} onPress={() => setFilter('all')} />
+            <CategoryPill label="الكل" active={filter === 'all'} onPress={() => selectFilter('all')} />
             {categories.map((c) => (
               <CategoryPill
                 key={c.id}
-                label={`${c.emoji} ${c.nameAr}`}
+                label={c.nameAr}
+                icon={c.icon}
                 active={filter === c.id}
-                onPress={() => setFilter(c.id)}
+                onPress={() => selectFilter(c.id)}
               />
             ))}
           </ScrollView>
@@ -146,11 +156,23 @@ export function MenuScreen() {
           Tablets keep the grid: far fewer, larger cards, and no hang observed.
         */}
         {loading ? (
-          <Spinner label="نحضّر القائمة لك…" />
+          // Rows in the shape they will take, not a spinner over a blank
+          // screen. The catalog comes from Foodics over the network, and the
+          // wait is long enough that "empty plus spinner" reads as broken.
+          <View style={{ paddingHorizontal: spacing.lg }}>
+            <MenuSkeleton />
+          </View>
         ) : error ? (
           <ErrorState onRetry={reload} />
         ) : list.length === 0 ? (
-          <EmptyState emoji="🔍" title="لا توجد أصناف" subtitle="جرّب تصنيفًا آخر" />
+          // Two different empty states. "جرّب تصنيفًا آخر" is only true when
+          // there is something else to try — with an empty catalog it reads as
+          // a broken filter rather than an empty menu.
+          products.length === 0 ? (
+            <EmptyState icon="cup-hot" title="القائمة فارغة" subtitle="لم تُضف أي أصناف بعد" />
+          ) : (
+            <EmptyState icon="search" title="لا توجد أصناف" subtitle="جرّب تصنيفًا آخر" />
+          )
         ) : isTablet ? (
           <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: spacing.xs, paddingBottom: 140 }}>
             <View style={{ width: '100%', maxWidth: contentMaxWidth, alignSelf: 'center', paddingHorizontal: spacing.lg }}>
@@ -166,6 +188,7 @@ export function MenuScreen() {
           </ScrollView>
         ) : (
           <FlatList
+            ref={listRef}
             data={list}
             renderItem={renderRow}
             keyExtractor={keyExtractor}
@@ -188,8 +211,6 @@ export function MenuScreen() {
             updateCellsBatchingPeriod={50}
             windowSize={7}
             removeClippedSubviews
-            // Switching category should start at the top, not mid-list.
-            key={filter}
           />
         )}
       </ScreenContainer>

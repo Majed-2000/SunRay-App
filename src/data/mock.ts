@@ -2,7 +2,6 @@ import type {
   User,
   Order,
   WalletTransaction,
-  GiftCard,
   Address,
 } from '@/types';
 import { FoodicsOrderStatus, FoodicsDeliveryStatus } from '@/types';
@@ -93,22 +92,6 @@ export const mockWalletTx: WalletTransaction[] = [
 ];
 
 export const INITIAL_WALLET_BALANCE = 75;
-
-export const mockGiftCards: GiftCard[] = [
-  {
-    id: 'g1',
-    code: 'SR-GIFT-2048',
-    amount: 100,
-    designId: 'gold',
-    senderName: 'سارة',
-    recipientName: 'نوف',
-    recipientPhone: '501234567',
-    message: 'صباحك مشرق ☀',
-    status: 'active',
-    createdAt: NOW - 10 * DAY,
-    direction: 'received',
-  },
-];
 
 export const NOW_REF = NOW;
 export const DAY_MS = DAY;

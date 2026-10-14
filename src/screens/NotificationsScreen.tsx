@@ -8,11 +8,13 @@ import { relativeTimeAr } from '@/utils/date';
 import { useNotificationStore } from '@/store';
 
 const META: Record<NotificationType, { icon: keyof typeof Ionicons.glyphMap; tint: string; bg: string }> = {
-  orderAccepted: { icon: 'checkmark-circle', tint: colors.success, bg: '#e7f4ec' },
-  orderReady: { icon: 'cafe', tint: colors.terracotta, bg: '#fbe9c4' },
-  pointsEarned: { icon: 'star', tint: colors.gold, bg: colors.chipGold },
-  giftReceived: { icon: 'gift', tint: colors.terracotta, bg: '#f3e0d2' },
-  birthdayOffer: { icon: 'sparkles', tint: colors.gold, bg: colors.chipGold },
+  orderAccepted: { icon: 'checkmark-circle', tint: colors.success, bg: colors.successSoft },
+  orderReady: { icon: 'cafe', tint: colors.goldDeep, bg: colors.chipGold },
+  // Radiant Gold on a gold-tinted chip is ~1.05:1 — the icon was very nearly
+  // invisible against its own background. Gold is the chip, not the mark on it.
+  pointsEarned: { icon: 'star', tint: colors.goldDeep, bg: colors.chipGold },
+  giftReceived: { icon: 'gift', tint: colors.goldDeep, bg: colors.chipGold },
+  birthdayOffer: { icon: 'sparkles', tint: colors.goldDeep, bg: colors.chipGold },
 };
 
 export function NotificationsScreen() {
@@ -28,7 +30,7 @@ export function NotificationsScreen() {
     <ScreenContainer header={<Header showBack title="الإشعارات" />}>
       {notifications.length === 0 ? (
         <EmptyState
-          emoji="🔔"
+          icon="bell"
           title="لا توجد إشعارات"
           subtitle="ستظهر هنا تحديثات طلباتك ونقاطك وهداياك"
         />

@@ -32,6 +32,12 @@
 		try_files /terms.html
 		file_server
 	}
+	# Google Play: account deletion must be requestable without the app.
+	handle /delete-account* {
+		root * /srv/public
+		try_files /delete-account.html
+		file_server
+	}
 
 	# Caddy sets X-Forwarded-For / X-Forwarded-Proto automatically; the backend
 	# reads them because TRUST_PROXY=1. That is what makes express-rate-limit

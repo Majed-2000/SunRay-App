@@ -16,7 +16,7 @@ export const ar = {
     delete: 'حذف',
     close: 'إغلاق',
     seeAll: 'عرض الكل',
-    soon: 'قريبًا ☀',
+    soon: 'قريبًا',
     points: 'نقطة',
     retry: 'إعادة المحاولة',
     or: 'أو',
@@ -48,6 +48,7 @@ export const ar = {
   },
   orderType: {
     pickup: 'استلام من الفرع',
+    car: 'خدمة السيارة',
     delivery: 'توصيل',
     dineIn: 'تناول داخل الفرع',
   },

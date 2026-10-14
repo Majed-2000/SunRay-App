@@ -8,9 +8,9 @@ import { Txt } from './Txt';
 
 const META: Record<WalletTransaction['type'], { icon: keyof typeof Ionicons.glyphMap; tint: string }> = {
   topup: { icon: 'arrow-down', tint: colors.success },
-  payment: { icon: 'cart', tint: colors.terracotta },
+  payment: { icon: 'cart', tint: colors.goldDeep },
   refund: { icon: 'arrow-undo', tint: colors.success },
-  giftPurchase: { icon: 'gift', tint: colors.terracotta },
+  giftPurchase: { icon: 'gift', tint: colors.goldDeep },
   reward: { icon: 'star', tint: colors.gold },
 };
 

@@ -1,9 +1,8 @@
 import { Pressable, ScrollView, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, spacing } from '@/theme';
-import { toArabicDigits } from '@/utils/numerals';
 import { useBranchStore } from '@/store';
 import { Txt } from './Txt';
+import { Icon } from './icons/Icon';
 import { Sheet } from './Sheet';
 
 export interface BranchPickerSheetProps {
@@ -15,49 +14,14 @@ export function BranchPickerSheet({ visible, onClose }: BranchPickerSheetProps) 
   const branches = useBranchStore((s) => s.branches);
   const selectedId = useBranchStore((s) => s.selectedBranchId);
   const selectBranch = useBranchStore((s) => s.selectBranch);
-  const selectNearest = useBranchStore((s) => s.selectNearest);
+  const closedReason = useBranchStore((s) => s.closedReason);
 
   return (
     <Sheet visible={visible} onClose={onClose} title="اختر الفرع">
-      <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: 10,
-          paddingHorizontal: spacing['2xl'],
-          paddingVertical: spacing.md,
-        }}
-      >
-        <View
-          style={{
-            width: 34,
-            height: 34,
-            borderRadius: radius.sm,
-            backgroundColor: '#e7f4ec',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <Ionicons name="locate" size={16} color={colors.success} />
-        </View>
-        <Txt size={13} weight="bold" color={colors.success} style={{ flex: 1 }}>
-          تحديد أقرب فرع تلقائيًا
-        </Txt>
-        <Pressable
-          onPress={() => {
-            selectNearest();
-            onClose();
-          }}
-          style={{ backgroundColor: colors.gold, borderRadius: radius.pill, paddingHorizontal: 16, paddingVertical: 8 }}
-        >
-          <Txt size={12} weight="extraBold" color={colors.inkDeep}>
-            تحديد
-          </Txt>
-        </Pressable>
-      </View>
-
-      <View style={{ height: 1, backgroundColor: colors.borderSoft, marginHorizontal: spacing['2xl'] }} />
-
+      {/*
+        No «nearest branch» row and no distance: the app reads no location, and
+        the only distance it had was a hardcoded 0 shown to everyone as «٠.٠ كم».
+      */}
       <ScrollView style={{ maxHeight: 340 }}>
         {branches.map((b) => {
           const selected = b.id === selectedId;
@@ -74,7 +38,7 @@ export function BranchPickerSheet({ visible, onClose }: BranchPickerSheetProps) 
                 gap: 13,
                 paddingHorizontal: spacing['2xl'],
                 paddingVertical: 13,
-                backgroundColor: selected ? '#fdf6e8' : 'transparent',
+                backgroundColor: selected ? colors.bgWarm : 'transparent',
               }}
             >
               <View
@@ -82,12 +46,12 @@ export function BranchPickerSheet({ visible, onClose }: BranchPickerSheetProps) 
                   width: 40,
                   height: 40,
                   borderRadius: radius.md,
-                  backgroundColor: selected ? colors.chipGoldStrong : '#f0ebe1',
+                  backgroundColor: selected ? colors.chipGoldStrong : colors.chip,
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}
               >
-                <Txt size={17}>☕</Txt>
+                <Icon name="store" size={22} />
               </View>
               <View style={{ flex: 1 }}>
                 <Txt size={14} weight="extraBold" color={colors.ink}>
@@ -101,9 +65,12 @@ export function BranchPickerSheet({ visible, onClose }: BranchPickerSheetProps) 
                 <Txt size={11} weight="bold" color={b.isOpen ? colors.success : colors.textFaint}>
                   {b.isOpen ? '● مفتوح' : '○ مغلق'}
                 </Txt>
-                <Txt size={10} color={colors.textFaint}>
-                  {toArabicDigits(b.distanceKm.toFixed(1))} كم
-                </Txt>
+                {!b.isOpen && closedReason ? (
+                  // Say why here, not first at checkout after a whole cart.
+                  <Txt size={10} color={colors.textFaint} style={{ maxWidth: 160 }}>
+                    {closedReason}
+                  </Txt>
+                ) : null}
                 {selected ? (
                   <Txt size={12} weight="black" color={colors.gold}>
                     ✦ محدد

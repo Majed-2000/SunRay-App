@@ -1,95 +1,130 @@
 import { create } from 'zustand';
-import type { LoyaltyTier, Reward } from '@/types';
-import { CONFIG } from '@/constants/config';
-import { toast } from './uiStore';
-import { useWalletStore } from './walletStore';
+import {
+  claimBirthdayReward,
+  fetchMyLoyalty,
+  type BirthdayRefusal,
+  type LoyaltyEvent,
+  type LoyaltyReward,
+  type MyLoyalty,
+} from '@/services/storeLoyalty';
 
+/** Stable empty fallbacks — see the note on `rewards` below. */
+const NO_REWARDS: LoyaltyReward[] = [];
+const NO_EVENTS: LoyaltyEvent[] = [];
+
+/**
+ * Bumped by every `load()` and every `reset()`. A response is written only if
+ * no newer load or reset happened while it was in flight — otherwise a slow
+ * reply started before logout (or before an account switch) would land after
+ * it and put the previous customer's balance back on screen.
+ */
+let generation = 0;
+
+/**
+ * The customer's loyalty state, mirrored from the live ledger.
+ *
+ * Nothing here is computed locally and nothing is invented. The previous
+ * version opened with `points: 140`, `visits: 8`, `cupCount: 4` and a
+ * "buy 6 get the 7th free" card — none of which existed. The real programme is
+ * one point per riyal, migrated 1:1 from Boonus for 19,279 customers, so a
+ * customer with 2,546 real points was shown "4 of 6 cups".
+ *
+ * ## Why there is no `earn`, `spend` or `redeem` here
+ *
+ * The balance is the server's. Points are awarded when an order settles, and a
+ * reward is taken by adding it to the cart at price zero — `createStoreOrder`
+ * performs the deduction as it writes the order. A local `spend()` would move a
+ * number on this device that the ledger never agreed to, and the next refresh
+ * would silently undo it. The old store did exactly that.
+ *
+ * The screens' job is to display and to refresh.
+ */
 interface LoyaltyState {
-  points: number; // redeemable balance
-  lifetimePoints: number; // for tier
-  visits: number;
-  /**
-   * Path A cup counter ("buy 6 coffees → 7th free"). In production OUR BACKEND
-   * owns this counter (incremented from `customer.order.created` webhooks) and
-   * issues the free coffee as a Foodics Coupon. Loyalty requires the customer
-   * phone as identity. Here it is mocked locally.
-   */
-  cupCount: number;
-  earn: (points: number) => void;
-  /** Add eligible coffee cups (mock for the backend counter). */
-  addCups: (count: number) => void;
-  freeCoffeeReady: () => boolean;
-  cupsToFreeCoffee: () => number;
-  /** Redeem the free-coffee reward → returns a mock coupon code (or null). */
-  redeemFreeCoffee: () => string | null;
-  /** Redeem a catalog reward. Returns true on success. */
-  redeem: (reward: Reward) => boolean;
-  /** Spend raw points (cart redemption). Returns true on success. */
-  spend: (points: number) => boolean;
-  tier: () => LoyaltyTier;
-  pointsToNextDrink: () => number;
-}
+  /** Live snapshot, or null before the first load / when signed out. */
+  data: MyLoyalty | null;
+  status: 'idle' | 'loading' | 'ready' | 'error';
+  /** True when this account has no phone the ledger recognises. */
+  unlinked: boolean;
 
-function tierFor(lifetime: number): LoyaltyTier {
-  if (lifetime >= CONFIG.TIER_THRESHOLDS.gold) return 'gold';
-  if (lifetime >= CONFIG.TIER_THRESHOLDS.silver) return 'silver';
-  return 'bronze';
+  load: () => Promise<void>;
+  /** Forget the snapshot — on sign-out, guest mode or an account switch. */
+  reset: () => void;
+  /**
+   * Issue this year's birthday reward, then reload so the card shows it as
+   * received. The server decides eligibility; this only asks.
+   */
+  claimBirthday: () => Promise<{ ok: true } | { ok: false; reason: BirthdayRefusal }>;
+
+  // ── Derived reads. All tolerate `data === null`. ──
+  points: () => number;
+  visits: () => number;
+  /**
+   * Points still needed for the next reward, or **null** when the threshold is
+   * unknown. Null is a real answer and must stay null: the server withholds the
+   * threshold until an admin confirms it, because showing a goal derived from a
+   * guess is a promise the customer reads as a commitment.
+   */
+  pointsToNextReward: () => number | null;
+  rewardLabel: () => string;
+  /** Reward ladder with real products, each flagged affordable or not. */
+  rewards: () => LoyaltyReward[];
+  timeline: () => LoyaltyEvent[];
+  /** Tier as the server computed it, or null when tiers are switched off. */
+  tierLabel: () => string | null;
 }
 
 export const useLoyaltyStore = create<LoyaltyState>((set, get) => ({
-  points: 140,
-  lifetimePoints: 1620,
-  visits: 8,
-  cupCount: 4,
+  data: null,
+  status: 'idle',
+  unlinked: false,
 
-  earn: (points) =>
-    set((s) => ({
-      points: s.points + points,
-      lifetimePoints: s.lifetimePoints + points,
-      visits: s.visits + 1,
-    })),
-
-  addCups: (count) => {
-    if (count <= 0) return;
-    set((s) => ({ cupCount: s.cupCount + count }));
-  },
-
-  freeCoffeeReady: () => get().cupCount >= CONFIG.LOYALTY_CUP_GOAL,
-  cupsToFreeCoffee: () => Math.max(0, CONFIG.LOYALTY_CUP_GOAL - get().cupCount),
-
-  redeemFreeCoffee: () => {
-    if (get().cupCount < CONFIG.LOYALTY_CUP_GOAL) {
-      toast(`تبقّى ${CONFIG.LOYALTY_CUP_GOAL - get().cupCount} أكواب لقهوتك المجانية`);
-      return null;
+  load: async () => {
+    const mine = ++generation;
+    set({ status: 'loading' });
+    const res = await fetchMyLoyalty();
+    if (mine !== generation) return;
+    if (!res) {
+      set({ status: 'error' });
+      return;
     }
-    set((s) => ({ cupCount: s.cupCount - CONFIG.LOYALTY_CUP_GOAL }));
-    // In production the backend issues a Foodics Coupon and returns its code.
-    const code = `SR-FREE-${Math.floor(1000 + Math.random() * 9000)}`;
-    toast('قهوتك المجانية جاهزة 🎉');
-    return code;
+    // `linked: false` is not a failure — it is a customer the ledger does not
+    // know yet. Rendering that as a zero balance would tell someone who has
+    // been buying coffee for a year that they have never earned anything.
+    set({ data: res, status: 'ready', unlinked: res.linked === false });
   },
 
-  redeem: (reward) => {
-    if (get().points < reward.cost) {
-      toast('نقاطك غير كافية');
-      return false;
-    }
-    set((s) => ({ points: s.points - reward.cost }));
-    if (reward.kind === 'walletTopup' && reward.value) {
-      useWalletStore.getState().credit(reward.value, 'استبدال نقاط ولاء', 'reward');
-      toast('تم شحن محفظتك 🎉');
-    } else {
-      toast('تم الاستبدال 🎉');
-    }
-    return true;
+  reset: () => {
+    generation++;
+    set({ data: null, status: 'idle', unlinked: false });
   },
 
-  spend: (points) => {
-    if (points <= 0 || get().points < points) return false;
-    set((s) => ({ points: s.points - points }));
-    return true;
+  claimBirthday: async () => {
+    const res = await claimBirthdayReward();
+    // Reload on a refusal too: «already granted» means the snapshot on screen is
+    // stale, and the card should stop offering the button.
+    await get().load();
+    return res;
   },
 
-  tier: () => tierFor(get().lifetimePoints),
-  pointsToNextDrink: () => Math.max(0, CONFIG.FREE_DRINK_AT - get().points),
+  points: () => get().data?.balance ?? 0,
+  visits: () => get().data?.visits ?? 0,
+
+  pointsToNextReward: () => {
+    const d = get().data;
+    if (!d || !d.thresholdConfirmed || d.threshold == null) return null;
+    return Math.max(0, d.threshold - d.balance);
+  },
+
+  rewardLabel: () => get().data?.rewardLabel ?? 'مكافأة',
+  /**
+   * ⚠️ The fallbacks are shared frozen constants, not `?? []`.
+   *
+   * A fresh `[]` is a fresh identity, and Zustand compares selector results with
+   * `Object.is`. Written as `?? []`, every render while `data` is null produced
+   * a "new" value, scheduled another render, and looped — the same defect that
+   * took the app down from `giftAmounts`. One constant compares equal to itself.
+   */
+  rewards: () => get().data?.rewards ?? NO_REWARDS,
+  timeline: () => get().data?.timeline ?? NO_EVENTS,
+  tierLabel: () => get().data?.tier?.label ?? null,
 }));

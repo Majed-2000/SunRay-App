@@ -1,60 +1,111 @@
 import { create } from 'zustand';
-import { branches as mockBranches } from '@/data';
 import type { Branch } from '@/types';
-import { request, USE_BACKEND } from '@/services/api';
-import { mapBranch, type BranchDTO } from '@/services/dto';
+import { useStoreSettingsStore } from './storeSettingsStore';
+
+/**
+ * The branch.
+ *
+ * Singular, deliberately. Sun Ray runs **one** branch — الحلقة الغربية — and
+ * the store treats it as a constant rather than a collection: `store-gate.js`
+ * hardcodes `{ name: "الحلقة", lat, lng }` and the server keeps the same pair
+ * as its arrival-geofence fallback. There is no branches table to read.
+ *
+ * The app previously carried a mock array of several branches with a picker and
+ * a "nearest branch" mode, left over from an earlier season when a second
+ * branch existed. Offering a choice of one is noise; offering a choice that
+ * includes a closed seasonal branch is worse.
+ *
+ * What IS live is whether the branch is accepting orders: `store_hours` closes
+ * it automatically for Taif prayer times, Friday, and maintenance. It is
+ * mirrored from `storeSettingsStore`, which owns the one subscription to
+ * `store/config/open`. This store used to open a second listener on the same
+ * node that was never stopped: every snapshot arrived twice, it outlived
+ * logout, and Home (reading here) and Checkout (reading there) had two sources
+ * for one fact.
+ *
+ * The shape stays an array so the screens that map over `branches` keep working.
+ */
+
+/**
+ * Coordinates match `ARRIVE_BRANCH_FALLBACK` in `store_payments.js` and
+ * `BRANCH` in `store-gate.js`. The server can override the arrival centre from
+ * `store/config/arrival`; this copy is only for showing the branch on a map.
+ */
+const HALQA: Branch = {
+  id: 'halqa',
+  foodicsId: '',
+  nameAr: 'الحلقة الغربية',
+  nameEn: 'Al Halqa',
+  areaAr: 'الطائف',
+  addressAr: 'الحلقة الغربية، الطائف',
+  lat: 21.3425149,
+  lng: 40.4401308,
+  isOpen: true,
+  hoursAr: '',
+  openingFrom: '',
+  openingTo: '',
+  // Nothing measures this; the picker must not show it as a real distance.
+  distanceKm: 0,
+  supportsDelivery: false,
+  supportsDineIn: false,
+};
 
 type Status = 'idle' | 'loading' | 'ready' | 'error';
 
 interface BranchState {
   branches: Branch[];
   selectedBranchId: string;
-  auto: boolean; // true = "nearest branch" auto mode
+  auto: boolean;
   status: Status;
   error: string | null;
+  /** Arabic reason when closed — prayer, Friday, maintenance. */
+  closedReason: string | null;
   load: () => Promise<void>;
   selectBranch: (id: string) => void;
   selectNearest: () => void;
   current: () => Branch;
 }
 
-const nearest = (list: Branch[]) => [...list].sort((a, b) => a.distanceKm - b.distanceKm)[0];
+/** Mirror handle, kept out of state so it is never rendered. */
+let unsubscribe: (() => void) | null = null;
+
+type OpenSlice = { open: boolean; closedReason: string | null };
 
 export const useBranchStore = create<BranchState>((set, get) => ({
-  // Always start with mock branches so `current()` never returns undefined while
-  // a backend list is loading. In backend mode `load()` replaces them.
-  branches: mockBranches,
-  selectedBranchId: nearest(mockBranches).id,
-  auto: true,
-  status: USE_BACKEND ? 'loading' : 'ready',
+  branches: [HALQA],
+  selectedBranchId: HALQA.id,
+  // False: no location is ever read, so nothing was detected. Home labels an
+  // `auto` branch «فرعك الأقرب», a claim the app never checked.
+  auto: false,
+  status: 'ready',
   error: null,
+  closedReason: null,
 
   load: async () => {
-    if (!USE_BACKEND) {
-      set({ branches: mockBranches, status: 'ready', error: null });
-      return;
-    }
-    set({ status: 'loading', error: null });
-    try {
-      const dtos = await request<BranchDTO[]>('/api/branches');
-      const branches = dtos.map(mapBranch);
-      if (branches.length === 0) {
-        set({ status: 'ready' }); // keep mock fallback if backend returns none
-        return;
-      }
+    if (unsubscribe) return;
+    const apply = ({ open, closedReason: reason }: OpenSlice) => {
+      const s = get();
+      // Rebuild the branch objects only when the state actually changed.
+      // `.map()` unconditionally would hand every screen selecting `current()`
+      // a new object identity on each emission and re-render them for nothing.
+      if (s.branches[0]?.isOpen === open && s.closedReason === reason) return;
       set({
-        branches,
-        selectedBranchId: get().auto ? nearest(branches).id : (branches.find((b) => b.id === get().selectedBranchId)?.id ?? branches[0].id),
+        branches: s.branches.map((b) => ({ ...b, isOpen: open })),
+        closedReason: reason,
         status: 'ready',
-        error: null,
       });
-    } catch (e) {
-      set({ status: 'error', error: e instanceof Error ? e.message : 'تعذّر تحميل الفروع' });
-    }
+    };
+    // A local store subscription, not a network listener, so keeping it for
+    // the life of the process costs nothing.
+    apply(useStoreSettingsStore.getState());
+    unsubscribe = useStoreSettingsStore.subscribe(apply);
   },
 
+  // Kept so existing callers (the branch picker sheet) still compile. With one
+  // branch there is nothing to choose, and both resolve to the same place.
   selectBranch: (id) => set({ selectedBranchId: id, auto: false }),
-  selectNearest: () => set({ selectedBranchId: nearest(get().branches).id, auto: true }),
+  selectNearest: () => set({ selectedBranchId: HALQA.id, auto: false }),
+
   current: () => {
     const { branches, selectedBranchId } = get();
     return branches.find((b) => b.id === selectedBranchId) ?? branches[0];

@@ -3,7 +3,7 @@
     "name": "Sun Ray",
     "slug": "sun-ray-cafe",
     "scheme": "sunray",
-    "version": "1.0.0",
+    "version": "1.4.0",
     "orientation": "portrait",
     "icon": "./assets/sunray-logo-icon.png",
     "userInterfaceStyle": "light",
@@ -16,7 +16,10 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.sunray.cafe"
+      "bundleIdentifier": "com.sunray.cafe",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.sunray.cafe",
@@ -32,7 +35,14 @@
       "navigationBar": {
         "backgroundColor": "#efe6d6",
         "barStyle": "dark-content"
-      }
+      },
+      "versionCode": 15,
+      "blockedPermissions": [
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -53,12 +63,39 @@
         "expo-build-properties",
         {
           "android": {
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36,
+            "minSdkVersion": 24,
             "enableProguardInReleaseBuilds": true,
             "enableShrinkResourcesInReleaseBuilds": true
           }
         }
       ],
-      "./plugins/withAndroidAbiFilters"
+      "./plugins/withAndroidAbiFilters",
+      "./plugins/withAndroidDataBinding",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "نستخدم موقعك فقط عندما تطلبه بنفسك: عند ضغطك «وصلت» في خدمة السيارة، أو لإيجاد أقرب فرع، أو لتحديد موقع مناسبة الكاترينق.",
+          "isAndroidBackgroundLocationEnabled": false,
+          "isIosBackgroundLocationEnabled": false
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "نستخدم الكاميرا فقط لمسح باركود الكاشير ومتابعة طلبك. لا نصوّر ولا نحفظ أي صورة.",
+          "microphonePermission": "التطبيق لا يسجّل الصوت ولا يطلب الميكروفون؛ هذا النص مطلوب تقنيًا فقط.",
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-localization",
+        {
+          "supportsRTL": true,
+          "forcesRTL": true
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

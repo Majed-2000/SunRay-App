@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Image, View } from 'react-native';
+import { Animated, Easing, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { colors, gradients } from '@/theme';
-import { LOGO } from '@/assets';
 import { Txt } from '@/components';
 import { useAuthStore } from '@/store';
 
@@ -54,22 +53,34 @@ export function SplashScreen() {
           transform: [{ scale: glow.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1.1] }) }],
         }}
       />
+      {/*
+        The wordmark, alone, in Biome W01 Black.
+
+        This screen used to break two rules the identity states outright. It set
+        "Sun Ray" as live text in Plus Jakarta — and the guidelines forbid any
+        typeface but Biome for the wordmark. And it stacked the sunflower symbol
+        directly above that wordmark, which "never combine the wordmark with the
+        sunflower symbol in same design" rules out. Both on the first screen a
+        customer ever sees.
+
+        The symbol keeps its own jobs — app icon, favicon, tight spaces — where
+        it stands alone as the guidelines intend.
+
+        The taglines take the wordmark's colour exactly, per "Match wordmark
+        color exactly when paired with SUN RAY".
+      */}
       <Animated.View style={{ opacity, transform: [{ scale }], alignItems: 'center' }}>
-        <Image source={LOGO} style={{ width: 132, height: 132 }} resizeMode="contain" />
-        <Txt size={40} weight="black" color={colors.ink} latin style={{ marginTop: 16 }}>
-          Sun Ray
+        <Txt wordmark size={46} color={colors.ink} tracking={1}>
+          SUN RAY
         </Txt>
-        <Txt size={19} weight="extraBold" color={colors.terracotta} style={{ marginTop: -2 }}>
-          سن راي
-        </Txt>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 16 }}>
-          <View style={{ height: 1, width: 26, backgroundColor: '#cebfa0' }} />
-          <Txt size={14} weight="medium" color={colors.textMuted}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 18 }}>
+          <View style={{ height: 1, width: 26, backgroundColor: colors.border }} />
+          <Txt size={14} weight="medium" color={colors.ink}>
             دائمًا كن مشرقًا
           </Txt>
-          <View style={{ height: 1, width: 26, backgroundColor: '#cebfa0' }} />
+          <View style={{ height: 1, width: 26, backgroundColor: colors.border }} />
         </View>
-        <Txt size={11} weight="bold" latin tracking={3} color={colors.textFaint} style={{ marginTop: 6 }}>
+        <Txt size={11} weight="bold" latin tracking={3} color={colors.ink} style={{ marginTop: 8 }}>
           ALWAYS BE RADIANT
         </Txt>
       </Animated.View>

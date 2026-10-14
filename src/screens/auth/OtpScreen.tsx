@@ -7,7 +7,8 @@ import { CONFIG } from '@/constants/config';
 import { Button, Header, ScreenContainer, Txt } from '@/components';
 import { useAuthStore, toast } from '@/store';
 import { toArabicDigits, toWesternDigits } from '@/utils/numerals';
-import { formatMobileDisplay } from '@/utils/validators';
+import { formatMobileDisplay, ltr } from '@/utils/validators';
+import { cooldownRemaining } from '@/utils/otpCooldown';
 
 const LENGTH = 4;
 /** How long the success state lingers before continuing to home. */
@@ -16,10 +17,45 @@ const SUCCESS_DELAY = 1200;
 export function OtpScreen() {
   const phone = useAuthStore((s) => s.pendingPhone);
   const verifyOtp = useAuthStore((s) => s.verifyOtp);
+  const requestOtp = useAuthStore((s) => s.requestOtp);
   const [code, setCode] = useState('');
-  const [seconds, setSeconds] = useState(30);
+  // Server-driven: the store records when the next send is allowed.
+  const [seconds, setSeconds] = useState(() => cooldownRemaining(useAuthStore.getState().otpCooldownEndsAt));
   const [verified, setVerified] = useState(false);
   const inputRef = useRef<TextInput>(null);
+
+  /**
+   * Resend the code — for real, through the same endpoint that sent the first.
+   *
+   * This button used to reset the countdown and toast "تم إرسال الرمز مجددًا"
+   * without calling anything. Harmless while OTP was mocked and any four digits
+   * passed; a dead end now that Yamamah sends the real code. Someone whose SMS
+   * never arrived would tap it, be told it was resent, and wait for a message
+   * that was never requested.
+   *
+   * The countdown only restarts when the send is accepted. Restarting it on
+   * failure would lock them out of retrying for another 30 seconds over a
+   * request that never left the phone. The length comes from the server's
+   * `cooldownSec` (default 60), recorded by the store on every accepted send.
+   */
+  const [resending, setResending] = useState(false);
+  const resend = async () => {
+    if (resending || !phone) return;
+    setResending(true);
+    try {
+      const sent = await requestOtp(phone);
+      if (sent) {
+        setSeconds(cooldownRemaining(useAuthStore.getState().otpCooldownEndsAt));
+        setCode('');
+        toast('تم إرسال الرمز مجددًا');
+        inputRef.current?.focus();
+      } else {
+        toast(useAuthStore.getState().authError ?? 'تعذّر إرسال الرمز، حاول مرة أخرى');
+      }
+    } finally {
+      setResending(false);
+    }
+  };
 
   useEffect(() => {
     const t = setInterval(() => setSeconds((s) => (s > 0 ? s - 1 : 0)), 1000);
@@ -32,15 +68,35 @@ export function OtpScreen() {
     return () => clearTimeout(t);
   }, [verified]);
 
+  /**
+   * One verification at a time. The fourth digit auto-submits and «تأكيد»
+   * submits too; the code is single-use, so the second request came back
+   * "wrong", toasted «الرمز غير صحيح» and cleared the boxes while the first was
+   * signing the customer in — and on a slow network each extra tap burned one
+   * of the five attempts.
+   */
+  const verifyingRef = useRef(false);
+  const [verifying, setVerifying] = useState(false);
   const submit = async (value: string) => {
+    if (verifyingRef.current) return;
     if (value.length < LENGTH) {
       toast('أدخل رمز التحقق كاملًا');
       return;
     }
-    // Mock mode: any 4 digits works. Backend mode: POST /api/auth/verify.
-    const okSignIn = await verifyOtp(value);
+    verifyingRef.current = true;
+    setVerifying(true);
+    let okSignIn = false;
+    try {
+      okSignIn = await verifyOtp(value);
+    } finally {
+      verifyingRef.current = false;
+      setVerifying(false);
+    }
     if (!okSignIn) {
-      toast('رمز غير صحيح أو تعذّر الاتصال بالخادم');
+      // The store tells us WHY: wrong · expired · locked after five attempts.
+      // "Wrong code" on a lockout leaves the customer typing into a dead prompt.
+      toast(useAuthStore.getState().authError ?? 'تعذّر التحقق، حاول مرة أخرى');
+      setCode('');
       return;
     }
     // Show a brief "verified successfully" moment, then continue.
@@ -65,7 +121,7 @@ export function OtpScreen() {
         <Txt size={14} color={colors.textMuted} style={{ marginTop: 8, lineHeight: 22 }}>
           أرسلنا رمزًا مكوّنًا من ٤ أرقام إلى{'\n'}
           <Txt size={14} weight="extraBold" color={colors.ink}>
-            {CONFIG.COUNTRY_DIAL_CODE} {formatMobileDisplay(phone)}
+            {ltr(`${CONFIG.COUNTRY_DIAL_CODE} ${formatMobileDisplay(phone)}`)}
           </Txt>
         </Txt>
 
@@ -111,6 +167,10 @@ export function OtpScreen() {
             if (digits.length === LENGTH) submit(digits);
           }}
           keyboardType="number-pad"
+          // SMS one-time-code autofill: iOS suggests the code above the keyboard,
+          // Android reads it through the SMS retriever.
+          textContentType="oneTimeCode"
+          autoComplete="sms-otp"
           maxLength={LENGTH}
           style={{ position: 'absolute', opacity: 0, height: 1, width: 1 }}
         />
@@ -124,21 +184,15 @@ export function OtpScreen() {
             <Txt
               size={13}
               weight="extraBold"
-              color={colors.terracotta}
-              onPress={() => {
-                setSeconds(30);
-                toast('تم إرسال الرمز مجددًا');
-              }}
+              color={resending ? colors.textFaint : colors.goldDeep}
+              onPress={resending ? undefined : resend}
             >
-              إعادة إرسال الرمز
+              {resending ? 'جارٍ الإرسال…' : 'إعادة إرسال الرمز'}
             </Txt>
           )}
         </View>
 
-        <Button label="تأكيد" onPress={() => submit(code)} style={{ marginTop: spacing['2xl'] }} />
-        <Txt size={12} color={colors.textFaint} center style={{ marginTop: spacing.lg }}>
-          للتجربة: أدخل أي ٤ أرقام
-        </Txt>
+        <Button label="تأكيد" onPress={() => submit(code)} loading={verifying} disabled={verifying} style={{ marginTop: spacing['2xl'] }} />
       </View>
     </ScreenContainer>
   );

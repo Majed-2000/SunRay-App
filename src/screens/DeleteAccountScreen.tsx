@@ -88,9 +88,8 @@ export function DeleteAccountScreen() {
         ) : null}
 
         <Section title="سيُحذف نهائيًا">
-          <Line icon="person-outline" text="اسمك ورقم جوالك وبريدك وبياناتك الشخصية" />
+          <Line icon="person-outline" text="اسمك ورقم جوالك وبياناتك الشخصية" />
           <Line icon="star-outline" text="نقاط الولاء" />
-          <Line icon="notifications-outline" text="إشعاراتك" />
           <Line icon="log-out-outline" text="جلساتك على كل الأجهزة" />
         </Section>
 

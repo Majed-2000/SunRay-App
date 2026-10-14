@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Alert, Linking, View } from 'react-native';
+import { Alert, AppState, Linking, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { colors, spacing } from '@/theme';
@@ -33,6 +33,9 @@ import {
   useOrderStore,
 } from '@/store';
 
+/** How often an open, still-live order is re-read (same cadence idea as TrackScreen). */
+const POLL_MS = 12_000;
+
 const PAYMENT_LABEL: Record<string, string> = {
   wallet: 'محفظة سن راي',
   card: 'بطاقة مدى / فيزا',
@@ -58,8 +61,19 @@ export function OrderDetailScreen() {
   useEffect(() => {
     let active = true;
     fetchOrder(id).finally(() => active && setLoading(false));
+    // Keep it fresh while the screen is open: a paid order moving to preparing
+    // and ready used to need a manual back-and-reopen. Not from the background,
+    // and not once the order is in a final state.
+    const poll = () => {
+      if (AppState.currentState !== 'active') return;
+      const current = useOrderStore.getState().getById(id);
+      if (current && !isActiveOrder(current)) return;
+      void fetchOrder(id);
+    };
+    const timer = setInterval(poll, POLL_MS);
     return () => {
       active = false;
+      clearInterval(timer);
     };
   }, [id, fetchOrder, attempt]);
 

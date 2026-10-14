@@ -26,11 +26,10 @@ describe('resumeDecision', () => {
     expect(resumeDecision('paid')).toBe('done');
     expect(resumeDecision('review')).toBe('done');
   });
-  it('starts over for cancelled or refunded', () => {
-    expect(resumeDecision('cancelled')).toBe('dead');
-    expect(resumeDecision('refunded')).toBe('dead');
+  it('starts over for cancelled, refunded, expired or missing orders', () => {
+    for (const s of ['cancelled', 'refunded', 'expired', null, undefined]) expect(resumeDecision(s)).toBe('dead');
   });
   it('keeps collecting for anything unpaid', () => {
-    for (const s of ['pending', 'awaiting_payment', 'failed', null, undefined]) expect(resumeDecision(s)).toBe('pay');
+    for (const s of ['pending', 'awaiting_payment', 'failed']) expect(resumeDecision(s)).toBe('pay');
   });
 });

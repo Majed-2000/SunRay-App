@@ -28,8 +28,12 @@ export function isResumable(
 /**
  * What to do with a resumed order given the status the server holds for it.
  *  - `done`  it was paid (or is under review): do not charge again.
- *  - `dead`  cancelled or refunded: start over with a new order.
+ *  - `dead`  cancelled, refunded, expired or gone: start over with a new order.
  *  - `pay`   still collectable: show the card form.
+ *
+ * `expired` is written by the server once an unpaid order passes its expiry
+ * (see `orderStore.ts`); a missing order (`null`) has nothing left to pay for.
+ * Charging either would take money for an order the branch will never make.
  */
 export type ResumeDecision = 'done' | 'dead' | 'pay';
 
@@ -40,6 +44,9 @@ export function resumeDecision(status: string | null | undefined): ResumeDecisio
       return 'done';
     case 'cancelled':
     case 'refunded':
+    case 'expired':
+    case null:
+    case undefined:
       return 'dead';
     default:
       return 'pay';

@@ -10,7 +10,7 @@ import { auth as firebaseAuth } from '@/services/firebase';
 import type { User as FbUser } from '@firebase/auth';
 import { router } from 'expo-router';
 import { useLoyaltyStore } from './loyaltyStore';
-import { pickCooldownSec } from '@/utils/otpCooldown';
+import { canResumeOtp, pickCooldownSec } from '@/utils/otpCooldown';
 
 /** «عميل ١٢٣٤» — shown when the account has no name yet. Never saved as one. */
 function placeholderName(local: string): string {
@@ -135,8 +135,16 @@ export const useAuthStore = create<AuthState>()(
   setPendingPhone: (phone) => set({ pendingPhone: phone }),
 
   requestOtp: async (phone) => {
+    const prev = get().lastOtpSent;
     set({ pendingPhone: phone, authError: null });
     const res = await storeAuth.requestOtp(phone);
+    // Back from the OTP screen and straight into «دخول» again: the server's
+    // 60s cooldown refuses, but the code it already sent to this same phone is
+    // still valid. Take the customer back to the code step, not an error.
+    if (!res.ok && canResumeOtp(prev, phone, res.reason)) {
+      if (res.cooldownSec) set({ otpCooldownEndsAt: Date.now() + pickCooldownSec(res.cooldownSec) * 1000 });
+      return true;
+    }
     if (res.ok) {
       const now = Date.now();
       set({

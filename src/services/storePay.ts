@@ -27,7 +27,7 @@
  * catalog on the server. The app never computes a figure to charge; if the
  * order call failed there is nothing to pay and the sheet must not open.
  */
-import { onValue, ref, off, type DataSnapshot } from 'firebase/database';
+import { get, onValue, ref, off, type DataSnapshot } from 'firebase/database';
 import { db } from './firebase';
 
 /**
@@ -114,6 +114,24 @@ export function waitForSettlement(
     // and the customer waited the full timeout on a spinner.
     onValue(orderRef, handler, () => finish({ status: 'error' }));
   });
+}
+
+/**
+ * One read of the order's live status — what the server holds right now.
+ *
+ * Resolves `{ ok: false }` when the read fails, which is not the same as the
+ * order being unpaid: callers must not open the card form on it.
+ */
+export async function readOrderStatus(
+  orderId: string,
+): Promise<{ ok: true; status: string | null } | { ok: false }> {
+  try {
+    const snap = await get(ref(db(), `store/orders/${orderId}`));
+    const status = (snap.val() as { status?: string } | null)?.status;
+    return { ok: true, status: status ?? null };
+  } catch {
+    return { ok: false };
+  }
 }
 
 /**

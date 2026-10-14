@@ -21,7 +21,8 @@ import { useResponsive } from '@/hooks/useResponsive';
 import { checkoutDisplayTotal } from '@/utils/money';
 import { createStoreOrder, describeOrderError, type CreateOrderResult } from '@/services/storeOrders';
 import { auth } from '@/services/firebase';
-import { describeSettlement, waitForSettlement } from '@/services/storePay';
+import { describeSettlement, readOrderStatus, waitForSettlement } from '@/services/storePay';
+import { isResumable, resumeDecision } from '@/utils/inflightCheckout';
 import { MoyasarCardForm } from '@/components/MoyasarCardForm';
 import { PlateField, type PlateValue } from '@/components/PlateField';
 import { isCurbside } from '@/constants/orderTypes';
@@ -42,10 +43,9 @@ type Stage =
   /** Order exists on the server; collecting the card. */
   | { step: 'pay'; order: CreateOrderResult }
   /** Card charged here; waiting for the server's webhook to settle it. */
-  | { step: 'settling'; order: CreateOrderResult };
-
-/** How long an unpaid order is resumed rather than replaced. */
-const RESUME_MS = 10 * 60 * 1000;
+  | { step: 'settling'; order: CreateOrderResult }
+  /** A kept order is back on screen; its live status is read before any card form. */
+  | { step: 'resuming'; order: CreateOrderResult };
 
 export function CheckoutScreen() {
   const insets = useSafeAreaInsets();
@@ -83,11 +83,12 @@ export function CheckoutScreen() {
   );
   const [stage, setStage] = useState<Stage>(() => {
     const inflight = useOrderStore.getState().checkout;
-    if (!inflight || inflight.cartKey !== cartKey || Date.now() - inflight.at > RESUME_MS) return { step: 'review' };
+    if (!isResumable(inflight, cartKey, auth().currentUser?.uid ?? null)) return { step: 'review' };
     // Not if the feed already shows it past unpaid (expired, cancelled, paid).
     const known = useOrderStore.getState().getById(inflight.order.orderId);
     if (known && orderStage(known) !== 'pending') return { step: 'review' };
-    return { step: 'pay', order: inflight.order };
+    // The cached feed can be stale; the order's live status decides, below.
+    return { step: 'resuming', order: inflight.order };
   });
   // Bumped after a failed attempt: the Moyasar form keeps showing its finished
   // 3-D Secure page forever, so a fresh one has to be mounted to try again.
@@ -125,6 +126,46 @@ export function CheckoutScreen() {
     router.replace(href);
   };
   const [plate, setPlate] = useState<PlateValue>({ lettersAr: '', numbers: '' });
+
+  /**
+   * Before a resumed order gets its card form back, ask the server where it
+   * stands. The stored feed is a snapshot: an order paid in the last minute —
+   * by the webhook, or by the attempt that was open when the app was closed —
+   * still looked unpaid there, and the form invited a second charge.
+   */
+  useEffect(() => {
+    if (stage.step !== 'resuming') return;
+    const { order } = stage;
+    let cancelled = false;
+    void (async () => {
+      const res = await readOrderStatus(order.orderId);
+      if (cancelled || !mountedRef.current) return;
+      const orders = useOrderStore.getState();
+      if (!res.ok) {
+        // Not knowing is not "unpaid". Show the order, never the card form.
+        toast('تعذّر التحقق من حالة الدفع، تابع طلبك من «طلباتي»');
+        leaveTo(`/orders/${order.orderId}`);
+        return;
+      }
+      const decision = resumeDecision(res.status);
+      if (decision === 'pay') {
+        setStage({ step: 'pay', order });
+      } else if (decision === 'dead') {
+        orders.setCheckout(null);
+        setStage({ step: 'review' });
+      } else {
+        if (res.status === 'paid') orders.markPaid(order.orderId);
+        orders.setCheckout(null);
+        clear();
+        void orders.loadOrders();
+        leaveTo(res.status === 'paid' ? `/order-success?id=${order.orderId}` : `/orders/${order.orderId}`);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stage]);
 
   /**
    * The card form finished on this device — now find out what actually
@@ -323,9 +364,9 @@ export function CheckoutScreen() {
               <Txt size={15} weight="black" color={colors.ink} style={{ marginBottom: spacing.md }}>
                 بيانات البطاقة
               </Txt>
-              {stage.step === 'settling' ? (
+              {stage.step === 'settling' || stage.step === 'resuming' ? (
                 <Card radiusKey="lg" style={{ alignItems: 'center', paddingVertical: spacing['2xl'] }}>
-                  <Spinner label="نؤكّد دفعتك…" fill={false} />
+                  <Spinner label={stage.step === 'resuming' ? 'نتحقّق من حالة طلبك…' : 'نؤكّد دفعتك…'} fill={false} />
                   {/* The wait is the SERVER confirming, not this screen being
                       slow — say so, or a customer who sees a spinner after
                       their card was charged will try to pay again. */}
@@ -391,7 +432,7 @@ export function CheckoutScreen() {
               a customer who tapped it again while typing their card. */}
           {stage.step !== 'review' ? (
             <Txt size={12} color={colors.textMuted} center>
-              {stage.step === 'settling'
+              {stage.step === 'settling' || stage.step === 'resuming'
                 ? 'جارٍ التأكيد…'
                 : `طلبك رقم ${stage.order.code} · ${formatRiyal(stage.order.totalHalalas / 100)}`}
             </Txt>

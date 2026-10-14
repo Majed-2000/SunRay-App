@@ -43,7 +43,6 @@ export interface LoyaltyEvent {
   totalHalalas: number | null;
 }
 
-/** A rung on the reward ladder, with the real product behind it. */
 /** A product a reward can be taken as. */
 export interface LoyaltyRewardProduct {
   /** Key in `menu/products` — the order item's `serviceId`. */
@@ -53,6 +52,7 @@ export interface LoyaltyRewardProduct {
   fxTemps?: string[];
 }
 
+/** A rung on the reward ladder, with the real product behind it. */
 export interface LoyaltyReward {
   /** Sent as `rewardId` on the order item. */
   id?: string;

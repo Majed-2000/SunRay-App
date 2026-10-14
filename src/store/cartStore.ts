@@ -133,7 +133,12 @@ export const useCartStore = create<CartState>()(
       toast(room.message);
       return room;
     }
-    set((s) => ({ lines: [...s.lines, buildRewardLine(reward, product, temp)] }));
+    // The reward feed may carry no product name; the menu has it. Without this
+    // the cart showed the raw `menu/products` key.
+    const named = product.name?.trim()
+      ? product
+      : { ...product, name: useCatalogStore.getState().products.find((p) => p.id === product.key)?.nameAr };
+    set((s) => ({ lines: [...s.lines, buildRewardLine(reward, named, temp)] }));
     toast('أُضيفت المكافأة إلى السلة');
     return room;
   },

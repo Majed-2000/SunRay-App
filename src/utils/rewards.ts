@@ -90,7 +90,8 @@ export function buildRewardLine(
   return {
     id: `rw:${reward.id}:${product.key}:${temp ?? ''}:${nonce}`,
     productId: product.key,
-    nameAr: product.name?.trim() || product.key,
+    // Never the raw `menu/products` key — the reward's own label reads better.
+    nameAr: product.name?.trim() || label,
     nameEn: '',
     optionLabel: temp ? `${label} · ${rewardTempLabel(temp)}` : label,
     addOnIds: [],

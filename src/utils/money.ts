@@ -92,3 +92,15 @@ function round2(n: number): number {
 function clampNonNeg(n: number): number {
   return n < 0 ? 0 : n;
 }
+
+/**
+ * The total a checkout screen shows. Once the server has created the order its
+ * signed figure (halalas) is the only one that is charged, so it wins; before
+ * that, the cart's own estimate — coupon already taken off, same as the cart.
+ */
+export function checkoutDisplayTotal(estimate: OrderTotals, serverHalalas?: number | null): number {
+  if (typeof serverHalalas === 'number' && Number.isFinite(serverHalalas) && serverHalalas >= 0) {
+    return round2(serverHalalas / 100);
+  }
+  return estimate.total;
+}

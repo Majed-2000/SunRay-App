@@ -18,6 +18,7 @@ import { strings } from '@/i18n';
 import { formatRiyal, toArabicDigits } from '@/utils/numerals';
 import { useCartTotals } from '@/hooks/useCartTotals';
 import { useResponsive } from '@/hooks/useResponsive';
+import { checkoutDisplayTotal } from '@/utils/money';
 import { createStoreOrder, describeOrderError, type CreateOrderResult } from '@/services/storeOrders';
 import { auth } from '@/services/firebase';
 import { describeSettlement, waitForSettlement } from '@/services/storePay';
@@ -184,10 +185,13 @@ export function CheckoutScreen() {
     if (mountedRef.current) leaveTo(`/orders/${order.orderId}`);
   };
 
-  // An estimate before the coupon: the server applies the coupon and returns
-  // the figure that is charged, shown once the order exists. VAT is inclusive,
-  // so the total is simply the lines — see utils/money.ts.
-  const displayTotal = totals.subtotal + totals.deliveryFee;
+  // Same figure as the cart (coupon already off) until the order exists, then
+  // the server's signed total — the one that is charged. VAT is inclusive, so
+  // the total is simply the lines — see utils/money.ts.
+  const displayTotal = checkoutDisplayTotal(
+    totals,
+    stage.step === 'review' ? null : stage.order.totalHalalas,
+  );
 
   const place = async () => {
     // Ordering requires a signed-in customer (no anonymous orders). Send guests
@@ -347,9 +351,10 @@ export function CheckoutScreen() {
             {orderType === 'delivery' ? (
               <PriceRow label="رسوم التوصيل" amount={totals.deliveryFee === 0 ? 'مجانًا' : totals.deliveryFee} />
             ) : null}
+            {totals.discount > 0 ? <PriceRow label="الخصم" amount={totals.discount} positive /> : null}
             {coupon ? (
               <Txt size={12} color={colors.textMuted} style={{ marginVertical: 4 }}>
-                كوبون {coupon.code} · يُخصم من الإجمالي عند تأكيد الطلب
+                كوبون {coupon.code} · التقدير قبل تأكيد الخادم، والمبلغ النهائي يظهر بعد إنشاء الطلب
               </Txt>
             ) : null}
             <Divider dashed />

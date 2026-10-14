@@ -57,3 +57,18 @@ describe('pointsEarned', () => {
     expect(pointsEarned(39, -1)).toBe(0);
   });
 });
+
+import { checkoutDisplayTotal } from '../money';
+
+describe('checkoutDisplayTotal', () => {
+  const lines = [{ unitPrice: 20, qty: 2 }] as never;
+  it('matches the cart: coupon discount is taken off the estimate', () => {
+    const t = calcTotals({ lines, isDelivery: false, discount: 5 });
+    expect(checkoutDisplayTotal(t)).toBe(35);
+  });
+  it('prefers the server figure once the order exists', () => {
+    const t = calcTotals({ lines, isDelivery: false, discount: 5 });
+    expect(checkoutDisplayTotal(t, 3450)).toBe(34.5);
+    expect(checkoutDisplayTotal(t, 0)).toBe(0);
+  });
+});

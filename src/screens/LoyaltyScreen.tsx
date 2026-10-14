@@ -4,6 +4,8 @@ import { colors, radius, shadows, spacing } from '@/theme';
 import { router } from 'expo-router';
 import { Button, Card, EmptyState, ErrorState, Icon, ListRow, ScreenContainer, Spinner, Txt } from '@/components';
 import { toArabicDigits } from '@/utils/numerals';
+import { ksaDate } from '@/utils/ksaDate';
+import { eventSign } from '@/utils/loyaltySign';
 import { useAuthStore, useLoyaltyStore } from '@/store';
 import { BIRTHDAY_REFUSAL_AR, type LoyaltyEvent, type MyLoyalty } from '@/services/storeLoyalty';
 
@@ -382,10 +384,10 @@ function BirthdayCard({ data }: { data: MyLoyalty }) {
   );
 }
 
-/** One ledger movement. Sign comes from the event type, not from the number. */
+/** One ledger movement. The sign comes from the points value (see `eventSign`). */
 function EventRow({ event, last }: { event: LoyaltyEvent; last: boolean }) {
-  const credit = event.type === 'earn' || event.type === 'import' || event.type === 'adjust';
-  const when = event.at ? new Date(event.at) : null;
+  const sign = eventSign(event.type, event.points);
+  const credit = sign === '+';
   return (
     <View
       style={{
@@ -402,14 +404,14 @@ function EventRow({ event, last }: { event: LoyaltyEvent; last: boolean }) {
         <Txt size={13} weight="extraBold" color={colors.ink}>
           {event.channelAr ?? labelFor(event.type)}
         </Txt>
-        {when ? (
+        {event.at ? (
           <Txt size={11} color={colors.textFaint} style={{ marginTop: 2 }}>
-            {toArabicDigits(when.toLocaleDateString('ar-SA'))}
+            {ksaDate(event.at)}
           </Txt>
         ) : null}
       </View>
       <Txt size={14} weight="black" color={credit ? colors.success : colors.textMuted}>
-        {credit ? '+' : '−'}
+        {sign}
         {toArabicDigits(Math.abs(event.points))}
       </Txt>
     </View>

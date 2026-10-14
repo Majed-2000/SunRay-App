@@ -19,6 +19,7 @@ import {
 } from '@/components';
 import { strings } from '@/i18n';
 import { toArabicDigits, formatRiyal } from '@/utils/numerals';
+import { ksaDate } from '@/utils/ksaDate';
 import { isCurbside } from '@/constants/orderTypes';
 import {
   flowStages,
@@ -222,7 +223,7 @@ export function OrderDetailScreen() {
             </Txt>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 }}>
               <Txt size={13} color={colors.textMuted}>
-                {order.refund.at ? new Date(order.refund.at).toLocaleDateString('ar-SA') : 'قيد المعالجة'}
+                {order.refund.at ? ksaDate(order.refund.at) : 'قيد المعالجة'}
               </Txt>
               <Txt size={14} weight="extraBold" color={colors.success}>
                 {formatRiyal(order.refund.amount)}

@@ -99,7 +99,21 @@ export function TicketsScreen() {
 
 function TicketRow({ item }: { item: MyRequest }) {
   const [t, setT] = useState<TicketRecord | null | undefined>(undefined);
-  useEffect(() => subscribeTicket(item.key, setT, () => setT(undefined)), [item.key]);
+  // A failed read used to reset to `undefined` — the same state as «loading» —
+  // so the row said «جارٍ التحميل…» forever.
+  const [failed, setFailed] = useState(false);
+  useEffect(
+    () =>
+      subscribeTicket(
+        item.key,
+        (rec) => {
+          setFailed(false);
+          setT(rec);
+        },
+        () => setFailed(true),
+      ),
+    [item.key],
+  );
   if (t === null) return null; // deleted by staff; `subscribeTicket` forgets it
   const status = t?.status ?? 'new';
   return (
@@ -110,7 +124,11 @@ function TicketRow({ item }: { item: MyRequest }) {
             {t?.code ?? item.code}
           </Txt>
           <Txt size={12} color={colors.textMuted} numberOfLines={1} style={{ marginTop: 2 }}>
-            {t ? [t.title, t.createdAt ? formatDateAr(t.createdAt) : ''].filter(Boolean).join(' · ') : 'جارٍ التحميل…'}
+            {t
+              ? [t.title, t.createdAt ? formatDateAr(t.createdAt) : ''].filter(Boolean).join(' · ')
+              : failed
+                ? 'تعذّر تحميل التذكرة، اضغط لفتحها'
+                : 'جارٍ التحميل…'}
           </Txt>
         </View>
         {t ? <StatusPill label={TICKET_STATUS_AR[status] ?? status} tone={ticketTone(status)} /> : null}

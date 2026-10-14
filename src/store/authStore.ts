@@ -10,6 +10,7 @@ import { auth as firebaseAuth } from '@/services/firebase';
 import type { User as FbUser } from '@firebase/auth';
 import { router } from 'expo-router';
 import { useLoyaltyStore } from './loyaltyStore';
+import { usePagerStore } from './pagerStore';
 import { canResumeOtp, pickCooldownSec } from '@/utils/otpCooldown';
 
 /** «عميل ١٢٣٤» — shown when the account has no name yet. Never saved as one. */
@@ -291,8 +292,13 @@ export const useAuthStore = create<AuthState>()(
       isGuest: false,
       pendingPhone: '',
       authError: null,
+      otpCooldownEndsAt: 0,
+      lastOtpSent: null,
       verifiedPhone: null,
     });
+    // Followed pagers are this customer's orders; the next person to use the
+    // device must not open onto them.
+    usePagerStore.getState().reset();
     // The balance on Home and Account is this customer's; the next person to
     // sign in (or a guest) must not open onto it.
     useLoyaltyStore.getState().reset();

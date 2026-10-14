@@ -30,6 +30,8 @@ interface PagerState {
   sessionForToken: (t: string) => string | undefined;
   markAlerted: (pid: string, seq: number) => void;
   alertedSeq: (pid: string) => number;
+  /** Forget every followed order — the signed-in customer changed. */
+  reset: () => void;
 }
 
 const fresh = (list: ActivePager[]) => list.filter((x) => x && Date.now() - x.at < PAGER_TTL_MS);
@@ -65,6 +67,7 @@ export const usePagerStore = create<PagerState>()(
       markAlerted: (pid, seq) =>
         set((st) => ({ active: st.active.map((x) => (x.pid === pid ? { ...x, alertedSeq: seq } : x)) })),
       alertedSeq: (pid) => get().active.find((x) => x.pid === pid)?.alertedSeq ?? 0,
+      reset: () => set({ active: [] }),
     }),
     {
       name: 'sunray.pager',

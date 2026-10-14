@@ -46,7 +46,11 @@ export const MOYASAR_PUBLISHABLE_KEY = 'pk_live_u4HxZXcumJBYH5d8iSqQLTZtJEGZTcTA
 export type SettledStatus = 'paid' | 'failed' | 'cancelled' | 'refunded' | 'review';
 
 export interface SettlementResult {
-  status: SettledStatus | 'timeout';
+  /**
+   * `error` — the listener itself failed (permission, network). Like `timeout`
+   * it says nothing about the charge, which may well have gone through.
+   */
+  status: SettledStatus | 'timeout' | 'error';
   /** The order as last seen, for the success screen. */
   order?: Record<string, unknown> | null;
 }
@@ -106,7 +110,9 @@ export function waitForSettlement(
     };
 
     const timer = setTimeout(() => finish({ status: 'timeout' }), timeoutMs);
-    onValue(orderRef, handler);
+    // Without an error callback a refused or dropped listener just went quiet
+    // and the customer waited the full timeout on a spinner.
+    onValue(orderRef, handler, () => finish({ status: 'error' }));
   });
 }
 
@@ -144,6 +150,7 @@ export function describeSettlement(status: SettlementResult['status']): string {
     case 'review':
       return 'طلبك قيد المراجعة، سنتواصل معك';
     case 'timeout':
+    case 'error':
       // Deliberately not an error: the charge may have gone through.
       return 'نؤكّد دفعتك الآن — تابع حالة طلبك بعد قليل';
     default:

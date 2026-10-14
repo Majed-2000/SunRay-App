@@ -154,14 +154,15 @@ export function CheckoutScreen() {
     const result = await waitForSettlement(order.orderId);
     const orders = useOrderStore.getState();
 
-    if (result.status === 'paid' || result.status === 'timeout') {
-      // Only a confirmed settlement flips it; a timeout stays pending, since
-      // the charge may or may not have gone through.
+    if (result.status === 'paid' || result.status === 'timeout' || result.status === 'error') {
+      // Only a confirmed settlement flips it; a timeout (or a listener that
+      // failed) stays pending, since the charge may or may not have gone through.
+      // Showing the card form again here is what invited a second payment.
       if (result.status === 'paid') orders.markPaid(order.orderId);
       orders.setCheckout(null);
       clear();
       if (mountedRef.current) leaveTo(`/order-success?id=${order.orderId}`);
-      if (result.status === 'timeout') toast(describeSettlement('timeout'));
+      if (result.status !== 'paid') toast(describeSettlement(result.status));
       return;
     }
 
